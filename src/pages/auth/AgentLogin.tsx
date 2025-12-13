@@ -60,7 +60,7 @@ export const AgentLogin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-600 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-600 flex flex-col overflow-y-auto pb-8">
       {/* Hero Section with Image */}
       <div className="relative h-80 overflow-hidden">
         <img 

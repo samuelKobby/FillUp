@@ -83,9 +83,9 @@ export const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-600 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-600 flex flex-col overflow-y-auto">
       {/* Hero Section with Image */}
-      <div className="relative h-80 overflow-hidden">
+      <div className="relative h-80 overflow-hidden flex-shrink-0">
         <img 
           src={heroImg} 
           alt="FillUp Service" 
@@ -118,8 +118,8 @@ export const Login: React.FC = () => {
       </div>
 
       {/* Content with rounded top corners */}
-      <div className="flex-1 bg-white rounded-t-3xl -mt-6 relative z-10">
-        <div className="px-6 pt-8 pb-6">
+      <div className="flex-1 bg-white rounded-t-3xl -mt-6 relative z-10 pb-8">
+        <div className="px-6 pt-8">
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
