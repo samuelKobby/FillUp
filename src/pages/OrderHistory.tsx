@@ -60,7 +60,11 @@ export const OrderHistory: React.FC = () => {
     if (!user?.id) return
 
     const ordersSubscription = supabase
-      .channel(`customer-orders-history-${user.id}`)
+      .channel(`customer-orders-history-${user.id}`, {
+        config: {
+          broadcast: { self: true },
+        },
+      })
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
@@ -86,7 +90,7 @@ export const OrderHistory: React.FC = () => {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(ordersSubscription)
+      ordersSubscription.unsubscribe()
     }
   }, [user?.id])
 

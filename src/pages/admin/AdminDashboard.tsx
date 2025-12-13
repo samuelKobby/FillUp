@@ -228,7 +228,11 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     // Subscribe to all orders changes
     const ordersSubscription = supabase
-      .channel('admin-orders')
+      .channel('admin-orders', {
+        config: {
+          broadcast: { self: true },
+        },
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         console.log('Admin realtime - INSERT order:', payload)
         if (payload.new) {
@@ -268,7 +272,7 @@ export const AdminDashboard: React.FC = () => {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(ordersSubscription)
+      ordersSubscription.unsubscribe()
       if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
     }
   }, [])
