@@ -1,0 +1,374 @@
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { supabase, UserRole, getUserProfile } from '../lib/supabase'
+import { User } from '@supabase/supabase-js'
+import { Database } from '../lib/database.types'
+import loaderGif from '../assets/lodaer.gif'
+
+type UserProfile = Database['public']['Tables']['users']['Row']
+
+interface AuthContextType {
+  user: User | null
+  userProfile: UserProfile | null
+  userRole: UserRole | null
+  loading: boolean
+  signIn: (email: string, password: string) => Promise<{ user: User | null; userRole: UserRole | null }>
+  signUp: (email: string, password: string, userData: { name: string; phone: string; role: UserRole }) => Promise<void>
+  signOut: () => Promise<void>
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>
+  invalidateAllSessions: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const loadUserProfile = async (userId: string): Promise<UserProfile | null> => {
+    try {
+      console.log('🔍 Loading user profile for ID:', userId)
+      
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
+      )
+      
+      // Now try to get the specific user with timeout
+      const profile = await Promise.race([
+        getUserProfile(userId),
+        timeoutPromise
+      ]) as UserProfile
+      
+      console.log('✅ User profile loaded:', profile)
+      console.log('🔍 User role from profile:', profile?.role, '(type:', typeof profile?.role, ')')
+      setUserProfile(profile)
+      setUserRole(profile.role)
+      console.log('🔍 UserRole state set to:', profile.role)
+      return profile
+    } catch (error) {
+      console.error('❌ Error loading user profile:', error)
+      
+      // Let's also check if the user exists in auth.users
+      const { data: authUser, error: authError } = await supabase.auth.getUser()
+      console.log('🔐 Auth user:', authUser.user)
+      console.log('❌ Auth error:', authError)
+      
+      setUserProfile(null)
+      setUserRole(null)
+      return null
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true
+    
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('❌ Session error:', error)
+          if (mounted) setLoading(false)
+          return
+        }
+        
+        console.log('🚀 Initial session check:', {
+          user: session?.user?.email,
+          userId: session?.user?.id,
+          emailConfirmed: session?.user?.email_confirmed_at
+        })
+        
+        if (mounted) {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await loadUserProfile(session.user.id)
+          }
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error('❌ Auth initialization error:', error)
+        if (mounted) {
+          setUser(null)
+          setUserProfile(null)
+          setUserRole(null)
+          setLoading(false)
+        }
+      }
+    }
+    
+    initializeAuth()
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return
+        
+        console.log('🔄 Auth state changed:', {
+          event,
+          user: session?.user?.email,
+          userId: session?.user?.id
+        })
+        
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          await loadUserProfile(session.user.id)
+        } else {
+          setUserProfile(null)
+          setUserRole(null)
+        }
+        setLoading(false)
+      }
+    )
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      console.log('🔐 Attempting sign in for:', email)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      if (error) {
+        console.error('❌ Sign in error:', error)
+        throw error
+      }
+
+      console.log('✅ Sign in successful:', {
+        user: data.user?.email,
+        userId: data.user?.id,
+        emailConfirmed: data.user?.email_confirmed_at
+      })
+
+      // Check if email is confirmed
+      if (data.user && !data.user.email_confirmed_at) {
+        console.log('📧 Email not confirmed, signing out')
+        await supabase.auth.signOut()
+        throw new Error('Please verify your email address before signing in. Check your inbox for a verification link.')
+      }
+
+      console.log('📝 Loading profile for user ID:', data.user?.id)
+      
+      // Load user profile to get role - wait for it to complete
+      let profile = null
+      if (data.user) {
+        profile = await loadUserProfile(data.user.id)
+        // Wait a bit to ensure state is updated
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+
+      console.log('🎯 Sign in complete:', { 
+        user: data.user?.email, 
+        role: profile?.role,
+        profileData: profile
+      })
+      
+      // Check for redirect path from session storage
+      const redirectPath = sessionStorage.getItem('redirectPath')
+      if (redirectPath) {
+        // Clear it after retrieving
+        sessionStorage.removeItem('redirectPath')
+        // Navigate programmatically
+        window.location.href = redirectPath
+      }
+      
+      return { user: data.user, userRole: profile?.role || null }
+    } catch (error) {
+      console.error('💥 Sign in failed:', error)
+      throw error
+    }
+  }
+
+  const signUp = async (email: string, password: string, userData: { name: string; phone: string; role: UserRole }) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: userData.name,
+            phone: userData.phone,
+            role: userData.role,
+          }
+        }
+      })
+      
+      if (error) {
+        console.error('Sign up error:', error)
+        throw error
+      }
+
+      console.log('Sign up successful:', data.user?.email)
+      // Don't return data, just complete successfully
+    } catch (error) {
+      console.error('Sign up failed:', error)
+      throw error
+    }
+  }
+
+  const signOut = async () => {
+    console.log('🚪 Initiating comprehensive sign out process')
+    
+    try {
+      // First, invalidate all active sessions globally
+      const { error: globalSignOutError } = await supabase.auth.signOut({ scope: 'global' })
+      if (globalSignOutError) {
+        console.error('❌ Global sign out error:', globalSignOutError)
+      } else {
+        console.log('✅ Global session invalidation completed')
+      }
+      
+      // Also perform local sign out as backup
+      const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' })
+      if (localSignOutError) {
+        console.error('❌ Local sign out error:', localSignOutError)
+      } else {
+        console.log('✅ Local session invalidation completed')
+      }
+      
+      // Force refresh the auth session to ensure it's cleared
+      await supabase.auth.refreshSession()
+      
+    } catch (error) {
+      console.error('❌ Sign out error (non-blocking):', error)
+      // Continue with local cleanup even if server sign out fails
+    }
+    
+    // Always clear local state regardless of server response
+    console.log('🧹 Clearing local authentication state')
+    setUser(null)
+    setUserProfile(null)
+    setUserRole(null)
+    
+    // Clear all session/local storage aggressively
+    try {
+      // Clear all localStorage keys
+      const localStorageKeys = Object.keys(localStorage)
+      localStorageKeys.forEach(key => {
+        if (key.startsWith('supabase') || 
+            key.includes('auth') || 
+            key.includes('session') || 
+            key.includes('token') ||
+            key.includes('sb-') ||
+            key.includes('access_token') ||
+            key.includes('refresh_token')) {
+          localStorage.removeItem(key)
+          console.log('🗑️ Removed localStorage key:', key)
+        }
+      })
+      
+      // Clear all sessionStorage keys
+      const sessionStorageKeys = Object.keys(sessionStorage)
+      sessionStorageKeys.forEach(key => {
+        if (key.startsWith('supabase') || 
+            key.includes('auth') || 
+            key.includes('session') || 
+            key.includes('token') ||
+            key.includes('sb-') ||
+            key.includes('access_token') ||
+            key.includes('refresh_token')) {
+          sessionStorage.removeItem(key)
+          console.log('🗑️ Removed sessionStorage key:', key)
+        }
+      })
+      
+      // Also clear common application storage keys
+      sessionStorage.removeItem('lastPath')
+      sessionStorage.removeItem('redirectPath')
+      sessionStorage.removeItem('userRole')
+      sessionStorage.removeItem('userProfile')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userProfile')
+      
+      // Clear any cookies related to authentication
+      document.cookie.split(";").forEach(function(c) { 
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+      });
+      
+    } catch (storageError) {
+      console.warn('⚠️ Storage cleanup error (non-critical):', storageError)
+    }
+    
+    // Force a small delay to ensure all cleanup operations complete
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    console.log('✅ Comprehensive sign out process completed - session fully cancelled')
+  }
+
+  const invalidateAllSessions = async () => {
+    console.log('🔐 Invalidating all user sessions across devices')
+    
+    try {
+      // Force invalidate all sessions globally
+      const { error } = await supabase.auth.signOut({ scope: 'global' })
+      if (error) {
+        console.error('❌ Session invalidation error:', error)
+        throw error
+      }
+      
+      console.log('✅ All sessions successfully invalidated')
+    } catch (error) {
+      console.error('❌ Failed to invalidate sessions:', error)
+      throw error
+    }
+  }
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) throw new Error('No user logged in')
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', user.id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    setUserProfile(data)
+  }
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ backgroundColor: '#ef1b22' }}>
+        <div className="text-center">
+          <img 
+            src={loaderGif} 
+            alt="Loading..."
+            className="w-48 h-48 mx-auto object-contain"
+          />
+          <p className="mt-4 text-xl font-medium text-white">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const value = {
+    user,
+    userProfile,
+    userRole,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    updateProfile,
+    invalidateAllSessions,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}

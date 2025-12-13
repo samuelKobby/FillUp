@@ -1,0 +1,824 @@
+import React, { useState, useEffect } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { 
+  User01Icon,
+  Mail01Icon,
+  SmartPhone01Icon,
+  Location01Icon,
+  CarParking01Icon,
+  CreditCardIcon,
+  Notification02Icon,
+  ShieldSecurityIcon,
+  HelpCircleIcon,
+  Logout01Icon,
+  Edit02Icon,
+  ArrowRight01Icon,
+  Settings01Icon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  AlertCircleIcon,
+  LanguageSkillIcon,
+  MessageTranslateIcon,
+  ShareLocationIcon,
+  CustomerSupportIcon
+} from 'hugeicons-react'
+import { Card, CardContent, CardHeader } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
+import { BottomNavigation } from '../components/customer/BottomNavigation'
+
+interface UserProfile {
+  name: string
+  email: string
+  phone?: string
+  address?: string
+  created_at: string
+}
+
+interface UserStats {
+  totalOrders: number
+  completedOrders: number
+  totalSpent: number
+  vehicles: number
+}
+
+interface NotificationSettings {
+  orderUpdates: boolean
+  promotions: boolean
+  newsletter: boolean
+  sms: boolean
+}
+
+export const Profile: React.FC = () => {
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [stats, setStats] = useState<UserStats>({
+    totalOrders: 0,
+    completedOrders: 0,
+    totalSpent: 0,
+    vehicles: 0
+  })
+  const [editMode, setEditMode] = useState(false)
+  const [editedProfile, setEditedProfile] = useState({
+    name: '',
+    phone: '',
+    address: ''
+  })
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false)
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [showPrivacySettings, setShowPrivacySettings] = useState(false)
+  const [showHelpModal, setShowHelpModal] = useState(false)
+  const [showAppSettings, setShowAppSettings] = useState(false)
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    orderUpdates: true,
+    promotions: true,
+    newsletter: false,
+    sms: true
+  })
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [darkMode, setDarkMode] = useState(false)
+  const [language, setLanguage] = useState('en')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    loadProfileData()
+  }, [user])
+
+  const loadProfileData = async () => {
+    if (!user) return
+
+    try {
+      // Load user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError) throw profileError
+
+      setProfile(profileData)
+      setEditedProfile({
+        name: profileData.name || '',
+        phone: profileData.phone || '',
+        address: profileData.address || ''
+      })
+
+      // Load user stats
+      const [ordersData, vehiclesData] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('id, status, total_amount')
+          .eq('customer_id', user.id),
+        supabase
+          .from('vehicles')
+          .select('id')
+          .eq('user_id', user.id)
+      ])
+
+      const orders = ordersData.data || []
+      const completedOrders = orders.filter(o => o.status === 'completed')
+      const totalSpent = completedOrders.reduce((sum, o) => sum + o.total_amount, 0)
+
+      setStats({
+        totalOrders: orders.length,
+        completedOrders: completedOrders.length,
+        totalSpent: totalSpent,
+        vehicles: vehiclesData.data?.length || 0
+      })
+    } catch (error) {
+      console.error('Error loading profile data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateProfile = async () => {
+    if (!user) return
+
+    try {
+      setLoading(true)
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name: editedProfile.name,
+          phone: editedProfile.phone,
+          address: editedProfile.address
+        })
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      await loadProfileData()
+      setEditMode(false)
+      setSuccessMessage('Profile updated successfully!')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      setErrorMessage('Failed to update profile')
+      setTimeout(() => setErrorMessage(''), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePasswordChange = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setErrorMessage('Passwords do not match')
+      setTimeout(() => setErrorMessage(''), 3000)
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setErrorMessage('Password must be at least 6 characters')
+      setTimeout(() => setErrorMessage(''), 3000)
+      return
+    }
+
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      })
+
+      if (error) throw error
+
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setShowPasswordChange(false)
+      setSuccessMessage('Password changed successfully!')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error) {
+      console.error('Error changing password:', error)
+      setErrorMessage('Failed to change password')
+      setTimeout(() => setErrorMessage(''), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleNotificationUpdate = async () => {
+    if (!user) return
+    
+    try {
+      setLoading(true)
+      const { error } = await supabase
+        .from('users')
+        .update({
+          notification_settings: notificationSettings
+        })
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      setShowNotificationSettings(false)
+      setSuccessMessage('Notification settings updated!')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error) {
+      console.error('Error updating notifications:', error)
+      setErrorMessage('Failed to update settings')
+      setTimeout(() => setErrorMessage(''), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/login')
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-GH', {
+      style: 'currency',
+      currency: 'GHS'
+    }).format(amount)
+  }
+
+  if (loading && !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white pb-24">
+      {/* Header */}
+      <div className="bg-white px-6 pt-12 pb-6">
+        <div className="flex items-center justify-between mb-6">
+          <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
+            <ArrowRight01Icon size={24} className="transform rotate-180" />
+          </Link>
+          <h1 className="text-xl font-semibold">Profile</h1>
+          <div className="w-10"></div>
+        </div>
+
+        {/* Profile Card */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center space-x-4">
+          <div className="relative">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
+              <span className="text-2xl font-bold text-white">
+                {profile?.name?.charAt(0) || 'U'}
+              </span>
+            </div>
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-lg">{profile?.name || 'User'}</h2>
+            <p className="text-sm text-gray-500">{user?.email}</p>
+          </div>
+          <button
+            onClick={() => setEditMode(true)}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <Edit02Icon size={20} color="#6B7280" />
+          </button>
+        </div>
+      </div>
+
+      <div className="px-6 py-6 space-y-6">
+        {/* General Section */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">General</h3>
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <CreditCardIcon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Payment Method</span>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Location01Icon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Location</span>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <LanguageSkillIcon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Language</span>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+
+            <button 
+              onClick={() => setShowNotificationSettings(true)}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Notification02Icon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Notification</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.orderUpdates}
+                    onChange={(e) => setNotificationSettings({ 
+                      ...notificationSettings, 
+                      orderUpdates: e.target.checked 
+                    })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                </label>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Support Section */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Support</h3>
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+            <button 
+              onClick={() => setShowHelpModal(true)}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <MessageTranslateIcon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Feedback</span>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <ShareLocationIcon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Share</span>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+
+            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <CustomerSupportIcon size={20} color="#6B7280" />
+                </div>
+                <span className="font-medium">Help</span>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+          </div>
+        </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleSignOut}
+          className="w-full bg-white rounded-2xl p-4 shadow-sm hover:bg-gray-50 transition-colors flex items-center space-x-3"
+        >
+          <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
+            <Logout01Icon size={20} color="#EF4444" />
+          </div>
+          <span className="font-medium text-red-600">Log Out</span>
+        </button>
+      </div>
+
+        {/* Notification Settings Modal */}
+        {showNotificationSettings && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Bell className="h-5 w-5 mr-2" />
+                    Notification Settings
+                  </h3>
+                  <button
+                    onClick={() => setShowNotificationSettings(false)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Order Updates</p>
+                    <p className="text-sm text-gray-600">Get notified about your orders</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.orderUpdates}
+                      onChange={(e) => setNotificationSettings({ 
+                        ...notificationSettings, 
+                        orderUpdates: e.target.checked 
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Promotions</p>
+                    <p className="text-sm text-gray-600">Receive special offers and deals</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.promotions}
+                      onChange={(e) => setNotificationSettings({ 
+                        ...notificationSettings, 
+                        promotions: e.target.checked 
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Newsletter</p>
+                    <p className="text-sm text-gray-600">Weekly updates and tips</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.newsletter}
+                      onChange={(e) => setNotificationSettings({ 
+                        ...notificationSettings, 
+                        newsletter: e.target.checked 
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">SMS Notifications</p>
+                    <p className="text-sm text-gray-600">Get text message updates</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.sms}
+                      onChange={(e) => setNotificationSettings({ 
+                        ...notificationSettings, 
+                        sms: e.target.checked 
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                <div className="flex space-x-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowNotificationSettings(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleNotificationUpdate}
+                    disabled={loading}
+                    className="flex-1"
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Privacy & Security Modal */}
+        {showPrivacySettings && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Shield className="h-5 w-5 mr-2" />
+                    Privacy & Security
+                  </h3>
+                  <button
+                    onClick={() => setShowPrivacySettings(false)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <button
+                  onClick={() => {
+                    setShowPrivacySettings(false)
+                    setShowPasswordChange(true)
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Lock className="h-5 w-5 text-gray-600" />
+                    <div className="text-left">
+                      <p className="font-medium">Change Password</p>
+                      <p className="text-sm text-gray-600">Update your password</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-gray-400" />
+                </button>
+
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-start space-x-2">
+                    <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-900">Your data is secure</p>
+                      <p className="text-sm text-blue-800 mt-1">
+                        We use industry-standard encryption to protect your personal information.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="font-medium">Account Status</p>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-sm">Email Verified</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-sm">Phone Verified</span>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPrivacySettings(false)}
+                  className="w-full"
+                >
+                  Close
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordChange && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Lock className="h-5 w-5 mr-2" />
+                    Change Password
+                  </h3>
+                  <button
+                    onClick={() => setShowPasswordChange(false)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.currentPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter current password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Confirm new password"
+                  />
+                </div>
+
+                <div className="bg-yellow-50 p-3 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Password requirements:</strong> At least 6 characters
+                  </p>
+                </div>
+
+                <div className="flex space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPasswordChange(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handlePasswordChange}
+                    disabled={loading || !passwordData.newPassword || !passwordData.confirmPassword}
+                    className="flex-1"
+                  >
+                    {loading ? 'Updating...' : 'Update Password'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Help & Support Modal */}
+        {showHelpModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <HelpCircle className="h-5 w-5 mr-2" />
+                    Help & Support
+                  </h3>
+                  <button
+                    onClick={() => setShowHelpModal(false)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <button className="w-full flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                    <MessageSquare className="h-5 w-5 text-blue-600" />
+                    <div className="text-left flex-1">
+                      <p className="font-medium">Live Chat</p>
+                      <p className="text-sm text-gray-600">Chat with our support team</p>
+                    </div>
+                  </button>
+
+                  <a
+                    href="mailto:support@fillup.com"
+                    className="w-full flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <Mail className="h-5 w-5 text-green-600" />
+                    <div className="text-left flex-1">
+                      <p className="font-medium">Email Support</p>
+                      <p className="text-sm text-gray-600">support@fillup.com</p>
+                    </div>
+                  </a>
+
+                  <a
+                    href="tel:+233123456789"
+                    className="w-full flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <Phone className="h-5 w-5 text-orange-600" />
+                    <div className="text-left flex-1">
+                      <p className="font-medium">Call Us</p>
+                      <p className="text-sm text-gray-600">+233 123 456 789</p>
+                    </div>
+                  </a>
+
+                  <button className="w-full flex items-center space-x-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                    <HelpCircle className="h-5 w-5 text-purple-600" />
+                    <div className="text-left flex-1">
+                      <p className="font-medium">FAQs</p>
+                      <p className="text-sm text-gray-600">Find answers to common questions</p>
+                    </div>
+                  </button>
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShowHelpModal(false)}
+                  className="w-full"
+                >
+                  Close
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* App Settings Modal */}
+        {showAppSettings && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <Settings className="h-5 w-5 mr-2" />
+                    App Settings
+                  </h3>
+                  <button
+                    onClick={() => setShowAppSettings(false)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {darkMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                    <div>
+                      <p className="font-medium">Dark Mode</p>
+                      <p className="text-sm text-gray-600">Switch to dark theme</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={darkMode}
+                      onChange={(e) => setDarkMode(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                <div>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <Globe className="h-5 w-5" />
+                    <p className="font-medium">Language</p>
+                  </div>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="en">English</option>
+                    <option value="tw">Twi</option>
+                    <option value="ga">Ga</option>
+                    <option value="fr">French</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-gray-600 mb-2">Cache & Data</p>
+                  <Button variant="outline" className="w-full">
+                    Clear Cache
+                  </Button>
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAppSettings(false)}
+                  className="w-full"
+                >
+                  Close
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation />
+    </div>
+  )
+}
