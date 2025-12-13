@@ -38,7 +38,7 @@ import loaderGif from './assets/lodaer.gif'
 
 // Layout component that conditionally renders header/footer
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userRole } = useAuth()
+  const { user, userRole } = useAuth()
   const location = useLocation()
 
   // Check if current path is an auth page (login, register, etc.)
