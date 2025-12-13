@@ -18,35 +18,38 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
     previousPathRef.current = location.pathname
   }, [location.pathname])
 
-  // WhatsApp-style easing: custom cubic-bezier for smooth, natural feel
-  const whatsappEasing = [0.4, 0.0, 0.2, 1] // Material Design standard easing
-  const duration = 0.22 // 220ms - WhatsApp's actual duration
-
   const pageVariants = {
     initial: (isGoingBack: boolean) => ({
-      x: isGoingBack ? '-30%' : '100%', // Incoming from left (back) or right (forward)
+      x: isGoingBack ? '-30%' : '100%',
+      opacity: 0,
       zIndex: 10,
     }),
     animate: {
       x: 0,
+      opacity: 1,
       zIndex: 10,
       transition: {
         x: {
-          type: 'tween',
-          ease: whatsappEasing,
-          duration: duration,
+          type: 'spring',
+          stiffness: 400,
+          damping: 40,
+          mass: 0.8
         },
+        opacity: { duration: 0.2, ease: 'easeOut' }
       },
     },
     exit: (isGoingBack: boolean) => ({
-      x: isGoingBack ? '100%' : '-30%', // Exit to right (back) or left (forward) with parallax
+      x: isGoingBack ? '100%' : '-30%',
+      opacity: 0,
       zIndex: 5,
       transition: {
         x: {
-          type: 'tween',
-          ease: whatsappEasing,
-          duration: duration,
+          type: 'spring',
+          stiffness: 400,
+          damping: 40,
+          mass: 0.8
         },
+        opacity: { duration: 0.2, ease: 'easeIn' }
       },
     }),
   }

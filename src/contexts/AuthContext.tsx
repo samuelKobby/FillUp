@@ -38,16 +38,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 Loading user profile for ID:', userId)
       
-      // Add timeout to prevent infinite loading
-      const timeoutPromise = new Promise<null>((_, reject) => 
-        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
-      )
+      // Try to get the profile directly without timeout first
+      const profile = await getUserProfile(userId)
       
-      // Now try to get the specific user with timeout
-      const profile = await Promise.race([
-        getUserProfile(userId),
-        timeoutPromise
-      ]) as UserProfile
+      if (!profile) {
+        console.warn('⚠️ No profile found for user:', userId)
+        setUserProfile(null)
+        setUserRole(null)
+        return null
+      }
       
       console.log('✅ User profile loaded:', profile)
       console.log('🔍 User role from profile:', profile?.role, '(type:', typeof profile?.role, ')')
