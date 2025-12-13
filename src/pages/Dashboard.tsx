@@ -155,7 +155,7 @@ export const Dashboard: React.FC = () => {
    <>
       <div style={{ 
         minHeight: '100vh',
-        paddingBottom: '80px',
+        paddingBottom: '112px',
         backgroundColor: 'white',
         overflow: 'auto',
         position: 'relative'

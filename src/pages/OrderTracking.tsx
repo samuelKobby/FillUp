@@ -169,7 +169,7 @@ export const OrderTracking: React.FC = () => {
       </div>
 
       {/* Details Card */}
-      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 px-5 pt-6 pb-24">
+      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 px-5 pt-6 pb-28">
         {/* Driver Info */}
         {order.agent && (
           <div className="flex items-center justify-between mb-6">

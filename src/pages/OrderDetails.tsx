@@ -171,7 +171,7 @@ export const OrderDetails: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-28">
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center">

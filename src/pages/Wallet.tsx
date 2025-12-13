@@ -230,7 +230,7 @@ export const Wallet: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-28">
       {/* Header */}
       <div className="bg-white px-6 pt-12 pb-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">

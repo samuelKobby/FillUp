@@ -450,7 +450,7 @@ export const RequestFuel: React.FC = () => {
             willChange: 'transform, opacity'
           }}
         >
-      <div className="min-h-screen bg-white pb-16 sm:pb-20">
+      <div className="min-h-screen bg-white pb-28">
         
           {/* Hero Image Section */}
         <div className="relative h-64 bg-gradient-to-r from-purple-600 to-blue-600 overflow-hidden">
