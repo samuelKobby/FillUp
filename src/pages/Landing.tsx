@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
+import heroVideo from '../assets/hero.mp4'
+import wheelImg from '../assets/wheel.png'
+import carImg from '../assets/car.png'
 import { 
   Fuel, 
   Wrench, 
@@ -51,12 +54,12 @@ export const Landing: React.FC = () => {
           background: 'radial-gradient(ellipse at top right, #f6850a, #9f3b07)'
         }}>
         <video autoPlay loop muted playsInline className="absolute w-full h-full object-fill">
-          <source src="/src/assets/hero.mp4" type="video/mp4" />
+          <source src={heroVideo} type="video/mp4" />
         </video>
         {/* Wheel Image - Left Center */}
         <div className="absolute left-20 top-10 w-48 h-48 transition-all duration-300 hover:scale-110 hover:rotate-12 cursor-pointer z-20">
           <img 
-            src="/src/assets/wheel.png" 
+            src={wheelImg} 
             alt="Wheel"
             className="w-full h-full object-contain"
             style={{
@@ -68,7 +71,7 @@ export const Landing: React.FC = () => {
         {/* Car Image - Right Bottom */}
         <div className="absolute right-20 bottom-10 w-68 h-68 transition-all duration-300 hover:scale-110 hover:-rotate-6 cursor-pointer z-20">
           <img 
-            src="/src/assets/car.png" 
+            src={carImg} 
             alt="Car"
             className="w-full h-full object-contain"
             style={{

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocation } from 'react-router-dom'
+import heroImg from '../assets/hero.png'
+import carImg from '../assets/car.png'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -342,7 +344,7 @@ export const Dashboard: React.FC = () => {
       {/* Hero Section with Image */}
       <div className="relative h-[50vh] overflow-hidden">
         <img 
-          src="/src/assets/hero.png" 
+          src={heroImg} 
           alt="FillUp Service" 
           className="w-full h-full object-cover"
         />
@@ -416,7 +418,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="w-24 h-16 sm:w-32 sm:h-20 ml-3 sm:ml-4">
               <img 
-                src="/src/assets/car.png" 
+                src={carImg} 
                 alt="Delivery car" 
                 className="w-full h-full object-contain"
               />

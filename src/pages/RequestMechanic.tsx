@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import heroImg from '../assets/hero.png'
 import { 
   Wrench, 
   MapPin, 
@@ -370,7 +371,7 @@ export const RequestMechanic: React.FC = () => {
           {/* Hero Image Section */}
                 <div className="relative h-64 bg-gradient-to-r from-purple-600 to-blue-600 overflow-hidden">
                   <img 
-                    src="/src/assets/hero.png" 
+                    src={heroImg} 
                     alt="Fuel Station" 
                     className="w-full h-full object-cover"
                   />

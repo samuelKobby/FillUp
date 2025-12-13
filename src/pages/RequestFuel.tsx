@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
+import heroImg from '../assets/hero.png';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { 
@@ -454,7 +455,7 @@ export const RequestFuel: React.FC = () => {
           {/* Hero Image Section */}
         <div className="relative h-64 bg-gradient-to-r from-purple-600 to-blue-600 overflow-hidden">
           <img 
-            src="/src/assets/hero.png" 
+            src={heroImg} 
             alt="Fuel Station" 
             className="w-full h-full object-cover"
           />
@@ -637,12 +638,12 @@ export const RequestFuel: React.FC = () => {
               className="w-full h-full object-cover"
               onError={(e) => {
                 console.error('Image failed to load:', selectedStation.image_url)
-                e.currentTarget.src = '/src/assets/hero.png'
+                e.currentTarget.src = heroImg
               }}
             />
           ) : (
             <img 
-              src="/src/assets/hero.png" 
+              src={heroImg} 
               alt="Order Details" 
               className="w-full h-full object-cover"
             />

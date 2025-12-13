@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, Fuel } from 'lucide-react'
+import heroImg from '../../assets/hero.png'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -86,7 +87,7 @@ export const Login: React.FC = () => {
       {/* Hero Section with Image */}
       <div className="relative h-80 overflow-hidden">
         <img 
-          src="/src/assets/hero.png" 
+          src={heroImg} 
           alt="FillUp Service" 
           className="w-full h-full object-cover"
         />
