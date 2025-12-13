@@ -85,18 +85,18 @@ export const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-600 flex flex-col">
       {/* Hero Section with Image */}
-      <div className="relative h-80 overflow-hidden">
+      <div className="relative h-80 overflow-hidden z-0">
         <img 
           src={heroImg} 
           alt="FillUp Service" 
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+        <div className="absolute inset-0 bg-black bg-opacity-30 z-0"></div>
         
         {/* Back Button */}
         <button 
           onClick={() => navigate('/')} 
-          className="absolute top-12 left-4 p-2 bg-white bg-opacity-20 rounded-full backdrop-blur-sm"
+          className="absolute top-12 left-4 p-2 bg-white bg-opacity-20 rounded-full backdrop-blur-sm z-10"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -104,7 +104,7 @@ export const Login: React.FC = () => {
         </button>
         
         {/* Logo and Title */}
-        <div className="absolute bottom-8 left-4 right-4">
+        <div className="absolute bottom-8 left-4 right-4 z-10">
           <div className="flex items-center mb-4">
             <div className="bg-white bg-opacity-20 p-3 rounded-xl backdrop-blur-sm">
               <Fuel className="h-8 w-8 text-white" />
@@ -118,7 +118,7 @@ export const Login: React.FC = () => {
       </div>
 
       {/* Content with rounded top corners */}
-      <div className="flex-1 bg-white rounded-t-3xl -mt-6 relative z-10">
+      <div className="flex-1 bg-white rounded-t-3xl -mt-6 relative z-20">
         <div className="px-6 pt-8 pb-6">
           {/* Error Message */}
           {error && (

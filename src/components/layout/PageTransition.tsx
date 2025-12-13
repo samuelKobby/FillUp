@@ -25,20 +25,10 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
   const pageVariants = {
     initial: (isGoingBack: boolean) => ({
       x: isGoingBack ? '-30%' : '100%', // Incoming from left (back) or right (forward)
-      position: 'fixed' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
       zIndex: 10,
     }),
     animate: {
       x: 0,
-      position: 'fixed' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
       zIndex: 10,
       transition: {
         x: {
@@ -50,11 +40,6 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
     },
     exit: (isGoingBack: boolean) => ({
       x: isGoingBack ? '100%' : '-30%', // Exit to right (back) or left (forward) with parallax
-      position: 'fixed' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
       zIndex: 5,
       transition: {
         x: {
@@ -77,8 +62,7 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
         exit="exit"
         style={{
           width: '100%',
-          minHeight: '100vh',
-          overflow: 'visible',
+          overflow: 'auto',
           backgroundColor: '#ffffff',
           willChange: 'transform',
         }}

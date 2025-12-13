@@ -50,10 +50,10 @@ export const Landing: React.FC = () => {
     <div className="min-h-screen ">
       
       {/* Hero Section */}
-      <section id="home" className="relative w-full h-screen text-white overflow-hidden" style={{
+      <section id="home" className="relative w-full h-screen text-white overflow-hidden z-10" style={{
           background: 'radial-gradient(ellipse at top right, #f6850a, #9f3b07)'
         }}>
-        <video autoPlay loop muted playsInline className="absolute w-full h-full object-fill">
+        <video autoPlay loop muted playsInline className="absolute w-full h-full object-fill z-0">
           <source src={heroVideo} type="video/mp4" />
         </video>
         {/* Wheel Image - Left Center */}
@@ -177,7 +177,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* Services */}
-      <section id="services" className="py-20">
+      <section id="services" className="py-20 relative z-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center space-x-2 bg-orange-100 px-4 py-2 rounded-full mb-4">
@@ -247,7 +247,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* User Types */}
-      <section className="py-20 bg-gradient-to-r from-gray-50 to-blue-50">
+      <section className="py-20 bg-gradient-to-r from-gray-50 to-blue-50 relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center space-x-2 bg-purple-100 px-4 py-2 rounded-full mb-4">
@@ -341,7 +341,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="py-20">
+      <section className="py-20 relative z-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center space-x-2 bg-yellow-100 px-4 py-2 rounded-full mb-4">
@@ -428,7 +428,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-20 bg-gray-50">
+      <section id="contact" className="py-20 bg-gray-50 relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -503,8 +503,8 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 via-blue-700 to-purple-700 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-black opacity-20"></div>
+      <section className="py-20 bg-gradient-to-r from-blue-600 via-blue-700 to-purple-700 text-white relative overflow-hidden z-20">
+        <div className="absolute inset-0 bg-black opacity-20 z-0"></div>
         <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse"></div>
         <div className="absolute bottom-10 right-10 w-32 h-32 bg-white/10 rounded-full animate-pulse delay-1000"></div>
         
