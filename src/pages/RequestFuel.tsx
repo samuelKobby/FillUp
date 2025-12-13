@@ -463,14 +463,12 @@ export const RequestFuel: React.FC = () => {
           
           {/* Back Button */}
           
-          <Link to="/dashboard">
           <button 
-            onClick={() => setStep(1)}
+            onClick={() => navigate('/dashboard')}
             className="absolute top-6 left-4 p-2 bg-white bg-opacity-20 rounded-full backdrop-blur-sm"
           >
             <ArrowLeft01Icon size={20} color="white" />
           </button>
-          </Link>
           {/* Search */}
           <div className="relative mb-6">
             <Search01Icon size={20} color="#9CA3AF" className="absolute left-3 top-1/2 transform -translate-y-1/2" />

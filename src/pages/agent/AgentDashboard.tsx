@@ -196,11 +196,7 @@ export const AgentDashboard: React.FC = () => {
     
     // Set up real-time subscription for orders
     const ordersSubscription = supabase
-      .channel('agent-orders', {
-        config: {
-          broadcast: { self: true },
-        },
-      })
+      .channel('agent-orders')
       .on('postgres_changes', {
         event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
         schema: 'public',
@@ -229,7 +225,7 @@ export const AgentDashboard: React.FC = () => {
       
     // Clean up subscription
     return () => {
-      ordersSubscription.unsubscribe()
+      supabase.removeChannel(ordersSubscription)
     }
   }, [agentData?.id, isSigningOut]) // Add isSigningOut dependency
   

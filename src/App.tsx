@@ -47,11 +47,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                      location.pathname.includes('/verify-email') ||
                      location.pathname.includes('/application-submitted')
 
-  // Don't show footer on auth pages, admin pages, or any dashboard pages
+  // Don't show footer on auth pages, admin pages, or customer dashboard pages
   const showFooter = !isAuthPage && 
                     !location.pathname.includes('/admin') &&
-                    !location.pathname.includes('/dashboard') &&
-                    userRole !== 'customer'
+                    (userRole !== 'customer' || !user)
 
   return (
     <>
