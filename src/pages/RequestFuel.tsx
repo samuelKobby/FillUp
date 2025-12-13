@@ -397,7 +397,9 @@ export const RequestFuel: React.FC = () => {
             
             {/* Track Order Button */}
             <button 
-              onClick={() => navigate('/history', { replace: true })}
+              onClick={() => {
+                window.location.href = '/history'
+              }}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
             >
               Track Order
@@ -464,7 +466,9 @@ export const RequestFuel: React.FC = () => {
           {/* Back Button */}
           
           <button 
-            onClick={() => navigate('/dashboard', { state: { activeTab: 'home' }, replace: true })}
+            onClick={() => {
+              window.location.href = '/dashboard'
+            }}
             className="absolute top-6 left-4 p-2 bg-white bg-opacity-20 rounded-full backdrop-blur-sm"
           >
             <ArrowLeft01Icon size={20} color="white" />
