@@ -98,29 +98,6 @@ const RoleBasedRedirect: React.FC = () => {
 }
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    // Simulate loading delay
-    const timer = setTimeout(() => setIsLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ backgroundColor: '#ef1b22' }}>
-        <div className="text-center">
-          <img 
-            src={loaderGif} 
-            alt="Loading..."
-            className="w-48 h-48 mx-auto object-contain"
-          />
-          <p className="mt-4 text-xl font-medium text-white">Loading your experience...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <Router>
       <AuthProvider>

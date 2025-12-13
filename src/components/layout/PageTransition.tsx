@@ -67,7 +67,7 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
   }
 
   return (
-    <AnimatePresence initial={false} mode="popLayout">
+    <AnimatePresence initial={false} mode="wait">
       <motion.div
         key={location.pathname}
         custom={isGoingBack}
@@ -77,8 +77,8 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
         exit="exit"
         style={{
           width: '100%',
-          height: '100vh',
-          overflow: 'auto',
+          minHeight: '100vh',
+          overflow: 'visible',
           backgroundColor: '#ffffff',
           willChange: 'transform',
         }}
