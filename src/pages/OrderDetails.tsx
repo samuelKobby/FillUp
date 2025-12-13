@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Button } from '../components/ui/button';
+import { Button } from '../components/ui/Button';
 import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Clock as ClockIcon, Loader2 } from 'lucide-react';
 
 interface OrderDetails {
