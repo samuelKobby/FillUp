@@ -38,7 +38,7 @@ import loaderGif from './assets/lodaer.gif'
 
 // Layout component that conditionally renders header/footer
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, userRole } = useAuth()
+  const { userRole } = useAuth()
   const location = useLocation()
 
   // Check if current path is an auth page (login, register, etc.)
@@ -47,10 +47,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                      location.pathname.includes('/verify-email') ||
                      location.pathname.includes('/application-submitted')
 
-  // Don't show footer on auth pages, admin pages, or customer dashboard pages
+  // Don't show footer on auth pages, admin pages, or any dashboard pages
   const showFooter = !isAuthPage && 
                     !location.pathname.includes('/admin') &&
-                    (userRole !== 'customer' || !user)
+                    !location.pathname.includes('/dashboard') &&
+                    userRole !== 'customer'
 
   return (
     <>
