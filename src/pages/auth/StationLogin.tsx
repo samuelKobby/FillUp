@@ -60,7 +60,7 @@ export const StationLogin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-600 to-blue-600 flex flex-col overflow-y-auto pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-600 flex flex-col">
       {/* Hero Section with Image */}
             <div className="relative h-80 overflow-hidden">
               <img 

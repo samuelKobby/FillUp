@@ -107,19 +107,19 @@ export const OrderTracking: React.FC = () => {
 
   const getStatusText = () => {
     switch (order.status) {
-      case 'pending': return 'Waiting for station confirmation...'
-      case 'accepted': return 'Station confirmed, finding driver...'
-      case 'in_progress': return 'Driver on the way'
-      case 'completed': return 'Delivered'
+      case 'pending': return 'Finding driver...'
+      case 'accepted': return 'Driver assigned'
+      case 'in_progress': return 'On the way'
+      case 'completed': return 'Package has been received'
       default: return 'Processing'
     }
   }
 
   const getStatusLocation = () => {
     switch (order.status) {
-      case 'pending': return 'Awaiting station approval'
-      case 'accepted': return 'Looking for available driver'
-      case 'in_progress': return 'En route to your location'
+      case 'pending': return 'Waiting for driver'
+      case 'accepted': return 'Driver en route to station'
+      case 'in_progress': return 'My Location'
       case 'completed': return order.delivery_address
       default: return 'Processing'
     }
@@ -169,7 +169,7 @@ export const OrderTracking: React.FC = () => {
       </div>
 
       {/* Details Card */}
-      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 px-5 pt-6 pb-28">
+      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 px-5 pt-6 pb-24">
         {/* Driver Info */}
         {order.agent && (
           <div className="flex items-center justify-between mb-6">

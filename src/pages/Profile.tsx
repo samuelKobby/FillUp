@@ -205,7 +205,7 @@ export const Profile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white pb-28">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white pb-24">
       {/* Header */}
       <div className="bg-transparent px-6 pt-12 pb-6">
         <div className="flex items-center justify-between mb-6">

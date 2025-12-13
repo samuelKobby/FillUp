@@ -450,7 +450,7 @@ export const RequestFuel: React.FC = () => {
             willChange: 'transform, opacity'
           }}
         >
-      <div className="min-h-screen bg-white pb-28">
+      <div className="min-h-screen bg-white pb-16 sm:pb-20">
         
           {/* Hero Image Section */}
         <div className="relative h-64 bg-gradient-to-r from-purple-600 to-blue-600 overflow-hidden">
@@ -463,12 +463,14 @@ export const RequestFuel: React.FC = () => {
           
           {/* Back Button */}
           
+          <Link to="/dashboard">
           <button 
-            onClick={() => navigate('/dashboard')}
+            onClick={() => setStep(1)}
             className="absolute top-6 left-4 p-2 bg-white bg-opacity-20 rounded-full backdrop-blur-sm"
           >
             <ArrowLeft01Icon size={20} color="white" />
           </button>
+          </Link>
           {/* Search */}
           <div className="relative mb-6">
             <Search01Icon size={20} color="#9CA3AF" className="absolute left-3 top-1/2 transform -translate-y-1/2" />

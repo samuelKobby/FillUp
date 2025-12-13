@@ -57,7 +57,7 @@ export const Landing: React.FC = () => {
           <source src={heroVideo} type="video/mp4" />
         </video>
         {/* Wheel Image - Left Center */}
-        <div className="absolute left-4 md:left-20 top-10 w-24 h-24 md:w-48 md:h-48 transition-all duration-300 hover:scale-110 hover:rotate-12 cursor-pointer z-20">
+        <div className="absolute left-20 top-10 w-48 h-48 transition-all duration-300 hover:scale-110 hover:rotate-12 cursor-pointer z-20">
           <img 
             src={wheelImg} 
             alt="Wheel"
@@ -69,7 +69,7 @@ export const Landing: React.FC = () => {
         </div>
         
         {/* Car Image - Right Bottom */}
-        <div className="absolute right-4 md:right-20 bottom-10 w-32 h-32 md:w-68 md:h-68 transition-all duration-300 hover:scale-110 hover:-rotate-6 cursor-pointer z-20">
+        <div className="absolute right-20 bottom-10 w-68 h-68 transition-all duration-300 hover:scale-110 hover:-rotate-6 cursor-pointer z-20">
           <img 
             src={carImg} 
             alt="Car"
@@ -88,11 +88,11 @@ export const Landing: React.FC = () => {
           <div className="flex justify-between items-center h-full min-h-[70vh] relative">
             {/* Left side text */}
             <div className="text-left z-10">
-              <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-bold text-white leading-tight">
+              <h1 className="text-6xl lg:text-8xl font-bold text-white leading-tight">
                 Fuel delivery<br />
                 makes
               </h1>
-              <div className="mt-4 rotate-90 origin-left hidden md:block">
+              <div className="mt-4 rotate-90 origin-left">
                 <span className="text-sm font-medium text-white/80 tracking-widest uppercase">
                   Scroll Down
                 </span>
@@ -101,11 +101,11 @@ export const Landing: React.FC = () => {
             
             {/* Right side text */}
             <div className="text-right z-10">
-              <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-bold text-white leading-tight">
+              <h1 className="text-6xl lg:text-8xl font-bold text-white leading-tight">
                 Everything<br />
                 better.
               </h1>
-              <div className="mt-4 -rotate-90 origin-right hidden md:block">
+              <div className="mt-4 -rotate-90 origin-right">
                 <span className="text-sm font-medium text-white/80 tracking-widest uppercase">
                   Scroll Down
                 </span>
