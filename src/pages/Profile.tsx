@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { useNavigate, Link } from 'react-router-dom'
+import { toast } from 'react-toastify'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { 
   UserIcon,
   Mail01Icon,
@@ -58,6 +60,7 @@ export const Profile: React.FC = () => {
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   useEffect(() => {
     loadProfileData()
@@ -184,23 +187,29 @@ export const Profile: React.FC = () => {
   }
 
   const handleSignOut = async () => {
-    const confirmed = window.confirm('Are you sure you want to log out?')
-    if (!confirmed) return
-
     try {
+      toast.loading('Signing out...')
       // Sign out first
       await signOut()
       // Clear any stored data
       sessionStorage.clear()
       localStorage.clear()
+      toast.dismiss()
+      toast.success('Successfully logged out!')
       // Force redirect to landing page
-      window.location.href = '/'
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 500)
     } catch (error) {
       console.error('Error signing out:', error)
+      toast.dismiss()
+      toast.error('Error signing out, but redirecting...')
       // Force redirect even if signOut fails
       sessionStorage.clear()
       localStorage.clear()
-      window.location.href = '/'
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 500)
     }
   }
 
@@ -402,7 +411,7 @@ export const Profile: React.FC = () => {
 
         {/* Logout Button */}
         <button
-          onClick={handleSignOut}
+          onClick={() => setShowLogoutConfirm(true)}
           className="w-full bg-white rounded-2xl p-4 shadow-sm hover:bg-gray-50 transition-colors flex items-center space-x-3"
         >
           <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
@@ -411,6 +420,18 @@ export const Profile: React.FC = () => {
           <span className="font-medium text-red-600">Log Out</span>
         </button>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleSignOut}
+        title="Log Out"
+        message="Are you sure you want to log out? You'll need to sign in again to access your account."
+        confirmText="Log Out"
+        cancelText="Cancel"
+        confirmColor="red"
+      />
 
       {/* Edit Profile Screen */}
       {editMode && ReactDOM.createPortal(

@@ -36,15 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      // Add timeout to prevent hanging (increased to 10 seconds)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
-      )
-      
-      const profile = await Promise.race([
-        getUserProfile(userId),
-        timeoutPromise
-      ]) as UserProfile | null
+      const profile = await getUserProfile(userId)
       
       if (!profile) {
         console.warn('⚠️ No profile found for user:', userId)
@@ -58,8 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return profile
     } catch (error) {
       console.error('❌ Error loading user profile:', error)
-      setUserProfile(null)
-      setUserRole(null)
+      // Don't set profile to null on error - keep existing profile if available
+      // This prevents the app from breaking when there are temporary network issues
       return null
     }
   }
