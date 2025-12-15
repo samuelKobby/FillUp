@@ -28,19 +28,14 @@ export const AgentLogin: React.FC = () => {
     setError('')
 
     try {
-      console.log('Agent login attempt for:', email)
       const result = await signIn(email, password)
-      
-      console.log('Login result:', result)
       
       // Check if user has agent role
       if (result.userRole !== 'agent') {
-        console.log('User role is not agent:', result.userRole)
         setError(`Access denied. This account has role: ${result.userRole || 'unknown'}. Agent access required.`)
         return
       }
 
-      console.log('Agent login successful, redirecting to dashboard')
       navigate('/agent/dashboard', { replace: true })
       
     } catch (err: any) {

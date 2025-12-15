@@ -314,7 +314,7 @@ export const RequestMechanic: React.FC = () => {
             
             {/* Track Order Button */}
             <button 
-              onClick={() => navigate('/history')}
+              onClick={() => navigate('/dashboard', { state: { activeTab: 'orders' } })}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
             >
               Track Service Request

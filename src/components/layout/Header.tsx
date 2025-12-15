@@ -21,25 +21,23 @@ export const Header: React.FC = () => {
 
   return (
     <header className="bg-transparent sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-0">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link to={user ? "/dashboard" : "/"} className="flex items-center space-x-2">
             <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-2 rounded-lg">
-              <Fuel className="h-6 w-6 text-white" />
+              <Fuel className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">FillUp</span>
+            <span className="text-xl sm:text-2xl font-bold text-white">FillUp</span>
           </Link>
 
           <div className="flex items-center">
-            {!user && (
-              <Link 
-                to="/login" 
-                className="text-white font-semibold text-base hover:text-orange-200 transition-all duration-300 ease-in-out relative group"
-              >
-                Sign In
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white group-hover:w-full transition-all duration-300"></span>
-              </Link>
-            )}
+            <Link 
+              to="/login" 
+              className="text-white font-semibold text-sm sm:text-base hover:text-orange-200 transition-all duration-300 ease-in-out relative group px-2 sm:px-0"
+            >
+              Sign In
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white group-hover:w-full transition-all duration-300"></span>
+            </Link>
           </div>
         </div>
       </div>

@@ -79,7 +79,6 @@ export const OrderDetails: React.FC = () => {
         table: 'orders',
         filter: `id=eq.${id}`
       }, (payload) => {
-        console.log('Order updated in real-time:', payload)
         setOrder(prev => prev ? { ...prev, ...payload.new } as OrderDetails : null)
       })
       .subscribe()

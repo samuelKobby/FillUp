@@ -25,18 +25,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }, [user, loading, location.pathname])
 
-  console.log('ProtectedRoute check:', { 
-    userEmail: user?.email, 
-    userRole, 
-    requiredRole, 
-    loading,
-    userRoleType: typeof userRole,
-    requiredRoleType: typeof requiredRole,
-    strictEquality: userRole === requiredRole,
-    comparison: `"${userRole}" === "${requiredRole}"`
-  })
-
-  if (loading) {
+  // Show loading if auth is still initializing OR if user exists but role hasn't loaded yet
+  if (loading || (user && requiredRole && !userRole)) {
     return (
       <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ backgroundColor: '#ef1b22' }}>
         <div className="text-center">
@@ -52,18 +42,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!user) {
-    console.log('No user, redirecting to:', redirectTo)
     // Store the attempted path to redirect back after login
     sessionStorage.setItem('redirectPath', location.pathname)
     return <Navigate to={redirectTo} state={{ from: location }} replace />
   }
 
   if (requiredRole && userRole !== requiredRole) {
-    console.log('🚨 Role mismatch detected!')
-    console.log('User role:', userRole, '(type:', typeof userRole, ')')
-    console.log('Required role:', requiredRole, '(type:', typeof requiredRole, ')')
-    console.log('Are they equal?', userRole === requiredRole)
-    console.log('Redirecting to unauthorized')
     return <Navigate to="/unauthorized" replace />
   }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
+import { useAuth } from '../contexts/AuthContext'
 import heroVideo from '../assets/hero.mp4'
 import wheelImg from '../assets/wheel.png'
 import carImg from '../assets/car.png'
@@ -27,7 +28,16 @@ import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 
 export const Landing: React.FC = () => {
+  const { user, userRole } = useAuth()
   const [showScrollTop, setShowScrollTop] = useState(false)
+
+  // Redirect logged-in users to their respective dashboards
+  if (user && userRole) {
+    if (userRole === 'admin') return <Navigate to="/admin/dashboard" replace />
+    if (userRole === 'agent') return <Navigate to="/agent/dashboard" replace />
+    if (userRole === 'station') return <Navigate to="/station/dashboard" replace />
+    if (userRole === 'customer') return <Navigate to="/dashboard" replace />
+  }
 
   useEffect(() => {
     const handleScroll = () => {
@@ -116,7 +126,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-20 bg-gray-50">
+      <section id="how-it-works" className="py-20 bg-gray-50 relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center space-x-2 bg-blue-100 px-4 py-2 rounded-full mb-4">

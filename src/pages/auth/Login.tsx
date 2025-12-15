@@ -24,7 +24,6 @@ export const Login: React.FC = () => {
                           (location.state as any)?.from?.pathname || 
                           getDefaultRedirectPath(userRole)
       
-      console.log('User already logged in, redirecting to:', redirectPath)
       navigate(redirectPath, { replace: true })
     }
   }, [user, userRole, navigate, location])
@@ -44,17 +43,13 @@ export const Login: React.FC = () => {
     setError('')
 
     try {
-      console.log('Customer login attempt for:', email)
       const result = await signIn(email, password)
-      
-      console.log('Login result:', result)
       
       // Get the redirect path from session storage or state
       const redirectPath = sessionStorage.getItem('redirectPath') || 
                           (location.state as any)?.from?.pathname || 
                           getDefaultRedirectPath(result.userRole)
       
-      console.log('Redirecting to:', redirectPath)
       navigate(redirectPath, { replace: true })
       
     } catch (err: any) {

@@ -16,15 +16,11 @@ export type TicketStatus = Database['public']['Enums']['ticket_status']
 export type TicketPriority = Database['public']['Enums']['ticket_priority']
 
 export const getUserRole = async (userId: string): Promise<UserRole | null> => {
-  console.log('🔍 Getting user role for ID:', userId)
-  
   const { data, error } = await supabase
     .from('users')
     .select('role')
     .eq('id', userId)
     .single()
-  
-  console.log('📊 User role query result:', { data, error })
   
   if (error) {
     console.error('❌ Error getting user role:', error)
@@ -35,15 +31,11 @@ export const getUserRole = async (userId: string): Promise<UserRole | null> => {
 }
 
 export const getUserProfile = async (userId: string) => {
-  console.log('🔍 Getting user profile for ID:', userId)
-  
   const { data, error } = await supabase
     .from('users')
     .select('*')
     .eq('id', userId)
     .single()
-  
-  console.log('📊 User profile query result:', { data, error })
   
   if (error) {
     console.error('❌ Error getting user profile:', error)
@@ -128,18 +120,11 @@ export const getStationProfile = async (userId: string) => {
 // Debug function to check database state
 export const debugUserData = async () => {
   try {
-    console.log('🔍 Debug: Checking all users in database...')
-    
     const { data: allUsers, error: usersError } = await supabase
       .from('users')
       .select('*')
     
-    console.log('📊 All users:', allUsers)
-    console.log('❌ Users error:', usersError)
-    
     const { data: authUser, error: authError } = await supabase.auth.getUser()
-    console.log('🔐 Current auth user:', authUser.user)
-    console.log('❌ Auth error:', authError)
     
     return { allUsers, authUser: authUser.user }
   } catch (error) {

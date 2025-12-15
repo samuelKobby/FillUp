@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Footer } from './components/layout/Footer'
 import { PageTransition } from './components/layout/PageTransition'
@@ -35,6 +35,58 @@ import { StationDashboard } from './pages/station/StationDashboard'
 import { DebugPage } from './pages/DebugPage'
 import { useState, useEffect } from 'react'
 import loaderGif from './assets/lodaer.gif'
+
+// Component to handle browser refresh
+const RedirectOnRefresh: React.FC = () => {
+  const { user, userRole, loading } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [hasRedirected, setHasRedirected] = useState(false)
+
+  useEffect(() => {
+    // Only run this once when component mounts
+    if (hasRedirected) return
+    
+    // Check if this is a page refresh (not a navigation)
+    const isRefresh = performance.navigation.type === 1 || 
+                      (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)?.type === 'reload'
+    
+    if (isRefresh && user && userRole && !loading) {
+      // Clear any stored paths
+      sessionStorage.removeItem('lastPath')
+      sessionStorage.removeItem('redirectPath')
+      
+      // Mark that we've done the redirect
+      setHasRedirected(true)
+      
+      // Redirect to default dashboard based on role
+      switch (userRole) {
+        case 'admin':
+          if (location.pathname !== '/admin/dashboard') {
+            navigate('/admin/dashboard', { replace: true })
+          }
+          break
+        case 'agent':
+          if (location.pathname !== '/agent/dashboard') {
+            navigate('/agent/dashboard', { replace: true })
+          }
+          break
+        case 'station':
+          if (location.pathname !== '/station/dashboard') {
+            navigate('/station/dashboard', { replace: true })
+          }
+          break
+        case 'customer':
+          if (location.pathname !== '/dashboard') {
+            navigate('/dashboard', { replace: true })
+          }
+          break
+      }
+    }
+  }, [user, userRole, loading, hasRedirected, navigate, location.pathname])
+
+  return null
+}
 
 // Layout component that conditionally renders header/footer
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -100,6 +152,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <RedirectOnRefresh />
         <Layout>
           <PageTransition>
             <Routes>

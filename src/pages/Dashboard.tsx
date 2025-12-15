@@ -62,7 +62,6 @@ export const Dashboard: React.FC = () => {
         table: 'orders',
         filter: `customer_id=eq.${user.id}`
       }, (payload) => {
-        console.log('Customer order change detected:', payload)
         // You can add state updates here if needed for dashboard
       })
       .subscribe()
@@ -83,8 +82,6 @@ export const Dashboard: React.FC = () => {
     try {
       setLoading(true)
       
-      console.log('Fetching nearby services...')
-      
       // Fetch stations
       const { data: stationsData, error: stationsError } = await supabase
         .from('stations')
@@ -99,7 +96,6 @@ export const Dashboard: React.FC = () => {
       if (stationsError) {
         console.error('Error fetching stations:', stationsError)
       } else {
-        console.log('Stations fetched:', stationsData)
         setStations(stationsData || [])
       }
 
@@ -118,11 +114,8 @@ export const Dashboard: React.FC = () => {
       if (mechanicsError) {
         console.error('Error fetching mechanics:', mechanicsError)
       } else {
-        console.log('Mechanics fetched:', mechanicsData)
         setMechanics(mechanicsData || [])
       }
-      
-      console.log('Fetch complete')
     } catch (error) {
       console.error('Error fetching nearby services:', error)
       toast.error('Failed to load nearby services')
@@ -482,10 +475,9 @@ export const Dashboard: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {/* Fuel Stations */}
                 {stations.slice(0, 2).map((station) => {
-                  console.log('Rendering station:', { id: station.id, name: station.name, image_url: station.image_url })
                   return (
                   <Link key={station.id} to="/request-fuel">
-                    <div className="relative rounded-2xl overflow-hidden h-48 shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
+                    <div className="relative rounded-2xl overflow-hidden h-64 shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
                       {station.image_url ? (
                         <img 
                           src={station.image_url} 
@@ -528,7 +520,7 @@ export const Dashboard: React.FC = () => {
                   ];
                   return (
                     <Link key={mechanic.id} to="/request-mechanic">
-                      <div className="relative rounded-2xl overflow-hidden h-48 shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
+                      <div className="relative rounded-2xl overflow-hidden h-64 shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
                         <div className={`absolute inset-0 bg-gradient-to-br ${colors[index % colors.length]}`}></div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                         <div className="absolute bottom-0 left-0 right-0 p-3">

@@ -166,8 +166,6 @@ export const AgentDashboard: React.FC = () => {
   useEffect(() => {
     // Only redirect if we're not in the process of signing out and user is null
     if (!user && !loading && !isSigningOut) {
-      console.log('🔄 User is null and not loading, redirecting to login...')
-      
       // Use replace to prevent back button issues
       window.location.replace('/auth/login')
     }
@@ -177,8 +175,6 @@ export const AgentDashboard: React.FC = () => {
   useEffect(() => {
     if (isSigningOut) {
       const timeout = setTimeout(() => {
-        console.log('⚠️ Sign out timeout reached - forcing redirect')
-        
         // Reset state and force redirect regardless of current state
         setIsSigningOut(false)
         
@@ -202,10 +198,8 @@ export const AgentDashboard: React.FC = () => {
         schema: 'public',
         table: 'orders'
       }, (payload) => {
-        console.log('Order change detected:', payload)
         // Refresh when any order changes (new orders, status updates, etc.)
         if (!isSigningOut) {
-          console.log('Order change detected, refreshing available orders')
           refreshAvailableOrders()
         }
       })
@@ -215,7 +209,6 @@ export const AgentDashboard: React.FC = () => {
         table: 'orders',
         filter: `agent_id=eq.${agentData.id}`
       }, (payload) => {
-        console.log('Agent order updated:', payload)
         // Only refresh for this agent's orders and not signing out
         if (!isSigningOut) {
           refreshData()
@@ -240,7 +233,6 @@ export const AgentDashboard: React.FC = () => {
     // Check for new available orders every 15 seconds
     const availableOrdersInterval = setInterval(() => {
       if (!isSigningOut) {
-        console.log('Periodic refresh - checking for available orders...')
         refreshAvailableOrders()
       }
     }, 15000)
@@ -248,7 +240,6 @@ export const AgentDashboard: React.FC = () => {
     // Full data refresh every 45 seconds
     const fullRefreshInterval = setInterval(() => {
       if (!isSigningOut) {
-        console.log('Periodic full refresh - checking for all updates...')
         refreshData()
       }
     }, 45000)
@@ -285,9 +276,6 @@ export const AgentDashboard: React.FC = () => {
         });
         
         // Only log if orders were actually filtered out
-        if (filtered.length !== prevOrders.length) {
-          console.log(`Filtered out ${prevOrders.length - filtered.length} orders (expired or assigned)`)
-        }
         return filtered
       })
     }
@@ -333,8 +321,6 @@ export const AgentDashboard: React.FC = () => {
     if (!user || isSigningOut) return
 
     try {
-      console.log('Loading agent data for user ID:', user.id)
-      
       // Get agent profile
       const { data: agentProfile, error: agentError } = await supabase
         .from('agents')
@@ -345,18 +331,6 @@ export const AgentDashboard: React.FC = () => {
       if (agentError) {
         console.error('Error loading agent profile:', agentError)
         throw agentError
-      }
-      
-      console.log('🔍 AGENT PROFILE LOADED:', agentProfile)
-      console.log('🔍 AGENT SERVICE TYPE:', agentProfile?.service_type)
-      console.log('🔍 AGENT ID:', agentProfile?.id)
-      console.log('🔍 AGENT AVAILABILITY:', agentProfile?.is_available)
-      
-      // Check if service_type is missing
-      if (!agentProfile?.service_type) {
-        console.log('🚨 CRITICAL: Agent service_type is missing!')
-        console.log('💡 This agent needs a service_type (fuel_delivery or mechanic) to see relevant orders')
-        console.log('📋 Check the agents table in your database and add a service_type for this agent')
       }
       
       setAgentData(agentProfile)
@@ -377,8 +351,6 @@ export const AgentDashboard: React.FC = () => {
     setRefreshing(true)
     
     try {
-      console.log('🔍 SIMPLIFIED QUERY - Fetching ALL orders for debugging...')
-      
       // SIMPLIFIED: Get ALL orders first to see what's in the database
       const { data: allOrders, error: allOrdersError } = await supabase
         .from('orders')
@@ -394,29 +366,6 @@ export const AgentDashboard: React.FC = () => {
       if (allOrdersError) {
         console.error('❌ Error fetching all orders:', allOrdersError)
         throw allOrdersError
-      }
-      
-      console.log('✅ ALL ORDERS FETCHED:', allOrders?.length || 0, 'orders')
-      console.log('🔍 SAMPLE ORDERS:', allOrders?.slice(0, 3))
-      
-      // Log each order status for debugging
-      if (allOrders && allOrders.length > 0) {
-        console.log('📊 ORDER STATUS BREAKDOWN:')
-        const statusCounts = allOrders.reduce((acc, order) => {
-          acc[order.status] = (acc[order.status] || 0) + 1
-          return acc
-        }, {} as Record<string, number>)
-        console.log(statusCounts)
-        
-        // Show orders by status
-        console.log('📋 ORDERS BY STATUS:')
-        Object.keys(statusCounts).forEach(status => {
-          const ordersWithStatus = allOrders.filter(o => o.status === status)
-          console.log(`${status.toUpperCase()} ORDERS (${ordersWithStatus.length}):`)
-          ordersWithStatus.slice(0, 3).forEach(order => {
-            console.log(`  - Order ${order.id}: ${order.service_type}, agent_id: ${order.agent_id}, station_id: ${order.station_id}`)
-          })
-        })
       }
 
       // Filter to show only orders that agents can accept:
@@ -435,12 +384,6 @@ export const AgentDashboard: React.FC = () => {
         return isAvailableStatus && notAssigned && hasStation && isRecent
       }) || []
       
-      console.log('✅ FILTERED AVAILABLE ORDERS:', availableForAgents.length)
-      console.log('📋 AVAILABLE ORDER DETAILS:')
-      availableForAgents.slice(0, 3).forEach(order => {
-        console.log(`  - Order ${order.id}: ${order.status}, agent_id: ${order.agent_id}, station_id: ${order.station_id}`)
-      })
-      
       setAvailableOrders(availableForAgents)
       
     } catch (error) {
@@ -456,8 +399,6 @@ export const AgentDashboard: React.FC = () => {
     setRefreshing(true)
     
     try {
-      console.log('🔍 MAIN REFRESH - Fetching ALL orders for debugging...')
-      
       // Get agent's orders AND all orders for debugging
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
@@ -473,8 +414,6 @@ export const AgentDashboard: React.FC = () => {
         console.error('Error loading orders:', ordersError)
         throw ordersError
       }
-      
-      console.log('✅ ALL ORDERS LOADED:', orders?.length || 0, 'total orders')
 
       // Get available orders - simplified query to show ALL orders
       const { data: available, error: availableError } = await supabase
@@ -493,31 +432,6 @@ export const AgentDashboard: React.FC = () => {
         throw availableError
       }
       
-      console.log('📊 AVAILABLE ORDERS LOADED:', available?.length || 0, 'orders')
-      
-      if (available && available.length > 0) {
-        console.log('📋 ORDER STATUS BREAKDOWN:')
-        const statusBreakdown = available.reduce((acc, order) => {
-          acc[order.status] = (acc[order.status] || 0) + 1
-          return acc
-        }, {} as Record<string, number>)
-        console.log(statusBreakdown)
-        
-        console.log('� SAMPLE ORDERS BY STATUS:')
-        Object.keys(statusBreakdown).forEach(status => {
-          const ordersWithStatus = available.filter(o => o.status === status)
-          console.log(`${status.toUpperCase()} (${ordersWithStatus.length}):`)
-          ordersWithStatus.slice(0, 2).forEach(order => {
-            console.log(`  - ${order.id}: service=${order.service_type}, agent=${order.agent_id}, station=${order.station_id}`)
-          })
-        })
-      }
-
-      // For debugging, show ALL orders temporarily
-      console.log('� TEMPORARILY SHOWING ALL ORDERS IN AVAILABLE SECTION')
-      // Apply proper filtering for available orders
-      console.log('📊 APPLYING PROPER FILTERING FOR AVAILABLE ORDERS')
-      
       // Filter available orders to show only those that agents can accept
       const availableForAgents = available?.filter(order => {
         const isAvailableStatus = order.status === 'accepted' // Only station-confirmed orders
@@ -530,17 +444,10 @@ export const AgentDashboard: React.FC = () => {
         return isAvailableStatus && notAssigned && hasStation && isRecent
       }) || []
       
-      console.log('✅ FILTERED AVAILABLE ORDERS (refreshData):', availableForAgents.length)
-      console.log('📋 SAMPLE AVAILABLE ORDERS:')
-      availableForAgents.slice(0, 2).forEach(order => {
-        console.log(`  - Order ${order.id}: ${order.status}, agent_id: ${order.agent_id}, station: ${order.stations?.name}`)
-      })
-      
       setAvailableOrders(availableForAgents)
 
       // Set agent's specific orders (orders assigned to this agent)
       const agentOrders = orders?.filter(order => order.agent_id === agentId) || []
-      console.log('👤 AGENT SPECIFIC ORDERS:', agentOrders.length)
       setMyOrders(agentOrders)
 
       // Calculate stats only if we have agentData
@@ -565,11 +472,8 @@ export const AgentDashboard: React.FC = () => {
   }
 
   const handleSignOut = async () => {
-    console.log('🚪 Agent dashboard sign-out initiated')
-    
     // Prevent multiple simultaneous sign out attempts
     if (isSigningOut) {
-      console.log('⚠️ Sign out already in progress')
       return
     }
     
@@ -579,12 +483,8 @@ export const AgentDashboard: React.FC = () => {
     setRefreshing(false)
     
     try {
-      console.log('🔄 Calling signOut from AuthContext')
-      
       // Call the AuthContext signOut method (which handles server + local cleanup)
       await signOut()
-      
-      console.log('✅ AuthContext sign out completed')
       
       // Clear all component-specific state immediately
       setAgentData(null)
@@ -599,10 +499,7 @@ export const AgentDashboard: React.FC = () => {
       setCurrentPage('dashboard')
       setHasNewOrders(false)
       
-      console.log('🧹 Component state cleared')
-      
       // Force immediate navigation
-      console.log('🔄 Redirecting to login page')
       window.location.replace('/auth/login')
       
     } catch (error) {
@@ -641,8 +538,6 @@ export const AgentDashboard: React.FC = () => {
     if (!agentData) return
 
     try {
-      console.log('Toggling availability from', isAvailable, 'to', !isAvailable)
-      
       const newStatus = !isAvailable
       const { error } = await supabase
         .from('agents')
@@ -653,8 +548,6 @@ export const AgentDashboard: React.FC = () => {
         console.error('Error updating availability:', error)
         throw error
       }
-      
-      console.log('Availability updated successfully')
       setIsAvailable(newStatus)
     } catch (error) {
       console.error('Error updating availability:', error)
@@ -670,12 +563,7 @@ export const AgentDashboard: React.FC = () => {
     }
 
     try {
-      console.log('🔄 Accepting order:', orderId)
-      console.log('🔄 Agent ID:', agentData.id)
-      console.log('🔄 Agent data:', agentData)
-      
       // First check if the order is still available (not assigned to another agent)
-      console.log('🔍 Checking order availability...')
       const { data: currentOrder, error: checkError } = await supabase
         .from('orders')
         .select('agent_id, status')
@@ -694,36 +582,18 @@ export const AgentDashboard: React.FC = () => {
         return
       }
       
-      console.log('📋 Current order status:', currentOrder)
-      
       if (currentOrder.agent_id !== null) {
-        console.log('⚠️ Order already assigned to another agent:', currentOrder.agent_id)
         alert('This order has already been assigned to another agent')
         refreshData() // Refresh to get updated data
         return
       }
       
       // Now try to update the order - simplified query without the double filter
-      console.log('🔄 Updating order with agent assignment...')
-      console.log('🔄 Order ID being updated:', orderId)
-      console.log('🔄 Order ID type:', typeof orderId)
-      console.log('🔄 Order ID length:', orderId.length)
-      console.log('🔄 Update data:', { 
-        agent_id: agentData.id,
-        status: 'in_progress',
-        accepted_at: new Date().toISOString()
-      })
-      
-      // First, let's verify the order still exists with the exact ID
-      console.log('🔍 Double-checking order exists before update...')
       const { data: verifyOrder, error: verifyError } = await supabase
         .from('orders')
         .select('id, agent_id, status')
         .eq('id', orderId)
         .single()
-      
-      console.log('🔍 Verify order result:', verifyOrder)
-      console.log('🔍 Verify order error:', verifyError)
       
       if (verifyError || !verifyOrder) {
         console.error('❌ Order not found during verification:', verifyError)
@@ -733,17 +603,12 @@ export const AgentDashboard: React.FC = () => {
       }
       
       if (verifyOrder.agent_id !== null) {
-        console.log('⚠️ Order already assigned during verification:', verifyOrder.agent_id)
         alert('This order has already been assigned to another agent during verification')
         refreshData()
         return
       }
       
       // Now attempt the update with additional conditions for safety
-      console.log('🔄 Attempting database update...')
-      console.log('🔄 Conditions: id =', orderId, 'AND agent_id IS NULL')
-      
-      // Try the update without the .is() condition first to see if that works
       const { data: updateResult, error } = await supabase
         .from('orders')
         .update({ 
@@ -754,67 +619,36 @@ export const AgentDashboard: React.FC = () => {
         .eq('id', orderId)
         .select() // Return the updated record
 
-      console.log('📝 Update result:', updateResult)
-      console.log('📝 Update error:', error)
-      
       // Additional check - let's see if the order changed at all
       if (updateResult && updateResult.length > 0) {
-        console.log('🎉 SUCCESS! Order was updated')
-        console.log('🎉 Updated order details:', updateResult[0])
+        // Success - order was updated
       } else {
-        console.log('❌ UPDATE FAILED - No rows affected')
-        
-        // Let's check if the order still exists and what its current state is
-        console.log('🔍 Re-checking order state after failed update...')
+        // Update failed - check order state
         const { data: postUpdateCheck, error: postUpdateError } = await supabase
           .from('orders')
           .select('id, agent_id, status, updated_at')
           .eq('id', orderId)
           .single()
         
-        console.log('� Post-update order state:', postUpdateCheck)
-        console.log('📋 Post-update error:', postUpdateError)
-        
         if (postUpdateCheck && postUpdateCheck.agent_id !== null) {
-          console.log('⚡ RACE CONDITION: Order was assigned to another agent during our update!')
           alert('This order was just assigned to another agent. Please try a different order.')
           refreshData()
           return
         } else {
-          console.log('🤔 Strange: Order still exists and unassigned, but update failed')
-          console.log('💡 This might be a database permissions or constraint issue')
-          
-          // TEST: Try a simple update to see if we have write permissions at all
-          console.log('🧪 Testing if we can update ANY field on this order...')
+          // Try a simple update to see if we have write permissions
           const { data: testUpdate, error: testError } = await supabase
             .from('orders')
             .update({ updated_at: new Date().toISOString() })
             .eq('id', orderId)
             .select()
           
-          console.log('🧪 Test update result:', testUpdate)
-          console.log('🧪 Test update error:', testError)
-          
           if (testError) {
-            console.log('❌ PERMISSION DENIED: Cannot update this order at all')
-            console.log('❌ Error details:', testError)
             alert(`Database permission error: ${testError.message}`)
             return
           } else if (!testUpdate || testUpdate.length === 0) {
-            console.log('❌ CONSTRAINT ISSUE: Update command succeeds but affects no rows')
-            console.log('💡 This could be RLS policy, trigger, or constraint blocking the update')
-            
-            // Try to get more info about the current user's permissions
             const { data: currentUser } = await supabase.auth.getUser()
-            console.log('👤 Current user:', currentUser?.user?.id)
-            console.log('👤 Agent user_id:', agentData.user_id)
-            console.log('👤 Do they match?', currentUser?.user?.id === agentData.user_id)
-            
             alert('Database update blocked - this might be a Row Level Security policy issue. Check your database permissions.')
             return
-          } else {
-            console.log('✅ We CAN update this order - so the permission issue is specific to certain fields')
-            console.log('🔄 Now trying the actual agent assignment again...')
           }
         }
       }
@@ -832,9 +666,6 @@ export const AgentDashboard: React.FC = () => {
         return
       }
       
-      console.log('✅ Order accepted successfully!')
-      console.log('✅ Updated order data:', updateResult[0])
-      
       // Show success message
       alert('Order accepted successfully! You can view it in "My Jobs".')
       
@@ -843,10 +674,8 @@ export const AgentDashboard: React.FC = () => {
       setSelectedOrderDetails(null)
       
       // Instead of full refresh, just update local state
-      console.log('🔄 Updating local state...')
       setAvailableOrders(prev => {
         const filtered = prev.filter(order => order.id !== orderId)
-        console.log('📊 Available orders after removal:', filtered.length)
         return filtered
       })
       
@@ -859,16 +688,11 @@ export const AgentDashboard: React.FC = () => {
           status: 'in_progress',
           accepted_at: new Date().toISOString()
         }
-        console.log('➕ Adding to my orders:', updatedOrder.id)
         setMyOrders(prev => [updatedOrder, ...prev])
-      } else {
-        console.log('⚠️ Could not find accepted order in available orders list')
       }
       
       // Minimal refresh after 2 seconds to ensure consistency
-      console.log('🔄 Scheduling refresh in 2 seconds...')
       setTimeout(() => {
-        console.log('🔄 Executing scheduled refresh...')
         refreshData()
       }, 2000)
     } catch (error) {
@@ -879,14 +703,10 @@ export const AgentDashboard: React.FC = () => {
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     try {
-      console.log('🔄 Updating order status:', { orderId, status })
-      
       const updateData: any = { status }
       if (status === 'completed') {
         updateData.completed_at = new Date().toISOString()
       }
-
-      console.log('📤 Sending update to database:', updateData)
 
       const { data, error } = await supabase
         .from('orders')
@@ -898,8 +718,6 @@ export const AgentDashboard: React.FC = () => {
         console.error('❌ Error updating order status:', error)
         throw error
       }
-      
-      console.log('✅ Order status updated successfully:', data)
       
       // Update local state immediately instead of full refresh
       setMyOrders(prev => prev.map(order => 
@@ -915,7 +733,6 @@ export const AgentDashboard: React.FC = () => {
       
       // Light refresh after 2 seconds for consistency
       setTimeout(() => {
-        console.log('🔄 Refreshing data after status update...')
         refreshData()
       }, 2000)
     } catch (error) {
@@ -1879,7 +1696,6 @@ export const AgentDashboard: React.FC = () => {
                 <button
                   onClick={(e) => {
                     e.preventDefault()
-                    console.log('Toggle clicked, current state:', isAvailable)
                     toggleAvailability()
                   }}
                   className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
@@ -2374,7 +2190,6 @@ export const AgentDashboard: React.FC = () => {
                         alt={`${order.vehicles.make} ${order.vehicles.model}`}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          console.log('Failed to load vehicle image:', order.vehicles.image_url)
                           e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gray-700"><svg width="28" height="28" fill="none" stroke="currentColor" class="text-gray-500"><path d="M12 2L2 7l10 5 10-5-10-5z"></path></svg></div>`
                         }}
                       />
@@ -2398,7 +2213,6 @@ export const AgentDashboard: React.FC = () => {
                           alt={order.users.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            console.log('Failed to load customer avatar:', order.users.avatar_url)
                             e.currentTarget.style.display = 'none'
                             e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center text-white text-sm font-semibold">${order.users.name?.charAt(0) || 'C'}</div>`
                           }}
@@ -2450,7 +2264,6 @@ export const AgentDashboard: React.FC = () => {
                         alt={order.stations.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          console.log('Failed to load station image:', order.stations.image_url)
                           e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-green-500/20"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-green-400"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path></svg></div>`
                         }}
                       />
@@ -2563,7 +2376,6 @@ export const AgentDashboard: React.FC = () => {
                           alt={order.users.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            console.log('Failed to load customer avatar in info section:', order.users.avatar_url)
                             e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center text-white font-semibold">${order.users.name?.charAt(0) || 'C'}</div>`
                           }}
                         />
@@ -2850,9 +2662,7 @@ export const AgentDashboard: React.FC = () => {
             {!sidebarCollapsed && (
               <button
                 onClick={() => {
-                  console.log('🚪 Desktop sign-out button clicked')
                   if (window.confirm('Are you sure you want to sign out?')) {
-                    console.log('✅ User confirmed sign-out')
                     handleSignOut()
                   }
                 }}
@@ -3230,40 +3040,28 @@ export const AgentDashboard: React.FC = () => {
                     return
                   }
                   
-                  console.log('💾 Starting profile save...', {
-                    hasImageFile: !!imageFile,
-                    editForm,
-                    currentAvatar: userProfile?.avatar_url
-                  })
-                  
                   try {
                     setSavingProfile(true)
                     
                     // Upload image if changed
                     let avatarUrl = userProfile?.avatar_url
                     if (imageFile) {
-                      console.log('📸 Uploading new image...')
                       const { uploadAgentImage, deleteAgentImage } = await import('../../lib/imageUpload')
                       
                       // Delete old image if exists
                       if (userProfile?.avatar_url) {
-                        console.log('🗑️ Deleting old image...')
                         try {
                           await deleteAgentImage(userProfile.avatar_url)
-                          console.log('✅ Old image deleted')
                         } catch (error) {
                           console.warn('⚠️ Failed to delete old image:', error)
                         }
                       }
                       
                       // Upload new image
-                      console.log('⬆️ Uploading new image to storage...')
                       avatarUrl = await uploadAgentImage(imageFile, user.id)
-                      console.log('✅ Image uploaded:', avatarUrl)
                     }
                     
                     // Update profile
-                    console.log('💾 Updating user profile in database...')
                     const { error } = await supabase
                       .from('users')
                       .update({
@@ -3278,28 +3076,21 @@ export const AgentDashboard: React.FC = () => {
                       throw error
                     }
                     
-                    console.log('✅ Profile updated in database')
-                    
                     // Update the auth context
-                    console.log('🔄 Updating auth context...')
                     await updateProfile({
                       name: editForm.name,
                       phone: editForm.phone,
                       avatar_url: avatarUrl
                     })
-                    console.log('✅ Auth context updated')
                     
                     // Reload data
-                    console.log('🔄 Reloading agent data...')
                     await loadAgentData()
-                    console.log('✅ Agent data reloaded')
                     
                     // Close modal and reset state
                     setShowEditProfile(false)
                     setImageFile(null)
                     setImagePreview(null)
                     
-                    console.log('✅ Profile update complete!')
                     alert('Profile updated successfully!')
                   } catch (error) {
                     console.error('❌ Error updating profile:', error)

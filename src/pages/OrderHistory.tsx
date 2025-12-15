@@ -51,7 +51,6 @@ export const OrderHistory: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('all')
 
   useEffect(() => {
-    console.log('🔄 OrderHistory useEffect triggered, user?.id:', user?.id)
     loadOrders()
   }, [user?.id]) // Only depend on user ID, not entire user object
 
@@ -67,7 +66,6 @@ export const OrderHistory: React.FC = () => {
         table: 'orders',
         filter: `customer_id=eq.${user.id}`
       }, (payload) => {
-        console.log('Order updated in real-time:', payload)
         // Update the order in the list
         setOrders(prev => prev.map(order => 
           order.id === payload.new.id ? { ...order, ...payload.new } : order
@@ -99,12 +97,8 @@ export const OrderHistory: React.FC = () => {
       setLoading(false)
       return
     }
-    
-    console.log('📊 Loading orders for user:', user.id)
 
     try {
-      console.log('Loading orders for user:', user.id)
-      
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -121,7 +115,6 @@ export const OrderHistory: React.FC = () => {
         throw error
       }
       
-      console.log('Orders loaded:', data)
       setOrders(data || [])
     } catch (error) {
       console.error('Error loading orders:', error)
@@ -204,9 +197,7 @@ export const OrderHistory: React.FC = () => {
       {/* Header */}
       <div className="bg-white px-6 pt-12 pb-6 sticky top-0 z-10 shadow-sm">
         <div className="flex items-center justify-between mb-6">
-          <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
-            <ArrowLeft01Icon size={24} />
-          </Link>
+          <div className="w-10"></div>
           <h1 className="text-xl font-semibold">Order History</h1>
           <button className="p-2 hover:bg-gray-100 rounded-full">
             <FilterHorizontalIcon size={24} />

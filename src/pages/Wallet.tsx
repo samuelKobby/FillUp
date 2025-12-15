@@ -8,7 +8,9 @@ import {
   WalletRemove01Icon,
   Invoice01Icon,
   CreditCardIcon,
-  Calendar01Icon
+  Calendar01Icon,
+  ViewIcon,
+  ViewOffIcon
 } from 'hugeicons-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserWallet } from '../lib/supabase'
@@ -37,15 +39,15 @@ export const Wallet: React.FC = () => {
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-  const [showBalance, setShowBalance] = useState(true)
+  const [showBalance, setShowBalance] = useState(false)
   const [topUpAmount, setTopUpAmount] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [showTopUp, setShowTopUp] = useState(false)
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [showAllTransactions, setShowAllTransactions] = useState(false)
 
   useEffect(() => {
-    console.log('🔄 Wallet useEffect triggered, user?.id:', user?.id)
     loadWalletData()
   }, [user?.id]) // Only depend on user ID, not entire user object
 
@@ -54,8 +56,6 @@ export const Wallet: React.FC = () => {
       setLoading(false)
       return
     }
-    
-    console.log('📊 Loading wallet data for user:', user.id)
 
     try {
       const [walletData, transactionsData] = await Promise.all([
@@ -233,20 +233,28 @@ export const Wallet: React.FC = () => {
     <div className="min-h-screen bg-gray-50 pb-28">
       {/* Header */}
       <div className="bg-white px-6 pt-12 pb-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
-            <ArrowLeft01Icon size={24} />
-          </Link>
+        <div className="flex items-center justify-center mb-6">
           <h1 className="text-xl font-semibold">Wallet</h1>
-          <div className="w-10"></div>
         </div>
 
         {/* Balance Display */}
         <div className="text-center mb-4">
           <p className="text-gray-600 text-sm mb-2">Total Balance</p>
-          <h2 className="text-4xl font-bold text-gray-900">
-            {showBalance ? formatCurrency(wallet?.balance || 0) : '••••••'}
-          </h2>
+          <div className="flex items-center justify-center gap-3">
+            <h2 className="text-4xl font-bold text-gray-900">
+              GH₵ {showBalance ? (wallet?.balance || 0).toFixed(2) : '••••••••'}
+            </h2>
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              {showBalance ? (
+                <ViewIcon size={24} color="#6B7280" />
+              ) : (
+                <ViewOffIcon size={24} color="#6B7280" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Wallet Card */}
@@ -319,7 +327,14 @@ export const Wallet: React.FC = () => {
       <div className="px-6 py-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
-          <button className="text-sm text-green-600 font-medium">View All</button>
+          {transactions.length > 5 && (
+            <button 
+              onClick={() => setShowAllTransactions(!showAllTransactions)}
+              className="text-sm text-green-600 font-medium"
+            >
+              {showAllTransactions ? 'Show Less' : 'View All'}
+            </button>
+          )}
         </div>
 
         {transactions.length === 0 ? (
@@ -329,7 +344,7 @@ export const Wallet: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {transactions.slice(0, 10).map((transaction) => (
+            {(showAllTransactions ? transactions : transactions.slice(0, 5)).map((transaction) => (
               <div key={transaction.id} className="bg-white rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center gap-3">
                   {getTransactionIcon(transaction.type)}

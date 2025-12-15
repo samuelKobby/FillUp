@@ -60,7 +60,6 @@ export const Profile: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   useEffect(() => {
-    console.log('🔄 Profile useEffect triggered, user?.id:', user?.id)
     loadProfileData()
   }, [user?.id]) // Only depend on user ID, not entire user object
 
@@ -69,9 +68,8 @@ export const Profile: React.FC = () => {
       setLoading(false)
       return
     }
-    
-    console.log('📊 Loading profile data for user:', user.id)
 
+    setLoading(true)
     try {
       const { data: profileData, error } = await supabase
         .from('users')
@@ -79,23 +77,44 @@ export const Profile: React.FC = () => {
         .eq('id', user.id)
         .single()
 
-      if (error) throw error
-
-      if (profileData) {
-        setProfile({
-          name: profileData.name || '',
-          email: user.email || '',
-          phone: profileData.phone || '',
-          avatar_url: profileData.avatar_url || '',
-          created_at: profileData.created_at
-        })
-        setEditedProfile({
-          name: profileData.name || '',
-          phone: profileData.phone || ''
-        })
+      if (error) {
+        console.error('Error loading profile:', error)
+        throw new Error(`Failed to load profile: ${error.message}`)
       }
-    } catch (error) {
+
+      if (!profileData) {
+        console.error('No profile data found for user:', user.id)
+        throw new Error('Profile not found. Please contact support.')
+      }
+
+      setProfile({
+        name: profileData.name || '',
+        email: user.email || '',
+        phone: profileData.phone || '',
+        avatar_url: profileData.avatar_url || '',
+        created_at: profileData.created_at
+      })
+      setEditedProfile({
+        name: profileData.name || '',
+        phone: profileData.phone || ''
+      })
+    } catch (error: any) {
       console.error('Error loading profile:', error)
+      // Show error to user but don't prevent them from seeing the page
+      // Use email as fallback for display
+      setProfile({
+        name: '',
+        email: user.email || '',
+        phone: '',
+        avatar_url: '',
+        created_at: new Date().toISOString()
+      })
+      setEditedProfile({
+        name: '',
+        phone: ''
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -165,11 +184,23 @@ export const Profile: React.FC = () => {
   }
 
   const handleSignOut = async () => {
+    const confirmed = window.confirm('Are you sure you want to log out?')
+    if (!confirmed) return
+
     try {
+      // Sign out first
       await signOut()
-      navigate('/auth/login')
+      // Clear any stored data
+      sessionStorage.clear()
+      localStorage.clear()
+      // Force redirect to landing page
+      window.location.href = '/'
     } catch (error) {
       console.error('Error signing out:', error)
+      // Force redirect even if signOut fails
+      sessionStorage.clear()
+      localStorage.clear()
+      window.location.href = '/'
     }
   }
 
@@ -204,16 +235,23 @@ export const Profile: React.FC = () => {
     setImagePreview(null)
   }
 
+  if (loading && !profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white pb-24">
       {/* Header */}
       <div className="bg-transparent px-6 pt-12 pb-6">
-        <div className="flex items-center justify-between mb-6">
-          <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
-            <ArrowRight01Icon size={24} className="transform rotate-180" />
-          </Link>
+        <div className="flex items-center justify-center mb-6">
           <h1 className="text-xl font-semibold">Profile</h1>
-          <div className="w-10"></div>
         </div>
 
         {/* Profile Card */}
@@ -234,7 +272,11 @@ export const Profile: React.FC = () => {
             )}
           </div>
           <div className="flex-1">
-            <h2 className="font-semibold text-lg">{profile?.name || 'User'}</h2>
+            <h2 className="font-semibold text-lg">
+              {profile?.name || (
+                <span className="text-gray-400 italic">No name set</span>
+              )}
+            </h2>
             <p className="text-sm text-gray-500">{user?.email}</p>
           </div>
           <button

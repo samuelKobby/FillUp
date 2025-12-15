@@ -396,7 +396,7 @@ export const RequestFuel: React.FC = () => {
             
             {/* Track Order Button */}
             <button 
-              onClick={() => navigate('/history')}
+              onClick={() => navigate('/dashboard', { state: { activeTab: 'orders' } })}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
             >
               Track Order
@@ -717,9 +717,18 @@ export const RequestFuel: React.FC = () => {
             </div>
 
             {/* Vehicle Selection Modal */}
-            {showVehicleSelect && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {showVehicleSelect && ReactDOM.createPortal(
+              <>
+                <div 
+                  className="fixed inset-0 bg-black/50 z-[9999]"
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}
+                  onClick={() => setShowVehicleSelect(false)}
+                />
+                <div 
+                  className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[10000] w-full max-w-md p-4"
+                  style={{ position: 'fixed' }}
+                >
+                  <div className="bg-white rounded-2xl p-6 max-h-[85vh] overflow-y-auto shadow-2xl">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-gray-900">Select Vehicle</h3>
                     <button
@@ -783,8 +792,10 @@ export const RequestFuel: React.FC = () => {
                       ))}
                     </div>
                   )}
+                  </div>
                 </div>
-              </div>
+              </>,
+              document.body
             )}
 
             {/* Quantity Selector */}

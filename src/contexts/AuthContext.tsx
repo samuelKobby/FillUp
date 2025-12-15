@@ -36,10 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      console.log('🔍 Loading user profile for ID:', userId)
+      // Add timeout to prevent hanging (increased to 10 seconds)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
+      )
       
-      // Try to get the profile directly without timeout first
-      const profile = await getUserProfile(userId)
+      const profile = await Promise.race([
+        getUserProfile(userId),
+        timeoutPromise
+      ]) as UserProfile | null
       
       if (!profile) {
         console.warn('⚠️ No profile found for user:', userId)
@@ -48,20 +53,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null
       }
       
-      console.log('✅ User profile loaded:', profile)
-      console.log('🔍 User role from profile:', profile?.role, '(type:', typeof profile?.role, ')')
       setUserProfile(profile)
       setUserRole(profile.role)
-      console.log('🔍 UserRole state set to:', profile.role)
       return profile
     } catch (error) {
       console.error('❌ Error loading user profile:', error)
-      
-      // Let's also check if the user exists in auth.users
-      const { data: authUser, error: authError } = await supabase.auth.getUser()
-      console.log('🔐 Auth user:', authUser.user)
-      console.log('❌ Auth error:', authError)
-      
       setUserProfile(null)
       setUserRole(null)
       return null
@@ -82,16 +78,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return
         }
         
-        console.log('🚀 Initial session check:', {
-          user: session?.user?.email,
-          userId: session?.user?.id,
-          emailConfirmed: session?.user?.email_confirmed_at
-        })
-        
         if (mounted) {
           setUser(session?.user ?? null)
           if (session?.user) {
-            await loadUserProfile(session.user.id)
+            try {
+              await loadUserProfile(session.user.id)
+            } catch (profileError) {
+              console.error('Profile load failed during init:', profileError)
+            }
           }
           setLoading(false)
         }
@@ -113,12 +107,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event, session) => {
         if (!mounted) return
         
-        console.log('🔄 Auth state changed:', {
-          event,
-          user: session?.user?.email,
-          userId: session?.user?.id
-        })
-        
         setUser(session?.user ?? null)
         if (session?.user) {
           await loadUserProfile(session.user.id)
@@ -138,7 +126,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('🔐 Attempting sign in for:', email)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -149,20 +136,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error
       }
 
-      console.log('✅ Sign in successful:', {
-        user: data.user?.email,
-        userId: data.user?.id,
-        emailConfirmed: data.user?.email_confirmed_at
-      })
-
       // Check if email is confirmed
       if (data.user && !data.user.email_confirmed_at) {
-        console.log('📧 Email not confirmed, signing out')
         await supabase.auth.signOut()
         throw new Error('Please verify your email address before signing in. Check your inbox for a verification link.')
       }
-
-      console.log('📝 Loading profile for user ID:', data.user?.id)
       
       // Load user profile to get role - wait for it to complete
       let profile = null
@@ -171,12 +149,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Wait a bit to ensure state is updated
         await new Promise(resolve => setTimeout(resolve, 200))
       }
-
-      console.log('🎯 Sign in complete:', { 
-        user: data.user?.email, 
-        role: profile?.role,
-        profileData: profile
-      })
       
       // Check for redirect path from session storage
       const redirectPath = sessionStorage.getItem('redirectPath')
@@ -213,7 +185,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error
       }
 
-      console.log('Sign up successful:', data.user?.email)
       // Don't return data, just complete successfully
     } catch (error) {
       console.error('Sign up failed:', error)
@@ -222,23 +193,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const signOut = async () => {
-    console.log('🚪 Initiating comprehensive sign out process')
-    
     try {
       // First, invalidate all active sessions globally
       const { error: globalSignOutError } = await supabase.auth.signOut({ scope: 'global' })
       if (globalSignOutError) {
         console.error('❌ Global sign out error:', globalSignOutError)
-      } else {
-        console.log('✅ Global session invalidation completed')
       }
       
       // Also perform local sign out as backup
       const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' })
       if (localSignOutError) {
         console.error('❌ Local sign out error:', localSignOutError)
-      } else {
-        console.log('✅ Local session invalidation completed')
       }
       
       // Force refresh the auth session to ensure it's cleared
@@ -250,7 +215,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     // Always clear local state regardless of server response
-    console.log('🧹 Clearing local authentication state')
     setUser(null)
     setUserProfile(null)
     setUserRole(null)
@@ -268,7 +232,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             key.includes('access_token') ||
             key.includes('refresh_token')) {
           localStorage.removeItem(key)
-          console.log('🗑️ Removed localStorage key:', key)
         }
       })
       
@@ -283,7 +246,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             key.includes('access_token') ||
             key.includes('refresh_token')) {
           sessionStorage.removeItem(key)
-          console.log('🗑️ Removed sessionStorage key:', key)
         }
       })
       
@@ -306,13 +268,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Force a small delay to ensure all cleanup operations complete
     await new Promise(resolve => setTimeout(resolve, 100))
-    
-    console.log('✅ Comprehensive sign out process completed - session fully cancelled')
   }
 
   const invalidateAllSessions = async () => {
-    console.log('🔐 Invalidating all user sessions across devices')
-    
     try {
       // Force invalidate all sessions globally
       const { error } = await supabase.auth.signOut({ scope: 'global' })
@@ -320,8 +278,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('❌ Session invalidation error:', error)
         throw error
       }
-      
-      console.log('✅ All sessions successfully invalidated')
     } catch (error) {
       console.error('❌ Failed to invalidate sessions:', error)
       throw error
