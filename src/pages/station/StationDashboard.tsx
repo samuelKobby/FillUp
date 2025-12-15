@@ -275,9 +275,11 @@ export const StationDashboard: React.FC = () => {
     // Set up real-time subscription for orders only after stationData is loaded and not signing out
     if (!stationData?.id || isSigningOut) return
     
+    console.log('🔄 Setting up real-time subscription for station:', stationData.id)
+    
     // Set up real-time subscription for orders
     const ordersSubscription = supabase
-      .channel('station-orders')
+      .channel(`station-orders-${stationData.id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -285,9 +287,13 @@ export const StationDashboard: React.FC = () => {
         filter: `station_id=eq.${stationData.id}`
       }, (payload) => {
         if (!isSigningOut) {
-          console.log('New order received:', payload)
-          // Refresh data when a new order comes in
-          refreshOrders()
+          console.log('✅ New fuel order received via real-time:', payload.new)
+          // Immediately add the new order to the list
+          if (payload.new) {
+            setRecentOrders(prevOrders => [payload.new as Order, ...prevOrders])
+          }
+          // Then refresh for complete data
+          setTimeout(() => refreshOrders(), 1000)
         }
       })
       .on('postgres_changes', {
@@ -297,9 +303,13 @@ export const StationDashboard: React.FC = () => {
         filter: `service_type=eq.mechanic`
       }, (payload) => {
         if (!isSigningOut) {
-          console.log('New mechanic order received:', payload)
-          // Refresh data when a new mechanic order comes in
-          refreshOrders()
+          console.log('✅ New mechanic order received via real-time:', payload.new)
+          // Immediately add the new order to the list
+          if (payload.new) {
+            setRecentOrders(prevOrders => [payload.new as Order, ...prevOrders])
+          }
+          // Then refresh for complete data
+          setTimeout(() => refreshOrders(), 1000)
         }
       })
       .on('postgres_changes', {
@@ -346,10 +356,18 @@ export const StationDashboard: React.FC = () => {
           setTimeout(() => refreshOrders(), 500)
         }
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Real-time subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Real-time subscription active for station orders')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Real-time subscription error')
+        }
+      })
       
     // Clean up subscription
     return () => {
+      console.log('🔌 Cleaning up real-time subscription')
       supabase.removeChannel(ordersSubscription)
     }
   }, [stationData?.id, isSigningOut]) // Add isSigningOut dependency
