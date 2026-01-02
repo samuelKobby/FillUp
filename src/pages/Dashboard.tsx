@@ -50,10 +50,11 @@ export const Dashboard: React.FC = () => {
     fetchNearbyServices()
   }, [])
 
-  // Real-time subscription for user's orders
+  // Real-time subscriptions for customer
   useEffect(() => {
     if (!user?.id) return
 
+    // Subscribe to user's orders
     const ordersSubscription = supabase
       .channel(`customer-orders-${user.id}`)
       .on('postgres_changes', {
@@ -62,12 +63,70 @@ export const Dashboard: React.FC = () => {
         table: 'orders',
         filter: `customer_id=eq.${user.id}`
       }, (payload) => {
-        // You can add state updates here if needed for dashboard
+        if (payload.eventType === 'INSERT') {
+          toast.success('New order created!')
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
+          const order = payload.new as any
+          if (order.status === 'accepted') {
+            toast.info('Your order has been accepted by an agent!')
+          } else if (order.status === 'in_progress') {
+            toast.info('Agent is on the way!')
+          } else if (order.status === 'completed') {
+            toast.success('Order completed successfully!')
+          }
+        }
+      })
+      .subscribe()
+
+    // Subscribe to wallet updates
+    const walletSubscription = supabase
+      .channel(`customer-wallet-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'wallets',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new) {
+          toast.info('Wallet balance updated!')
+        }
+      })
+      .subscribe()
+
+    // Subscribe to notifications
+    const notificationsSubscription = supabase
+      .channel(`customer-notifications-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new) {
+          const notification = payload.new as any
+          toast.info(notification.message)
+        }
+      })
+      .subscribe()
+
+    // Subscribe to vehicles updates
+    const vehiclesSubscription = supabase
+      .channel(`customer-vehicles-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'vehicles',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        // Vehicle updates will be reflected when user navigates to vehicles page
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(ordersSubscription)
+      supabase.removeChannel(walletSubscription)
+      supabase.removeChannel(notificationsSubscription)
+      supabase.removeChannel(vehiclesSubscription)
     }
   }, [user?.id])
 

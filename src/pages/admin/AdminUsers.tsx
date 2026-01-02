@@ -35,6 +35,14 @@ interface User {
   is_verified: boolean
   is_active: boolean
   created_at: string
+  avatar_url?: string
+  profile_image?: string
+  image_url?: string
+  photo?: string
+  picture?: string
+  profile_picture?: string
+  logo?: string
+  logo_url?: string
 }
 
 export const AdminUsers: React.FC = () => {
@@ -300,9 +308,33 @@ export const AdminUsers: React.FC = () => {
                   >
                     <td className="py-4 px-2">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                          {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
-                        </div>
+                        {(() => {
+                          // Multi-field avatar checking - prioritize station-specific fields for station role
+                          const avatarUrl = user.role === 'station' 
+                            ? (user.logo || user.logo_url || user.image_url || user.profile_image || user.avatar_url || user.photo || user.picture || user.profile_picture)
+                            : (user.avatar_url || user.profile_image || user.image_url || user.photo || user.picture || user.profile_picture || user.logo || user.logo_url);
+                          
+                          return avatarUrl ? (
+                            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                              <img 
+                                src={avatarUrl} 
+                                alt={user.name || user.email}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                              <div className="hidden w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                                {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-semibold">
+                              {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                            </div>
+                          );
+                        })()}
                         <div>
                           <p className="font-medium text-white">
                             {user.name || 'No name'}

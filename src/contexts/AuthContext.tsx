@@ -3,6 +3,7 @@ import { supabase, UserRole, getUserProfile } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { Database } from '../lib/database.types'
 import loaderGif from '../assets/lodaer.gif'
+import { RefreshCw } from 'lucide-react'
 
 type UserProfile = Database['public']['Tables']['users']['Row']
 
@@ -291,15 +292,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   if (loading) {
+    const handleClearAll = () => {
+      console.log('🧹 Clearing all local storage and session data')
+      localStorage.clear()
+      sessionStorage.clear()
+      window.location.href = '/'
+    }
+
     return (
       <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ backgroundColor: '#ef1b22' }}>
-        <div className="text-center">
+        {/* Clear & Refresh Button - Top Right */}
+        <button
+          onClick={handleClearAll}
+          className="absolute top-6 right-6 p-3 text-white hover:text-white/80 transition-all duration-300 hover:scale-110"
+          title="Clear All Data & Refresh"
+        >
+          <RefreshCw className="h-6 w-6" />
+        </button>
+        
+        <div className="text-center relative">
           <img 
             src={loaderGif} 
             alt="Loading..."
             className="w-48 h-48 mx-auto object-contain"
           />
-          <p className="mt-4 text-xl font-medium text-white">Authenticating...</p>
+          <p className="mt-4 text-xl font-medium text-white">Just a moment while we verify your account...</p>
         </div>
       </div>
     );

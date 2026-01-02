@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Fuel, Menu, User, ChevronDown, Bell } from 'lucide-react'
 import { toast } from 'react-toastify'
+import logo1 from '../../assets/logo1.png'
 
 export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -24,10 +25,10 @@ export const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link to={user ? "/dashboard" : "/"} className="flex items-center space-x-2">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-2 rounded-lg">
-              <Fuel className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </div>
-            <span className="text-xl sm:text-2xl font-bold text-white">FillUp</span>
+            
+              <img src={logo1} alt="FillUp" className="h-16 w-16 sm:h-14 sm:w-14 object-contain" />
+            
+            <span className="text-xl sm:text-3xl  mt-2 text-white" style={{ fontFamily: 'Great Vibes, cursive' }}>Fill  Up</span>
           </Link>
 
           <div className="flex items-center">

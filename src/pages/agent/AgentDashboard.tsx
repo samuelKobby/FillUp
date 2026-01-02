@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import logo1 from '../../assets/logo1.png'
 import { 
   DashboardSquare01Icon,
   UserMultiple02Icon,
@@ -31,9 +32,10 @@ import {
   Notification02Icon,
   Wrench01Icon
 } from 'hugeicons-react'
-import { MapPin } from 'lucide-react'
+import { MapPin, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import toast from '../../lib/toast'
 import loaderGif from '../../assets/lodaer.gif'
 
 // Countdown component for timeout display (24 hours from created_at)
@@ -187,40 +189,79 @@ export const AgentDashboard: React.FC = () => {
   }, [isSigningOut])
   
   useEffect(() => {
-    // Only set up subscription after agentData is loaded and not signing out
+    // Set up real-time subscriptions for orders and agent profile
     if (!agentData?.id || isSigningOut) return
     
-    // Set up real-time subscription for orders
-    const ordersSubscription = supabase
-      .channel('agent-orders')
+    // Subscribe to all orders for available orders list
+    const allOrdersSubscription = supabase
+      .channel('agent-all-orders')
       .on('postgres_changes', {
-        event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+        event: '*',
         schema: 'public',
         table: 'orders'
       }, (payload) => {
-        // Refresh when any order changes (new orders, status updates, etc.)
         if (!isSigningOut) {
           refreshAvailableOrders()
         }
       })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          toast.success('Real-time updates connected!')
+        }
+      })
+
+    // Subscribe to this agent's assigned orders
+    const myOrdersSubscription = supabase
+      .channel('agent-my-orders')
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
         table: 'orders',
         filter: `agent_id=eq.${agentData.id}`
       }, (payload) => {
-        // Only refresh for this agent's orders and not signing out
         if (!isSigningOut) {
           refreshData()
         }
       })
       .subscribe()
-      
-    // Clean up subscription
+
+    // Subscribe to agent profile changes
+    const agentProfileSubscription = supabase
+      .channel('agent-profile')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'agents',
+        filter: `id=eq.${agentData.id}`
+      }, (payload) => {
+        if (!isSigningOut && payload.new) {
+          setAgentData(prev => prev ? { ...prev, ...(payload.new as any) } : null)
+        }
+      })
+      .subscribe()
+
+    // Subscribe to notifications
+    const notificationsSubscription = supabase
+      .channel('agent-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user?.id}`
+      }, (payload) => {
+        if (!isSigningOut && payload.new) {
+          toast.success((payload.new as any).message)
+        }
+      })
+      .subscribe()
+    
     return () => {
-      supabase.removeChannel(ordersSubscription)
+      supabase.removeChannel(allOrdersSubscription)
+      supabase.removeChannel(myOrdersSubscription)
+      supabase.removeChannel(agentProfileSubscription)
+      supabase.removeChannel(notificationsSubscription)
     }
-  }, [agentData?.id, isSigningOut]) // Add isSigningOut dependency
+  }, [agentData?.id, user?.id, isSigningOut])
   
   // Set up two different polling intervals:
   // 1. For available orders (more frequent)
@@ -2109,15 +2150,31 @@ export const AgentDashboard: React.FC = () => {
   }
 
   if (loading) {
+    const handleClearAll = () => {
+      console.log('🧹 Clearing all local storage and session data')
+      localStorage.clear()
+      sessionStorage.clear()
+      window.location.href = '/'
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ef1b22' }}>
-        <div className="text-center">
+        {/* Clear & Refresh Button - Top Right */}
+        <button
+          onClick={handleClearAll}
+          className="absolute top-6 right-6 p-3 text-white hover:text-white/80 transition-all duration-300 hover:scale-110 z-20"
+          title="Clear All Data & Refresh"
+        >
+          <RefreshCw className="h-6 w-6" />
+        </button>
+        
+        <div className="text-center relative">
           <img 
             src={loaderGif} 
             alt="Loading..."
             className="w-48 h-48 mx-auto object-contain"
           />
-          <p className="mt-4 text-xl font-medium text-white">Loading Agent Dashboard...</p>
+          <p className="mt-4 text-xl font-medium text-white">Just a moment while we load your dashboard...</p>
         </div>
       </div>
     )
@@ -2478,7 +2535,7 @@ export const AgentDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen text-white" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
       <style>{`
         @keyframes slideInUp {
           from {
@@ -2565,44 +2622,39 @@ export const AgentDashboard: React.FC = () => {
       `}</style>
 
       {/* Desktop Layout */}
-      <div className="hidden md:flex">
-        {/* Desktop Sidebar */}
+      <div className="hidden md:flex h-screen overflow-hidden">
+        {/* Vision UI Sidebar - Fixed */}
         <div 
-          className="bg-black/20 backdrop-blur-xl border-r border-white/10 min-h-screen flex flex-col relative"
+          className="h-screen flex flex-col relative rounded-3xl m-4 flex-shrink-0 overflow-hidden w-80"
           style={{ 
-            width: sidebarCollapsed ? '80px' : `${sidebarWidth}px`,
-            transition: isResizing ? 'none' : 'width 300ms'
+            transition: 'width 300ms',
+            background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
           }}
         >
-          {/* Resize Handle */}
-          {!sidebarCollapsed && (
-            <div
-              onMouseDown={startResizing}
-              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/50 transition-colors group"
-            >
-              <div className="absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-1 h-12 bg-blue-500/0 group-hover:bg-blue-500 rounded-full transition-all" />
-            </div>
-          )}
-          {/* Logo */}
-          <div className="p-6 border-b border-white/10">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center animate-pulse-glow">
-                <FuelStationIcon className="text-white" size={24} />
+          {/* Logo with gradient line - Fixed at top */}
+          <div className="p-6 pb-4 flex-shrink-0">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-16 h-16 flex items-center justify-center">
+                <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
               </div>
-              {!sidebarCollapsed && (
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                    FillUp Agent
-                  </h1>
-                  <p className="text-gray-400 text-sm">Service Provider</p>
-                </div>
-              )}
+              <div>
+                <h1 className="text-sm font-semibold text-white tracking-wider">
+                  FILLUP AGENT
+                </h1>
+              </div>
             </div>
+            {/* Gradient separator line */}
+            <div 
+              className="h-px w-full"
+              style={{
+                background: 'linear-gradient(90deg, rgba(224, 225, 226, 0) 0%, rgb(224, 225, 226) 49.52%, rgba(224, 225, 226, 0) 100%)'
+              }}
+            />
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="flex-1 p-4">
-            <ul className="space-y-2">
+          {/* Navigation - Scrollable */}
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2">
+            <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.id}>
                   <button
@@ -2613,128 +2665,108 @@ export const AgentDashboard: React.FC = () => {
                         setHasNewOrders(false)
                       }
                     }}
-                    className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-300 group ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 ${
                       currentPage === item.id
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105'
-                        : 'hover:bg-white/10 text-gray-300 hover:text-white hover:transform hover:translate-x-2'
+                        ? 'bg-white/10 backdrop-blur-xl'
+                        : 'hover:bg-white/5 text-gray-400 hover:text-white'
                     }`}
                   >
-                    <div className="relative">
-                      <item.icon size={20} />
-                      {item.id === 'available' && hasNewOrders && currentPage !== 'available' && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                      )}
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      currentPage === item.id
+                        ? 'bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 shadow-lg shadow-purple-500/50'
+                        : 'bg-white/5'
+                    }`}>
+                      <item.icon size={18} className="text-white" />
                     </div>
-                    {!sidebarCollapsed && (
-                      <>
-                        <span className="font-medium">{item.label}</span>
-                        {currentPage === item.id && (
-                          <ArrowRight02Icon size={16} className="ml-auto" />
-                        )}
-                        {item.id === 'available' && hasNewOrders && currentPage !== 'available' && (
-                          <span className="ml-auto text-green-400 text-xs animate-pulse">New</span>
-                        )}
-                      </>
-                    )}
+                    <span className={`font-medium text-sm relative ${
+                      currentPage === item.id ? 'text-white' : 'text-gray-400'
+                    }`}>
+                      {item.label}
+                      {item.id === 'available' && hasNewOrders && currentPage !== 'available' && (
+                        <span className="absolute -top-1 -right-4 w-2 h-2 bg-green-500 rounded-full"></span>
+                      )}
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
           </nav>
 
-          {/* Desktop User Profile */}
-          <div className="p-4 border-t border-white/10">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold">
-                {userProfile?.name?.charAt(0) || 'A'}
-              </div>
-              {!sidebarCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
-                    {userProfile?.name || 'Agent'}
-                  </p>
-                  <p className="text-xs text-gray-400 truncate">
-                    {agentData?.service_type?.replace('_', ' ') || 'Service Provider'}
-                  </p>
-                </div>
+          {/* Logout Button - Fixed at bottom */}
+          <div className="px-4 pb-6 flex-shrink-0">
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to sign out?')) {
+                  handleSignOut()
+                }
+              }}
+              disabled={isSigningOut}
+              className={`w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:transform hover:scale-105 flex items-center justify-center gap-2 ${
+                isSigningOut ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)'
+              }}
+            >
+              {isSigningOut ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Signing Out...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowRight02Icon size={18} />
+                  <span>Logout</span>
+                </>
               )}
-            </div>
-            {!sidebarCollapsed && (
-              <button
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to sign out?')) {
-                    handleSignOut()
-                  }
-                }}
-                disabled={isSigningOut}
-                className={`w-full flex items-center justify-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white text-sm font-medium transition-all duration-300 ${
-                  isSigningOut ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isSigningOut ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Signing Out...</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight02Icon className="h-4 w-4" />
-                    <span>Sign Out</span>
-                  </>
-                )}
-              </button>
-            )}
+            </button>
           </div>
         </div>
 
         {/* Desktop Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Desktop Header */}
-          <header className="bg-white/10 backdrop-blur-xl border-b border-white/10 p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-                >
-                  <Menu01Icon size={20} />
-                </button>
+        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide">
+          {/* Header - Vision UI Style */}
+          <header className="sticky top-0 z-40 p-4">
+            <div 
+              className="px-6 py-4 backdrop-blur-2xl rounded-3xl"
+              style={{ background: 'rgba(6, 11, 40, 0.7)' }}
+            >
+              <div className="flex items-center justify-between">
+                {/* Left Side - Breadcrumb */}
                 <div>
-                  <h2 className="text-2xl font-bold">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Home01Icon size={12} />
+                    <span>/</span>
+                    <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
+                  </div>
+                  <h2 className="text-lg font-bold text-white">
                     {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
                   </h2>
-                  <div className="flex items-center gap-2 text-gray-300 text-sm mt-1">
-                    <Home01Icon size={14} />
-                    <span>Agent</span>
-                    <ArrowRight02Icon size={14} />
-                    <span>{menuItems.find(item => item.id === currentPage)?.label}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                {/* Availability Indicator */}
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${
-                  isAvailable 
-                    ? 'bg-green-500/20 border-green-500/30 text-green-400'
-                    : 'bg-gray-500/20 border-gray-500/30 text-gray-400'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-green-400' : 'bg-gray-400'}`} />
-                  <span className="text-sm font-medium">
-                    {isAvailable ? 'Available' : 'Offline'}
-                  </span>
                 </div>
 
-                {/* Profile */}
-                <div className="flex items-center gap-3 p-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl cursor-pointer transition-all duration-300 group">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold">
-                    {userProfile?.name?.charAt(0) || 'A'}
+                {/* Right Side - Actions */}
+                <div className="flex items-center gap-3">
+                  {/* Availability Toggle */}
+                  <button
+                    onClick={toggleAvailability}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                      isAvailable 
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                    }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-green-400' : 'bg-gray-400'}`} />
+                    <span className="text-sm font-medium">
+                      {isAvailable ? 'Available' : 'Offline'}
+                    </span>
+                  </button>
+
+                  {/* Rating Badge */}
+                  <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
+                    <span className="text-sm font-medium text-gray-400">Rating:</span>
+                    <span className="text-sm font-bold text-white">⭐ {agentData?.rating?.toFixed(1) || '5.0'}</span>
                   </div>
-                  <div className="hidden lg:block">
-                    <div className="font-medium">{userProfile?.name || 'Agent'}</div>
-                    <div className="text-gray-400 text-xs">⭐ {agentData?.rating?.toFixed(1) || '5.0'}</div>
-                  </div>
-                  <ArrowDown01Icon size={16} className="text-gray-400 group-hover:text-white transition-colors" />
                 </div>
               </div>
             </div>

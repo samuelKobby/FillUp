@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { Fuel, Phone, Mail, MapPin, Facebook, Twitter, Instagram, Linkedin, ArrowRight } from 'lucide-react'
+import logo1 from '../../assets/logo1.png'
 
 export const Footer: React.FC = () => {
   return (
@@ -10,10 +11,10 @@ export const Footer: React.FC = () => {
           {/* Brand */}
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-2 mb-6">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-2 rounded-lg">
-                <Fuel className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-2xl font-bold">FillUp</span>
+              
+                <img src={logo1} alt="FillUp" className="h-14 w-14 object-contain" />
+              
+              <span className="text-3xl mt-2" style={{ fontFamily: 'Great Vibes, cursive' }}>Fill Up</span>
             </div>
             <p className="text-gray-400 mb-6 max-w-md leading-relaxed">
               Ghana's leading platform for fuel delivery and mechanical services. 

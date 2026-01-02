@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import logo1 from '../../assets/logo1.png'
 import { 
   BarChart3, 
   Users, 
@@ -34,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import toast from '../../lib/toast'
 import { uploadStationImage, updateStationImage, deleteStationImage } from '../../lib/imageUpload'
 import loaderGif from '../../assets/lodaer.gif'
 
@@ -184,15 +186,9 @@ export const StationDashboard: React.FC = () => {
 
   useEffect(() => {
     // Initial load when component mounts - enhanced with sign out protection
-    console.log('=== StationDashboard useEffect triggered ===')
-    console.log('User:', user)
-    console.log('User ID:', user?.id)
-    console.log('Current loading state:', loading)
-    console.log('Is signing out:', isSigningOut)
     
     // Don't load data if signing out
     if (isSigningOut) {
-      console.log('⚠️ Skipping data load - sign out in progress')
       return
     }
     
@@ -200,7 +196,6 @@ export const StationDashboard: React.FC = () => {
     
     // Fallback timeout to prevent infinite loading
     const fallbackTimeout = setTimeout(() => {
-      console.warn('=== LOADING TIMEOUT - Forcing loading to false ===')
       setLoading(false)
     }, 10000) // 10 seconds timeout
     
@@ -211,8 +206,6 @@ export const StationDashboard: React.FC = () => {
   useEffect(() => {
     // Only redirect if we're not in the process of signing out and user is null
     if (!user && !loading && !isSigningOut) {
-      console.log('🔄 User is null and not loading, redirecting to login...')
-      
       // Use replace to prevent back button issues
       window.location.replace('/auth/login')
     }
@@ -222,8 +215,6 @@ export const StationDashboard: React.FC = () => {
   useEffect(() => {
     if (isSigningOut) {
       const timeout = setTimeout(() => {
-        console.log('⚠️ Sign out timeout reached - forcing redirect')
-        
         // Reset state and force redirect regardless of current state
         setIsSigningOut(false)
         
@@ -272,105 +263,100 @@ export const StationDashboard: React.FC = () => {
   }, [isSigningOut])
 
   useEffect(() => {
-    // Set up real-time subscription for orders only after stationData is loaded and not signing out
+    // Set up comprehensive real-time subscriptions
     if (!stationData?.id || isSigningOut) return
-    
-    console.log('🔄 Setting up real-time subscription for station:', stationData.id)
-    
-    // Set up real-time subscription for orders
-    const ordersSubscription = supabase
-      .channel(`station-orders-${stationData.id}`)
+
+    // Subscribe to station's fuel delivery orders
+    const fuelOrdersSubscription = supabase
+      .channel(`station-fuel-orders-${stationData.id}`)
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'orders',
         filter: `station_id=eq.${stationData.id}`
       }, (payload) => {
         if (!isSigningOut) {
-          console.log('✅ New fuel order received via real-time:', payload.new)
-          // Immediately add the new order to the list
-          if (payload.new) {
-            setRecentOrders(prevOrders => [payload.new as Order, ...prevOrders])
+          if (payload.eventType === 'INSERT' && payload.new) {
+            setRecentOrders(prev => [payload.new as Order, ...prev])
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            setRecentOrders(prev => 
+              prev.map(order => order.id === payload.new.id ? { ...order, ...payload.new } : order)
+            )
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setRecentOrders(prev => prev.filter(order => order.id !== payload.old.id))
           }
-          // Then refresh for complete data
-          setTimeout(() => refreshOrders(), 1000)
+          setTimeout(() => refreshOrders(), 500)
         }
       })
+      .subscribe()
+
+    // Subscribe to mechanic orders (not tied to station but visible)
+    const mechanicOrdersSubscription = supabase
+      .channel('station-mechanic-orders')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `service_type=eq.mechanic`
+      }, (payload) => {
+        if (!isSigningOut) {
+          setTimeout(() => refreshOrders(), 500)
+        }
+      })
+      .subscribe()
+
+    // Subscribe to station profile updates
+    const stationProfileSubscription = supabase
+      .channel(`station-profile-${stationData.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'stations',
+        filter: `id=eq.${stationData.id}`
+      }, (payload) => {
+        if (!isSigningOut && payload.new) {
+          setStationData(prev => prev ? { ...prev, ...(payload.new as any) } : null)
+        }
+      })
+      .subscribe()
+
+    // Subscribe to agents updates
+    const agentsSubscription = supabase
+      .channel('station-agents')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'agents'
+      }, (payload) => {
+        if (!isSigningOut) {
+          loadAgents()
+        }
+      })
+      .subscribe()
+
+    // Subscribe to notifications
+    const notificationsSubscription = supabase
+      .channel('station-notifications')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
-        table: 'orders',
-        filter: `service_type=eq.mechanic`
+        table: 'notifications',
+        filter: `user_id=eq.${user?.id}`
       }, (payload) => {
-        if (!isSigningOut) {
-          console.log('✅ New mechanic order received via real-time:', payload.new)
-          // Immediately add the new order to the list
-          if (payload.new) {
-            setRecentOrders(prevOrders => [payload.new as Order, ...prevOrders])
-          }
-          // Then refresh for complete data
-          setTimeout(() => refreshOrders(), 1000)
+        if (!isSigningOut && payload.new) {
+          toast.success((payload.new as any).message)
         }
       })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `station_id=eq.${stationData.id}`
-      }, (payload) => {
-        if (!isSigningOut) {
-          console.log('Order updated via real-time:', payload)
-          // Update local state immediately
-          if (payload.new) {
-            setRecentOrders(prevOrders => 
-              prevOrders.map(order => 
-                order.id === payload.new.id 
-                  ? { ...order, ...payload.new }
-                  : order
-              )
-            )
-          }
-          // Also refresh data for complete accuracy
-          setTimeout(() => refreshOrders(), 500)
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `service_type=eq.mechanic`
-      }, (payload) => {
-        if (!isSigningOut) {
-          console.log('Mechanic order updated via real-time:', payload)
-          // Update local state immediately
-          if (payload.new) {
-            setRecentOrders(prevOrders => 
-              prevOrders.map(order => 
-                order.id === payload.new.id 
-                  ? { ...order, ...payload.new }
-                  : order
-              )
-            )
-          }
-          // Also refresh data for complete accuracy
-          setTimeout(() => refreshOrders(), 500)
-        }
-      })
-      .subscribe((status) => {
-        console.log('📡 Real-time subscription status:', status)
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Real-time subscription active for station orders')
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Real-time subscription error')
-        }
-      })
-      
-    // Clean up subscription
+      .subscribe()
+    
     return () => {
-      console.log('🔌 Cleaning up real-time subscription')
-      supabase.removeChannel(ordersSubscription)
+      supabase.removeChannel(fuelOrdersSubscription)
+      supabase.removeChannel(mechanicOrdersSubscription)
+      supabase.removeChannel(stationProfileSubscription)
+      supabase.removeChannel(agentsSubscription)
+      supabase.removeChannel(notificationsSubscription)
     }
-  }, [stationData?.id, isSigningOut]) // Add isSigningOut dependency
+  }, [stationData?.id, user?.id, isSigningOut])
   
   // Set up polling to refresh data every 30 seconds - enhanced with sign out protection
   useEffect(() => {
@@ -411,18 +397,15 @@ export const StationDashboard: React.FC = () => {
 
   const loadStationData = async () => {
     try {
-      console.log('=== loadStationData called ===')
-      
+
       if (!user || isSigningOut) {
-        console.log('No user found or signing out, cannot load station data')
+
         setLoading(false)
         return
       }
 
-      console.log('Loading station data for user ID:', user.id)
-      
       // Get station profile
-      console.log('Fetching station profile...')
+
       const { data: stationProfile, error: stationError } = await supabase
         .from('stations')
         .select('*')
@@ -430,60 +413,55 @@ export const StationDashboard: React.FC = () => {
         .single()
 
       if (stationError) {
-        console.error('Error loading station profile:', stationError)
+
         throw stationError
       }
       
       if (!stationProfile) {
-        console.error('No station profile found for user:', user.id)
+
         throw new Error('Station profile not found')
       }
       
       // Check if we're still not signing out before setting state
       if (isSigningOut) {
-        console.log('⚠️ Sign out detected during station profile load, aborting')
+
         return
       }
-      
-      console.log('✅ Station profile loaded:', stationProfile)
-      console.log('🆔 Station ID from profile:', stationProfile.id)
-      console.log('🆔 Station ID type:', typeof stationProfile.id)
-      console.log('👤 User ID:', user.id)
+
+
+
+
       setStationData(stationProfile)
       setFuelPrices({
         petrol: stationProfile.petrol_price,
         diesel: stationProfile.diesel_price
       })
 
-      console.log('🔄 Loading orders and agents...')
       // Load agents and orders in parallel
       await Promise.all([
         loadOrders(stationProfile.id),
         loadAgents()
       ])
-      
-      console.log('Testing database connection...')
+
       // Test database connection and permissions
       await testDatabaseConnection(stationProfile.id)
-      
-      console.log('=== loadStationData completed successfully ===')
+
     } catch (error) {
-      console.error('Error loading station data:', error)
+
       // Don't show error if signing out
       if (!isSigningOut) {
         // Show user-friendly error message
         alert('Failed to load station data. Please refresh the page and try again.')
       }
     } finally {
-      console.log('=== Setting loading to false ===')
+
       setLoading(false)
     }
   }
 
   const testDatabaseConnection = async (stationId: string) => {
     try {
-      console.log('=== Testing database connection ===')
-      
+
       // Test basic select
       const { data: testData, error: testError } = await supabase
         .from('orders')
@@ -492,9 +470,9 @@ export const StationDashboard: React.FC = () => {
         .limit(1)
       
       if (testError) {
-        console.error('Database test failed:', testError)
+
       } else {
-        console.log('Database connection successful. Test data:', testData)
+
       }
       
       // Test if we can perform updates (check permissions)
@@ -506,54 +484,53 @@ export const StationDashboard: React.FC = () => {
           .eq('id', testOrder.id)
         
         if (updateTestError) {
-          console.error('Update permission test failed:', updateTestError)
+
         } else {
-          console.log('Update permissions verified successfully')
+
         }
       }
     } catch (error) {
-      console.error('Database test error:', error)
+
     }
   }
 
   const loadOrders = async (stationId: string) => {
     try {
-      console.log('=== Loading orders for station ===')
-      console.log('Station ID:', stationId)
-      console.log('Station ID type:', typeof stationId)
-      console.log('Station ID length:', stationId?.length)
-      
+
+
+
+
       if (!stationId) {
-        console.error('❌ No station ID provided to loadOrders')
+
         return
       }
       
       // First, let's do a simple count to see if any orders exist for this station
-      console.log('🔍 Testing simple count query...')
+
       const { data: orderCount, error: countError } = await supabase
         .from('orders')
         .select('id', { count: 'exact' })
         .eq('station_id', stationId)
       
       if (countError) {
-        console.error('❌ Error counting orders:', countError)
+
       } else {
-        console.log('✅ Total orders for this station:', orderCount?.length || 0)
-        console.log('📊 Count query result:', orderCount)
+
+
       }
       
       // Also try without any filters to see if there are ANY orders in the table
-      console.log('🔍 Testing query for ALL orders in database...')
+
       const { data: allOrdersCount, error: allCountError } = await supabase
         .from('orders')
         .select('id, station_id', { count: 'exact' })
         .limit(10)
       
       if (allCountError) {
-        console.error('❌ Error fetching all orders:', allCountError)
+
       } else {
-        console.log('✅ Sample orders from database:', allOrdersCount)
-        console.log('📊 All orders count:', allOrdersCount?.length || 0)
+
+
         if (allOrdersCount && allOrdersCount.length > 0) {
           console.log('📋 Station IDs in database:', allOrdersCount.map(o => o.station_id))
           console.log('🔍 Does our station ID match any?', allOrdersCount.some(o => o.station_id === stationId))
@@ -562,7 +539,7 @@ export const StationDashboard: React.FC = () => {
       
       // Get orders for this station with all related data
       // Include both fuel delivery orders (with station_id) and mechanic services (service_type = 'mechanic')
-      console.log('🔍 Fetching detailed orders with joins...')
+
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select(`
@@ -575,16 +552,10 @@ export const StationDashboard: React.FC = () => {
         .order('created_at', { ascending: false })
 
       if (ordersError) {
-        console.error('❌ Error loading orders with details:', ordersError)
-        console.error('📋 Detailed error:', {
-          message: ordersError.message,
-          details: ordersError.details,
-          hint: ordersError.hint,
-          code: ordersError.code
-        })
-        
+
+
         // Try a simple query without joins as fallback
-        console.log('🔄 Trying simple query without joins as fallback...')
+
         const { data: simpleOrders, error: simpleError } = await supabase
           .from('orders')
           .select('*')
@@ -592,18 +563,17 @@ export const StationDashboard: React.FC = () => {
           .order('created_at', { ascending: false })
         
         if (simpleError) {
-          console.error('❌ Simple query also failed:', simpleError)
+
           throw ordersError // Throw the original error
         } else {
-          console.log('✅ Simple query succeeded, using simplified data')
-          console.log('📊 Simple orders loaded:', simpleOrders?.length || 0)
+
+
           setRecentOrders(simpleOrders || [])
           return // Exit early with simple data
         }
       }
-      
-      console.log('✅ Station orders loaded successfully:')
-      console.log('📊 Total count:', orders?.length || 0)
+
+
       console.log('📋 First 3 orders:', orders?.slice(0, 3))
       console.log('🆔 All order IDs:', orders?.map(o => o.id) || [])
       console.log('📍 Order statuses:', orders?.map(o => `${o.id}: ${o.status}`) || [])
@@ -626,11 +596,10 @@ export const StationDashboard: React.FC = () => {
         totalOrders: orders?.length || 0,
         avgOrderValue
       }
-      
-      console.log('📈 Updated stats:', newStats)
+
       setStats(newStats)
     } catch (error) {
-      console.error('❌ Error loading orders:', error)
+
       throw error // Re-throw so calling function can handle it
     }
   }
@@ -638,8 +607,7 @@ export const StationDashboard: React.FC = () => {
   const loadAgents = async () => {
     setLoadingAgents(true)
     try {
-      console.log('Loading agents...')
-      
+
       // First, let's check what users exist with role 'agent'
       const { data: agentUsers, error: usersError } = await supabase
         .from('users')
@@ -647,10 +615,9 @@ export const StationDashboard: React.FC = () => {
         .eq('role', 'agent')
       
       if (usersError) {
-        console.warn('Error fetching agent users:', usersError)
+
       }
-      console.log('Users with role "agent":', agentUsers)
-      
+
       // Then check what records exist in the agents table
       const { data: allAgents, error: allAgentsError } = await supabase
         .from('agents')
@@ -660,10 +627,9 @@ export const StationDashboard: React.FC = () => {
         `)
       
       if (allAgentsError) {
-        console.warn('Error fetching all agents:', allAgentsError)
+
       }
-      console.log('All records in agents table:', allAgents)
-      
+
       // Get all agents who can provide fuel delivery service
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
@@ -676,14 +642,14 @@ export const StationDashboard: React.FC = () => {
         .order('rating', { ascending: false })
 
       if (agentsError) {
-        console.error('Error loading agents:', agentsError)
+
         throw agentsError
       }
       
       console.log('Filtered agents (fuel_delivery + verified):', agentsData)
       setAgents(agentsData || [])
     } catch (error) {
-      console.error('Error loading agents:', error)
+
     } finally {
       setLoadingAgents(false)
     }
@@ -691,17 +657,17 @@ export const StationDashboard: React.FC = () => {
   
   const refreshOrders = async () => {
     if (!stationData?.id || isSigningOut) {
-      console.warn('Cannot refresh orders: no station data available or signing out')
+
       return
     }
     
     setRefreshing(true)
     try {
-      console.log('Refreshing orders for station:', stationData.id)
+
       await loadOrders(stationData.id)
-      console.log('Orders refreshed successfully')
+
     } catch (error) {
-      console.error('Error refreshing orders:', error)
+
       // Don't show alert for refresh errors as they can be annoying, and especially not during sign out
       if (!isSigningOut) {
         // Could add a subtle notification here instead of alert
@@ -720,9 +686,7 @@ export const StationDashboard: React.FC = () => {
       // Find orders that are accepted but have been waiting for agent for more than 30 minutes
       // Increased from 10 to 30 minutes to give agents more time to see and accept orders
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      
-      console.log('Checking for timed out orders older than:', thirtyMinutesAgo)
-      
+
       const { data: timedOutOrders, error } = await supabase
         .from('orders')
         .select('id, accepted_at, created_at, service_type')
@@ -733,7 +697,7 @@ export const StationDashboard: React.FC = () => {
         .not('accepted_at', 'is', null)
       
       if (error) {
-        console.error('Error checking timeouts:', error)
+
         return
       }
       
@@ -750,16 +714,16 @@ export const StationDashboard: React.FC = () => {
           .in('id', timedOutOrders.map(order => order.id))
         
         if (updateError) {
-          console.error('Error updating expired orders:', updateError)
+
         } else {
-          console.log('Reset', timedOutOrders.length, 'expired orders back to pending')
+
           await refreshOrders()
         }
       } else {
-        console.log('No timed out orders found')
+
       }
     } catch (error) {
-      console.error('Error handling timeouts:', error)
+
     }
   }
 
@@ -767,8 +731,7 @@ export const StationDashboard: React.FC = () => {
     if (!stationData) return
 
     try {
-      console.log('Updating fuel prices:', fuelPrices)
-      
+
       const { error } = await supabase
         .from('stations')
         .update({
@@ -778,15 +741,14 @@ export const StationDashboard: React.FC = () => {
         .eq('id', stationData.id)
 
       if (error) {
-        console.error('Error updating fuel prices:', error)
+
         throw error
       }
-      
-      console.log('Fuel prices updated successfully')
+
       setEditingPrices(false)
       await loadStationData() // Refresh data
     } catch (error) {
-      console.error('Error updating fuel prices:', error)
+
       alert('Failed to update fuel prices. Please try again.')
     }
   }
@@ -820,13 +782,7 @@ export const StationDashboard: React.FC = () => {
   }
 
   const handleUpdateProfileImage = async () => {
-    console.log('handleUpdateProfileImage called')
-    console.log('Current state:', { 
-      hasImageFile: !!imageFile, 
-      hasStationData: !!stationData,
-      stationId: stationData?.id,
-      stationName: stationData?.name
-    })
+
 
     if (!imageFile) {
       alert('Please select an image first')
@@ -838,33 +794,30 @@ export const StationDashboard: React.FC = () => {
       return
     }
 
-    console.log('Starting image update...', { stationId: stationData.id, fileName: imageFile.name })
     setUploadingImage(true)
     
     try {
       // Delete old image if exists
       if (stationData.image_url) {
-        console.log('Deleting old image:', stationData.image_url)
+
         try {
           await deleteStationImage(stationData.image_url)
         } catch (deleteError) {
-          console.warn('Failed to delete old image:', deleteError)
+
           // Continue anyway
         }
       }
 
       // Upload new image
-      console.log('Uploading new image...')
+
       const imageUrl = await uploadStationImage(imageFile, stationData.id)
-      console.log('Image uploaded successfully:', imageUrl)
 
       // Update station record
-      console.log('Updating station record...')
+
       await updateStationImage(stationData.id, imageUrl)
-      console.log('Station record updated')
 
       // Refresh station data
-      console.log('Refreshing station data...')
+
       await loadStationData()
 
       // Reset state
@@ -874,7 +827,7 @@ export const StationDashboard: React.FC = () => {
       
       alert('Profile image updated successfully!')
     } catch (error: any) {
-      console.error('Error updating profile image:', error)
+
       alert(`Failed to update profile image: ${error.message || 'Please try again.'}`)
     } finally {
       setUploadingImage(false)
@@ -885,19 +838,18 @@ export const StationDashboard: React.FC = () => {
     setUpdatingOrderId(orderId) // Set loading state
     
     try {
-      console.log('=== Updating order status ===')
-      console.log('Order ID:', orderId)
-      console.log('New Status:', newStatus)
-      console.log('Station Data:', stationData)
-      
+
+
+
+
       if (!orderId) {
-        console.error('No order ID provided')
+
         alert('Error: No order ID provided')
         return
       }
       
       if (!stationData?.id) {
-        console.error('No station data available')
+
         alert('Error: Station data not loaded')
         return
       }
@@ -910,25 +862,23 @@ export const StationDashboard: React.FC = () => {
         .single()
       
       if (fetchError) {
-        console.error('Error fetching order:', fetchError)
+
         alert(`Error fetching order: ${fetchError.message}`)
         return
       }
       
       if (!existingOrder) {
-        console.error('Order not found')
+
         alert('Error: Order not found')
         return
       }
       
       if (existingOrder.station_id !== stationData.id && existingOrder.service_type !== 'mechanic') {
-        console.error('Order does not belong to this station and is not a mechanic service')
+
         alert('Error: Order does not belong to this station')
         return
       }
-      
-      console.log('Existing order:', existingOrder)
-      
+
       const updateData: any = { 
         status: newStatus,
         updated_at: new Date().toISOString()
@@ -937,13 +887,11 @@ export const StationDashboard: React.FC = () => {
       if (newStatus === 'accepted') {
         // When station accepts order, it becomes available to all agents
         updateData.accepted_at = new Date().toISOString()
-        console.log('Order accepted by station - now available to all agents')
+
       } else if (newStatus === 'completed') {
         updateData.completed_at = new Date().toISOString()
       }
-      
-      console.log('Update data:', updateData)
-      
+
       // Try to update the order
       const { data: updatedOrder, error } = await supabase
         .from('orders')
@@ -953,14 +901,8 @@ export const StationDashboard: React.FC = () => {
         .select()
 
       if (error) {
-        console.error('Supabase error updating order status:', error)
-        console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        
+
+
         // Check if it's a permission error
         if (error.message.includes('permission') || error.message.includes('policy') || error.code === '42501') {
           alert('Permission denied: Station cannot update orders. Please contact support.')
@@ -971,13 +913,11 @@ export const StationDashboard: React.FC = () => {
       }
       
       if (!updatedOrder || updatedOrder.length === 0) {
-        console.error('No rows updated - possible permission issue')
+
         alert('Failed to update order. This may be a permission issue.')
         return
       }
-      
-      console.log('Order updated successfully:', updatedOrder)
-      
+
       // Update local state immediately for better UX
       setRecentOrders(prevOrders => 
         prevOrders.map(order => 
@@ -999,7 +939,7 @@ export const StationDashboard: React.FC = () => {
       }, 1000)
       
     } catch (error) {
-      console.error('Unexpected error updating order status:', error)
+
       alert('Failed to update order status. Please try again.')
     } finally {
       setUpdatingOrderId(null) // Clear loading state
@@ -1007,11 +947,10 @@ export const StationDashboard: React.FC = () => {
   }
 
   const handleSignOut = async () => {
-    console.log('🚪 Station dashboard sign-out initiated')
-    
+
     // Prevent multiple simultaneous sign out attempts
     if (isSigningOut) {
-      console.log('⚠️ Sign out already in progress')
+
       return
     }
     
@@ -1023,13 +962,10 @@ export const StationDashboard: React.FC = () => {
     setUpdatingOrderId(null)
     
     try {
-      console.log('🔄 Calling signOut from AuthContext')
-      
+
       // Call the AuthContext signOut method (which handles server + local cleanup)
       await signOut()
-      
-      console.log('✅ AuthContext sign out completed')
-      
+
       // Clear all component-specific state immediately
       setStationData(null)
       setRecentOrders([])
@@ -1049,16 +985,13 @@ export const StationDashboard: React.FC = () => {
       setStatusFilter('all')
       setTimeFilter('all')
       setEditingPrices(false)
-      
-      console.log('🧹 Component state cleared')
-      
+
       // Force immediate navigation
-      console.log('🔄 Redirecting to login page')
+
       window.location.replace('/auth/login')
       
     } catch (error) {
-      console.error('❌ Sign out error:', error)
-      
+
       // Reset loading state on error
       setIsSigningOut(false)
       
@@ -1169,13 +1102,12 @@ export const StationDashboard: React.FC = () => {
   }
   
   const renderOrdersPage = () => {
-    console.log('=== Rendering Orders Page ===')
-    console.log('Recent orders:', recentOrders)
-    console.log('Recent orders length:', recentOrders.length)
-    console.log('Search query:', searchQuery)
-    console.log('Status filter:', statusFilter)
-    console.log('Time filter:', timeFilter)
-    
+
+
+
+
+
+
     // Filter orders based on search and filters - but show all by default
     const filteredOrders = recentOrders.filter(order => {
       // Search filter - only apply if there's actually a search query
@@ -1209,20 +1141,18 @@ export const StationDashboard: React.FC = () => {
               break
           }
         } catch (error) {
-          console.warn('Error parsing order date:', order.created_at, error)
+
           timeMatch = true // Show order if date parsing fails
         }
       }
       
       const shouldShow = searchMatch && statusMatch && timeMatch
       if (!shouldShow) {
-        console.log(`Order ${order.id} filtered out: searchMatch=${searchMatch}, statusMatch=${statusMatch}, timeMatch=${timeMatch}`)
+
       }
       return shouldShow
     })
-    
-    console.log('Filtered orders:', filteredOrders)
-    console.log('Filtered orders length:', filteredOrders.length)
+
 
     return (
       <div className="space-y-6">
@@ -1241,50 +1171,49 @@ export const StationDashboard: React.FC = () => {
             </button>
             <button 
               onClick={() => {
-                console.log('=== FORCE DEBUG ===')
-                console.log('Station Data:', stationData)
-                console.log('Recent Orders:', recentOrders)
-                console.log('User:', user)
-                console.log('Loading state:', loading)
-                console.log('Current filters:', { statusFilter, timeFilter, searchQuery })
-                
+
+
+
+
+
+
                 if (stationData?.id) {
-                  console.log('Attempting to force reload orders...')
+
                   loadOrders(stationData.id)
                 } else {
-                  console.log('No station ID available for reload')
+
                 }
                 
                 // Also try a simple query without joins
                 if (stationData?.id) {
-                  console.log('🔍 Testing simple query without joins...')
+
                   supabase
                     .from('orders')
                     .select('*')
                     .or(`station_id.eq.${stationData.id},service_type.eq.mechanic`)
                     .then(({ data, error }) => {
                       if (error) {
-                        console.error('❌ Simple query failed:', error)
+
                       } else {
-                        console.log('✅ Simple query succeeded:', data?.length, 'orders found')
-                        console.log('📋 Simple query data:', data)
+
+
                       }
                     })
                     
                   // Also check for ALL orders to see if there's any data
-                  console.log('🔍 Checking for ANY orders in database...')
+
                   supabase
                     .from('orders')
                     .select('id, station_id, status, created_at')
                     .limit(5)
                     .then(({ data, error }) => {
                       if (error) {
-                        console.error('❌ All orders query failed:', error)
+
                       } else {
-                        console.log('✅ Sample orders from database:', data)
+
                         if (data && data.length > 0) {
                           console.log('🏢 Available station IDs:', [...new Set(data.map(o => o.station_id))])
-                          console.log('🔍 Our station ID:', stationData.id)
+
                           console.log('🔍 Station ID match found:', data.some(o => o.station_id === stationData.id))
                         }
                       }
@@ -1339,7 +1268,7 @@ export const StationDashboard: React.FC = () => {
                   setSearchQuery('')
                   setStatusFilter('all')
                   setTimeFilter('all')
-                  console.log('Filters cleared - showing all orders')
+
                 }}
                 className="px-4 py-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl text-orange-600 transition-all duration-300 font-medium"
               >
@@ -1464,16 +1393,15 @@ export const StationDashboard: React.FC = () => {
                               onClick={async (e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                console.log('=== ACCEPT BUTTON CLICKED ===')
-                                console.log('Order ID:', order.id)
-                                console.log('Order status:', order.status)
-                                console.log('Station ID:', stationData?.id)
-                                
+
+
+
+
                                 try {
                                   await updateOrderStatus(order.id, 'accepted')
-                                  console.log('=== UPDATE COMPLETED ===')
+
                                 } catch (error) {
-                                  console.error('=== UPDATE FAILED ===', error)
+
                                 }
                               }}
                               disabled={updatingOrderId === order.id}
@@ -2353,17 +2281,33 @@ export const StationDashboard: React.FC = () => {
   }
 
   if (loading) {
+    const handleClearAll = () => {
+
+      localStorage.clear()
+      sessionStorage.clear()
+      window.location.href = '/'
+    }
+
     return (
       <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#ef1b22' }}>
         <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: '#ef1b22' }}>
+          {/* Clear & Refresh Button - Top Right */}
+          <button
+            onClick={handleClearAll}
+            className="absolute top-6 right-6 p-3 text-white hover:text-white/80 transition-all duration-300 hover:scale-110 z-20"
+            title="Clear All Data & Refresh"
+          >
+            <RefreshCw className="h-6 w-6" />
+          </button>
+          
           <div className="text-center z-10">
             <img 
               src={loaderGif} 
               alt="Loading..." 
               className="w-48 h-48 mx-auto mb-6 rounded-lg object-contain"
             />
-            <h2 className="text-xl font-semibold text-white mb-2">Loading Station Dashboard</h2>
-            <p className="text-gray-200">Please wait while we load your station data...</p>
+            <h2 className="text-xl font-semibold text-white mb-2">Just a moment while we load your station...</h2>
+            <p className="text-gray-200">Setting up your dashboard...</p>
           </div>
         </div>
       </div>
@@ -2372,9 +2316,25 @@ export const StationDashboard: React.FC = () => {
 
   // Don't render if user is null (signed out) or actively signing out
   if (!user || isSigningOut) {
+    const handleClearAll = () => {
+
+      localStorage.clear()
+      sessionStorage.clear()
+      window.location.href = '/'
+    }
+
     return (
       <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#ef1b22' }}>
         <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: '#ef1b22' }}>
+          {/* Clear & Refresh Button - Top Right */}
+          <button
+            onClick={handleClearAll}
+            className="absolute top-6 right-6 p-3 text-white hover:text-white/80 transition-all duration-300 hover:scale-110 z-20"
+            title="Clear All Data & Refresh"
+          >
+            <RefreshCw className="h-6 w-6" />
+          </button>
+          
           <div className="text-center z-10">
             <img 
               src={loaderGif} 
@@ -2382,10 +2342,10 @@ export const StationDashboard: React.FC = () => {
               className="w-48 h-48 mx-auto mb-6 rounded-lg object-contain"
             />
             <h2 className="text-xl font-semibold text-white mb-2">
-              {isSigningOut ? 'Signing out...' : 'Redirecting...'}
+              {isSigningOut ? 'See you soon!' : 'Taking you back...'}
             </h2>
             <p className="text-gray-200">
-              {isSigningOut ? 'Please wait while we sign you out securely.' : 'Taking you to the login page.'}
+              {isSigningOut ? 'We\'re signing you out securely.' : 'Redirecting to login page.'}
             </p>
           </div>
         </div>
@@ -2464,7 +2424,7 @@ export const StationDashboard: React.FC = () => {
           {/* Logo */}
           <div className="p-6 border-b border-gray-800">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-xl flex items-center justify-center overflow-hidden">
+              <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
                 {stationData?.image_url ? (
                   <img 
                     src={stationData.image_url} 
@@ -2472,7 +2432,7 @@ export const StationDashboard: React.FC = () => {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Fuel className="text-white" size={20} />
+                  <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
                 )}
               </div>
               {!sidebarCollapsed && (
@@ -2539,9 +2499,9 @@ export const StationDashboard: React.FC = () => {
           <div className="p-4 border-t border-gray-800">
             <button
               onClick={() => {
-                console.log('🚪 Station sign-out button clicked')
+
                 if (window.confirm('Are you sure you want to sign out?')) {
-                  console.log('✅ User confirmed sign-out')
+
                   handleSignOut()
                 }
               }}

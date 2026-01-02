@@ -32,6 +32,7 @@ type AgentApplication = {
   updated_at?: string
   reviewed_at?: string | null
   reviewed_by?: string | null
+  avatar_url?: string
 }
 
 export const AgentApplications: React.FC = () => {
@@ -462,8 +463,20 @@ export const AgentApplications: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <div className="flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                            <User className="h-6 w-6 text-white" />
+                          <div className="h-10 w-10 rounded-xl overflow-hidden bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
+                            {app.avatar_url ? (
+                              <img 
+                                src={app.avatar_url} 
+                                alt={app.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = app.name?.charAt(0).toUpperCase();
+                                }}
+                              />
+                            ) : (
+                              app.name?.charAt(0).toUpperCase()
+                            )}
                           </div>
                         </div>
                         <div className="ml-4">

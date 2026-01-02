@@ -9,6 +9,7 @@ export const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('fueldrop048@gmail.com') // Pre-fill for testing
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [debugInfo, setDebugInfo] = useState<any>(null)
@@ -74,99 +75,114 @@ export const AdminLogin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-200">
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <div className="bg-gradient-to-r from-red-600 to-red-700 p-3 rounded-xl">
-                <Shield className="h-8 w-8 text-white" />
-              </div>
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900">Admin Access</h2>
-            <p className="text-gray-600 mt-2">Secure login for administrators</p>
+    <div className="min-h-screen flex overflow-hidden">
+      {/* Left Side - Background Image */}
+      <div 
+        className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"
+        style={{
+          backgroundImage: 'url(https://images.unsplash.com/photo-1545262810-77515befe149?q=80&w=1974&auto=format&fit=crop)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/80 via-blue-900/70 to-purple-900/80" />
+        
+        {/* Content */}
+        <div className="relative z-10 text-center px-12">
+          <h1 className="text-5xl font-bold text-white mb-4 tracking-wider drop-shadow-2xl">
+            POWERING GHANA'S FUTURE:
+          </h1>
+          <h2 className="text-6xl font-black text-white tracking-widest drop-shadow-2xl">
+            THE FILLUP ADMIN PORTAL
+          </h2>
+        </div>
+
+        {/* Bottom glow */}
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-32"
+          style={{
+            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.5) 0%, transparent 100%)'
+          }}
+        />
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8" style={{ background: '#0b1437' }}>
+        <div className="w-full max-w-md">
+          {/* Welcome Text */}
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold text-white mb-2">Welcome Admin!</h2>
+            <p className="text-gray-400">Enter your credentials to access the admin dashboard</p>
           </div>
 
           {/* Debug Button */}
-          <div className="mb-4">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleDebug}
-              className="w-full flex items-center justify-center space-x-2"
-            >
-              <Bug className="h-4 w-4" />
-              <span>Debug Database</span>
-            </Button>
-          </div>
+          {debugInfo !== null && (
+            <div className="mb-4">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleDebug}
+                className="w-full flex items-center justify-center space-x-2 text-gray-400 hover:text-white"
+              >
+                <Bug className="h-4 w-4" />
+                <span>Debug Database</span>
+              </Button>
+            </div>
+          )}
 
           {/* Debug Info */}
           {debugInfo && (
-            <div className="mb-6 p-4 bg-gray-100 rounded-lg text-xs">
-              <h4 className="font-semibold mb-2">Debug Info:</h4>
-              <pre className="whitespace-pre-wrap overflow-auto max-h-40">
+            <div className="mb-6 p-4 bg-white/5 rounded-lg text-xs border border-white/10">
+              <h4 className="font-semibold mb-2 text-white">Debug Info:</h4>
+              <pre className="whitespace-pre-wrap overflow-auto max-h-40 text-gray-300">
                 {JSON.stringify(debugInfo, null, 2)}
               </pre>
             </div>
           )}
 
-          {/* Security Warning */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center">
-              <AlertTriangle className="h-5 w-5 text-amber-600 mr-2" />
-              <p className="text-sm text-amber-800">
-                This is a restricted area. All access attempts are logged and monitored.
-              </p>
-            </div>
-          </div>
-
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6">
               {error}
             </div>
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email Input */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Administrator Email
+              <label htmlFor="email" className="block text-white text-sm font-medium mb-2">
+                Email
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                  placeholder="admin@fillup.gh"
-                />
-              </div>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                placeholder="Your email..."
+                style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+              />
             </div>
 
+            {/* Password Input */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-white text-sm font-medium mb-2">
                 Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors pr-10"
+                  placeholder="Your password..."
+                  style={{ background: 'rgba(255, 255, 255, 0.05)' }}
                 />
                 <button
                   type="button"
@@ -174,31 +190,67 @@ export const AdminLogin: React.FC = () => {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400" />
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-white transition-colors" />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-400" />
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-white transition-colors" />
                   )}
                 </button>
               </div>
             </div>
 
-            <Button
+            {/* Remember Me Switch */}
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => setRememberMe(!rememberMe)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  rememberMe ? 'bg-blue-500' : 'bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    rememberMe ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="ml-3 text-white text-sm">Remember me</span>
+            </div>
+
+            {/* Sign In Button */}
+            <button
               type="submit"
               disabled={loading}
-              className="w-full text-lg py-3 bg-red-600 hover:bg-red-700 focus:ring-red-500"
+              className="w-full py-3 px-4 rounded-2xl font-bold text-white transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)',
+                boxShadow: '0 4px 20px rgba(14, 165, 233, 0.4)'
+              }}
             >
-              {loading ? 'Authenticating...' : 'Access Admin Panel'}
-            </Button>
+              {loading ? 'HI DEAR, WAIT A MOMENT...' : 'SIGN IN'}
+            </button>
           </form>
 
-          {/* Back to Main Site */}
-          <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-            <Link to="/" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-              ← Back to FillUp
+          {/* Back to Home Link */}
+          <div className="mt-6 text-center">
+            <span className="text-gray-400">Not an admin? </span>
+            <Link to="/" className="text-white font-semibold hover:text-blue-400 transition-colors">
+              Go to Customer App
             </Link>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-16 text-center text-gray-500 text-sm">
+            <p>© 2025, Made with ❤️ by FillUp Team for a better Ghana</p>
+            <div className="flex justify-center gap-6 mt-2">
+              <Link to="/" className="hover:text-white transition-colors">Home</Link>
+              <Link to="/" className="hover:text-white transition-colors">Support</Link>
+              <Link to="/" className="hover:text-white transition-colors">Privacy</Link>
+            </div>
           </div>
         </div>
       </div>
+
+
     </div>
   )
 }
