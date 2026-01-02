@@ -834,47 +834,47 @@ export const StationDashboard: React.FC = () => {
   }
   
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    setUpdatingOrderId(orderId) // Set loading state
+    if (updatingOrderId) {
+      return // Prevent multiple simultaneous updates
+    }
+    
+    setUpdatingOrderId(orderId)
     
     try {
-
-
-
-
       if (!orderId) {
-
         alert('Error: No order ID provided')
+        setUpdatingOrderId(null)
         return
       }
       
       if (!stationData?.id) {
-
         alert('Error: Station data not loaded')
+        setUpdatingOrderId(null)
         return
       }
       
       // First, let's check if the order exists and belongs to this station
       const { data: existingOrder, error: fetchError } = await supabase
         .from('orders')
-        .select('id, status, station_id, customer_id, agent_id, accepted_at')
+        .select('id, status, station_id, customer_id, agent_id, accepted_at, service_type')
         .eq('id', orderId)
         .single()
       
       if (fetchError) {
-
         alert(`Error fetching order: ${fetchError.message}`)
+        setUpdatingOrderId(null)
         return
       }
       
       if (!existingOrder) {
-
         alert('Error: Order not found')
+        setUpdatingOrderId(null)
         return
       }
       
       if (existingOrder.station_id !== stationData.id && existingOrder.service_type !== 'mechanic') {
-
         alert('Error: Order does not belong to this station')
+        setUpdatingOrderId(null)
         return
       }
 
@@ -884,9 +884,7 @@ export const StationDashboard: React.FC = () => {
       }
       
       if (newStatus === 'accepted') {
-        // When station accepts order, it becomes available to all agents
         updateData.accepted_at = new Date().toISOString()
-
       } else if (newStatus === 'completed') {
         updateData.completed_at = new Date().toISOString()
       }
@@ -896,24 +894,22 @@ export const StationDashboard: React.FC = () => {
         .from('orders')
         .update(updateData)
         .eq('id', orderId)
-        .or(existingOrder.service_type === 'mechanic' ? 'service_type.eq.mechanic' : `station_id.eq.${stationData.id}`) // Handle both mechanic and fuel orders
+        .or(existingOrder.service_type === 'mechanic' ? 'service_type.eq.mechanic' : `station_id.eq.${stationData.id}`)
         .select()
 
       if (error) {
-
-
-        // Check if it's a permission error
         if (error.message.includes('permission') || error.message.includes('policy') || error.code === '42501') {
           alert('Permission denied: Station cannot update orders. Please contact support.')
         } else {
           alert(`Failed to update order status: ${error.message}`)
         }
+        setUpdatingOrderId(null)
         return
       }
       
       if (!updatedOrder || updatedOrder.length === 0) {
-
         alert('Failed to update order. This may be a permission issue.')
+        setUpdatingOrderId(null)
         return
       }
 
@@ -932,16 +928,13 @@ export const StationDashboard: React.FC = () => {
         alert('Order status updated successfully!')
       }
       
-      // Force refresh orders from database
-      setTimeout(() => {
-        refreshOrders()
-      }, 1000)
+      // Refresh orders to get complete data
+      await refreshOrders()
       
     } catch (error) {
-
       alert('Failed to update order status. Please try again.')
     } finally {
-      setUpdatingOrderId(null) // Clear loading state
+      setUpdatingOrderId(null)
     }
   }
 
