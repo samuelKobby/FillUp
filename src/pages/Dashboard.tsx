@@ -47,8 +47,12 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchNearbyServices()
-  }, [])
+    if (user) {
+      fetchNearbyServices()
+    } else {
+      setLoading(false)
+    }
+  }, [user])
 
   // Real-time subscriptions for customer
   useEffect(() => {
