@@ -61,33 +61,19 @@ export const OrderHistory: React.FC = () => {
     const ordersSubscription = supabase
       .channel(`customer-orders-history-${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'orders',
         filter: `customer_id=eq.${user.id}`
       }, (payload) => {
-        // Reload orders to get complete data with relations
-        loadOrders()
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `customer_id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.new) {
+        if (payload.eventType === 'INSERT') {
+          // Reload orders to get complete data with relations
+          loadOrders()
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
           setOrders(prev => prev.map(order => 
             order.id === payload.new.id ? { ...order, ...payload.new } : order
           ))
-        }
-      })
-      .on('postgres_changes', {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'orders',
-        filter: `customer_id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.old) {
+        } else if (payload.eventType === 'DELETE' && payload.old) {
           setOrders(prev => prev.filter(order => order.id !== payload.old.id))
         }
       })

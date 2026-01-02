@@ -82,12 +82,12 @@ export const Dashboard: React.FC = () => {
     const walletSubscription = supabase
       .channel(`customer-wallet-${user.id}`)
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
         table: 'wallets',
         filter: `user_id=eq.${user.id}`
       }, (payload) => {
-        if (payload.new) {
+        if (payload.eventType === 'UPDATE' && payload.new) {
           toast.info('Wallet balance updated!')
         }
       })
@@ -97,12 +97,12 @@ export const Dashboard: React.FC = () => {
     const notificationsSubscription = supabase
       .channel(`customer-notifications-${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
       }, (payload) => {
-        if (payload.new) {
+        if (payload.eventType === 'INSERT' && payload.new) {
           const notification = payload.new as any
           toast.info(notification.message)
         }

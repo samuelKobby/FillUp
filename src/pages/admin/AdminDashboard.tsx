@@ -240,30 +240,17 @@ export const AdminDashboard: React.FC = () => {
     // Subscribe to orders changes
     const ordersSubscription = supabase
       .channel('admin-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-        if (payload.new) {
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'orders' 
+      }, (payload) => {
+        if (payload.eventType === 'INSERT' && payload.new) {
           setRecentOrders(prev => [payload.new as any, ...prev].slice(0, 10))
           setStats(s => ({ ...s, totalOrders: s.totalOrders + 1 }))
-          toast.success('New order received!')
-        }
-        if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
-        dashboardRefreshTimer.current = window.setTimeout(() => {
-          loadDashboardData()
-          dashboardRefreshTimer.current = null
-        }, 800)
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-        if (payload.new) {
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
           setRecentOrders(prev => prev.map(o => (o.id === (payload.new as any).id ? { ...o, ...(payload.new as any) } : o)))
-        }
-        if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
-        dashboardRefreshTimer.current = window.setTimeout(() => {
-          loadDashboardData()
-          dashboardRefreshTimer.current = null
-        }, 800)
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => {
-        if (payload.old) {
+        } else if (payload.eventType === 'DELETE' && payload.old) {
           setRecentOrders(prev => prev.filter(o => o.id !== (payload.old as any).id))
           setStats(s => ({ ...s, totalOrders: Math.max(0, s.totalOrders - 1) }))
         }
@@ -273,18 +260,16 @@ export const AdminDashboard: React.FC = () => {
           dashboardRefreshTimer.current = null
         }, 800)
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          toast.success('Real-time updates connected!')
-        } else if (status === 'CHANNEL_ERROR') {
-          toast.error('Real-time connection failed')
-        }
-      })
+      .subscribe()
 
     // Subscribe to agents changes
     const agentsSubscription = supabase
       .channel('admin-agents')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'agents' 
+      }, (payload) => {
         if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
         dashboardRefreshTimer.current = window.setTimeout(() => {
           loadDashboardData()
@@ -296,7 +281,11 @@ export const AdminDashboard: React.FC = () => {
     // Subscribe to stations changes
     const stationsSubscription = supabase
       .channel('admin-stations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, () => {
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'stations' 
+      }, (payload) => {
         if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
         dashboardRefreshTimer.current = window.setTimeout(() => {
           loadDashboardData()
@@ -308,7 +297,11 @@ export const AdminDashboard: React.FC = () => {
     // Subscribe to users changes
     const usersSubscription = supabase
       .channel('admin-users')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'users' 
+      }, (payload) => {
         if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
         dashboardRefreshTimer.current = window.setTimeout(() => {
           loadDashboardData()
@@ -320,7 +313,11 @@ export const AdminDashboard: React.FC = () => {
     // Subscribe to transactions changes
     const transactionsSubscription = supabase
       .channel('admin-transactions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'transactions' 
+      }, (payload) => {
         if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
         dashboardRefreshTimer.current = window.setTimeout(() => {
           loadDashboardData()

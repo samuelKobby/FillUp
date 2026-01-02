@@ -35,7 +35,6 @@ import {
 import { MapPin, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import toast from '../../lib/toast'
 import loaderGif from '../../assets/lodaer.gif'
 
 // Countdown component for timeout display (24 hours from created_at)
@@ -204,11 +203,7 @@ export const AgentDashboard: React.FC = () => {
           refreshAvailableOrders()
         }
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          toast.success('Real-time updates connected!')
-        }
-      })
+      .subscribe()
 
     // Subscribe to this agent's assigned orders
     const myOrdersSubscription = supabase
@@ -229,12 +224,12 @@ export const AgentDashboard: React.FC = () => {
     const agentProfileSubscription = supabase
       .channel('agent-profile')
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
         table: 'agents',
         filter: `id=eq.${agentData.id}`
       }, (payload) => {
-        if (!isSigningOut && payload.new) {
+        if (!isSigningOut && payload.eventType === 'UPDATE' && payload.new) {
           setAgentData(prev => prev ? { ...prev, ...(payload.new as any) } : null)
         }
       })
@@ -244,12 +239,12 @@ export const AgentDashboard: React.FC = () => {
     const notificationsSubscription = supabase
       .channel('agent-notifications')
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${user?.id}`
       }, (payload) => {
-        if (!isSigningOut && payload.new) {
+        if (!isSigningOut && payload.eventType === 'INSERT' && payload.new) {
           toast.success((payload.new as any).message)
         }
       })
