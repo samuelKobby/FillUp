@@ -2147,10 +2147,7 @@ export const AgentDashboard: React.FC = () => {
   if (loading) {
     const handleClearAll = () => {
       console.log('🧹 Clearing all local storage and session data')
-      // Clear only auth-related data, preserve cached page data
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userProfile')
-      sessionStorage.clear()
+      localStorage.clear()
       sessionStorage.clear()
       window.location.href = '/'
     }

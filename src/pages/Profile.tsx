@@ -222,10 +222,9 @@ export const Profile: React.FC = () => {
       toast.loading('Signing out...')
       // Sign out first
       await signOut()
-      // Clear only auth-related data, preserve cached page data
+      // Clear any stored data
       sessionStorage.clear()
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userProfile')
+      localStorage.clear()
       toast.dismiss()
       toast.success('Successfully logged out!')
       // Force redirect to landing page
@@ -238,8 +237,7 @@ export const Profile: React.FC = () => {
       toast.error('Error signing out, but redirecting...')
       // Force redirect even if signOut fails
       sessionStorage.clear()
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userProfile')
+      localStorage.clear()
       setTimeout(() => {
         window.location.href = '/'
       }, 500)

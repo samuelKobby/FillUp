@@ -2320,9 +2320,8 @@ export const StationDashboard: React.FC = () => {
 
   if (loading) {
     const handleClearAll = () => {
-      // Clear only auth-related data, preserve cached page data
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userProfile')
+
+      localStorage.clear()
       sessionStorage.clear()
       window.location.href = '/'
     }
@@ -2356,9 +2355,8 @@ export const StationDashboard: React.FC = () => {
   // Don't render if user is null (signed out) or actively signing out
   if (!user || isSigningOut) {
     const handleClearAll = () => {
-      // Clear only auth-related data, preserve cached page data
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userProfile')
+
+      localStorage.clear()
       sessionStorage.clear()
       window.location.href = '/'
     }
