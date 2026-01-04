@@ -100,41 +100,8 @@ class RealtimeManagerService {
       if (existingChannel) {
         const state = existingChannel.state
         
-        if (state === 'joined') {
-          // Reuse existing active channel
-          this.logger.log(`♻️ Reusing global channel: ${channelName} (${state})`)
-          channelInfo = {
-            channel: existingChannel,
-            refCount: 1,
-            callbacks: new Set([callback]),
-            config,
-            isSubscribing: false,
-            isSubscribed: true,
-            subscriptionPromise: null
-          }
-          this.channels.set(channelName, channelInfo)
-          return
-        }
-        
-        if (state === 'joining') {
-          // Wait for existing subscription to complete
-          this.logger.log(`⏳ Waiting for global channel: ${channelName} (${state})`)
-          await this.waitForChannelState(existingChannel, 'joined', this.SUBSCRIPTION_TIMEOUT)
-          channelInfo = {
-            channel: existingChannel,
-            refCount: 1,
-            callbacks: new Set([callback]),
-            config,
-            isSubscribing: false,
-            isSubscribed: true,
-            subscriptionPromise: null
-          }
-          this.channels.set(channelName, channelInfo)
-          return
-        }
-        
-        // Channel in bad state - remove it
-        this.logger.log(`🗑️ Removing stale channel: ${channelName} (${state})`)
+        // Always remove existing channels and create fresh ones to avoid "subscribe called multiple times" error
+        this.logger.log(`🗑️ Removing existing channel to create fresh: ${channelName} (${state})`)
         await this.removeChannelSafely(existingChannel)
         await this.delay(50) // Small delay for cleanup
       }
