@@ -55,8 +55,9 @@ export const Vehicles: React.FC = () => {
       loadVehicles()
       
       // Set up Realtime subscription for instant vehicle updates
+      const timestamp = Date.now()
       const vehiclesChannel = supabase
-        .channel('vehicles-updates')
+        .channel(`vehicles-updates-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

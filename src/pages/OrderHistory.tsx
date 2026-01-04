@@ -59,8 +59,9 @@ export const OrderHistory: React.FC = () => {
       loadOrders()
       
       // Set up Realtime subscription for instant order updates
+      const timestamp = Date.now()
       const ordersChannel = supabase
-        .channel('orderhistory-orders')
+        .channel(`orderhistory-orders-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

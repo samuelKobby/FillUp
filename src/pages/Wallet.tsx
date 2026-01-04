@@ -59,8 +59,9 @@ export const Wallet: React.FC = () => {
       loadWalletData()
       
       // Set up Realtime subscriptions for instant wallet updates
+      const timestamp = Date.now()
       const walletsChannel = supabase
-        .channel('wallet-updates')
+        .channel(`wallet-updates-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -72,7 +73,7 @@ export const Wallet: React.FC = () => {
         .subscribe()
 
       const transactionsChannel = supabase
-        .channel('transactions-updates')
+        .channel(`transactions-updates-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

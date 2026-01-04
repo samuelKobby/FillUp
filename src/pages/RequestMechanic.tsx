@@ -135,8 +135,9 @@ export const RequestMechanic: React.FC = () => {
       loadData()
       
       // Set up Realtime subscriptions for instant updates
+      const timestamp = Date.now()
       const vehiclesChannel = supabase
-        .channel('requestmechanic-vehicles')
+        .channel(`requestmechanic-vehicles-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -148,7 +149,7 @@ export const RequestMechanic: React.FC = () => {
         .subscribe()
 
       const walletsChannel = supabase
-        .channel('requestmechanic-wallets')
+        .channel(`requestmechanic-wallets-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

@@ -142,8 +142,9 @@ export const RequestFuel: React.FC = () => {
       loadData()
       
       // Set up Realtime subscriptions for instant updates
+      const timestamp = Date.now()
       const stationsChannel = supabase
-        .channel('requestfuel-stations')
+        .channel(`requestfuel-stations-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -154,7 +155,7 @@ export const RequestFuel: React.FC = () => {
         .subscribe()
 
       const vehiclesChannel = supabase
-        .channel('requestfuel-vehicles')
+        .channel(`requestfuel-vehicles-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -166,7 +167,7 @@ export const RequestFuel: React.FC = () => {
         .subscribe()
 
       const walletsChannel = supabase
-        .channel('requestfuel-wallets')
+        .channel(`requestfuel-wallets-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

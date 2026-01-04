@@ -74,8 +74,9 @@ export const OrderTracking: React.FC = () => {
     // Set up Realtime subscription for instant order tracking updates
     if (!id) return
     
+    const timestamp = Date.now()
     const trackingChannel = supabase
-      .channel(`order-tracking-${id}`)
+      .channel(`order-tracking-${id}-${timestamp}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

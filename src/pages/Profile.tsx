@@ -71,8 +71,9 @@ export const Profile: React.FC = () => {
       loadProfileData()
       
       // Set up Realtime subscription for instant profile updates
+      const timestamp = Date.now()
       const profileChannel = supabase
-        .channel('profile-updates')
+        .channel(`profile-updates-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

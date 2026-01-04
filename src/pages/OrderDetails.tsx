@@ -71,8 +71,9 @@ export const OrderDetails: React.FC = () => {
     // Set up Realtime subscription for instant order updates
     if (!id) return;
     
+    const timestamp = Date.now();
     const orderChannel = supabase
-      .channel(`order-details-${id}`)
+      .channel(`order-details-${id}-${timestamp}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

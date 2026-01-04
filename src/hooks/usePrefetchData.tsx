@@ -125,103 +125,14 @@ export const usePrefetchData = (userId: string | undefined) => {
       }
     }
 
-    // Start prefetching after a short delay to not block initial render
-    const timeoutId = setTimeout(() => {
-      prefetchAllData()
-    }, 1000)
+    // Initial prefetch on mount
+    prefetchAllData()
 
-    // Set up Supabase Realtime subscriptions for instant updates
-    const ordersChannel = supabase
-      .channel('customer-orders')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `customer_id=eq.${userId}`
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
-
-    const vehiclesChannel = supabase
-      .channel('customer-vehicles')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'vehicles',
-        filter: `user_id=eq.${userId}`
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
-
-    const transactionsChannel = supabase
-      .channel('customer-transactions')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'transactions',
-        filter: `user_id=eq.${userId}`
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
-
-    const walletsChannel = supabase
-      .channel('customer-wallets')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'wallets',
-        filter: `user_id=eq.${userId}`
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
-
-    const stationsChannel = supabase
-      .channel('customer-stations')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'stations'
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
-
-    const agentsChannel = supabase
-      .channel('customer-agents')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'agents'
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
-
-    const usersChannel = supabase
-      .channel('customer-profile')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'users',
-        filter: `id=eq.${userId}`
-      }, () => {
-        prefetchAllData()
-      })
-      .subscribe()
+    // Initial prefetch on mount
+    prefetchAllData()
 
     return () => {
-      clearTimeout(timeoutId)
-      supabase.removeChannel(ordersChannel)
-      supabase.removeChannel(vehiclesChannel)
-      supabase.removeChannel(transactionsChannel)
-      supabase.removeChannel(walletsChannel)
-      supabase.removeChannel(stationsChannel)
-      supabase.removeChannel(agentsChannel)
-      supabase.removeChannel(usersChannel)
+      // Cleanup on unmount
     }
   }, [userId])
 }

@@ -62,9 +62,10 @@ export const Dashboard: React.FC = () => {
     if (user?.id) {
       fetchNearbyServices()
       
-      // Set up Realtime subscriptions for instant updates
+      // Set up Realtime subscriptions for instant updates with unique timestamps
+      const timestamp = Date.now()
       const stationsChannel = supabase
-        .channel('dashboard-stations')
+        .channel(`dashboard-stations-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -75,7 +76,7 @@ export const Dashboard: React.FC = () => {
         .subscribe()
 
       const agentsChannel = supabase
-        .channel('dashboard-agents')
+        .channel(`dashboard-agents-${user.id}-${timestamp}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
