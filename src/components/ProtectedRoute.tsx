@@ -30,7 +30,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     console.log('🧹 Clearing all local storage and session data')
     
     // Clear localStorage
-    localStorage.clear()
+    // Clear only auth-related data, preserve cached page data
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userProfile')
+    sessionStorage.clear()
     
     // Clear sessionStorage
     sessionStorage.clear()

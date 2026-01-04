@@ -28,7 +28,9 @@ export const LogoutButton: React.FC = () => {
     console.log('🧹 Clearing all local storage and session data')
     
     // Clear localStorage
-    localStorage.clear()
+    // Clear only auth-related data, preserve cached page data
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userProfile')
     
     // Clear sessionStorage
     sessionStorage.clear()

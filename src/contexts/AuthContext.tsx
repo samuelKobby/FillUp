@@ -294,8 +294,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   if (loading) {
     const handleClearAll = () => {
-      console.log('🧹 Clearing all local storage and session data')
-      localStorage.clear()
+      console.log('🧹 Clearing only auth data, preserving cached page data')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userProfile')
       sessionStorage.clear()
       window.location.href = '/'
     }
