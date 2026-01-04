@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import heroImg from '../assets/hero.png'
 import carImg from '../assets/car.png'
 import { motion, AnimatePresence } from 'framer-motion'
+
 import { Card, CardContent, CardHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { 
@@ -28,6 +29,7 @@ import { Profile } from './Profile'
 import { toast } from 'react-toastify'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../lib/database.types'
+import { usePrefetchData } from '../hooks/usePrefetchData'
 
 type Station = Database['public']['Tables']['stations']['Row'] & {
   users: { name: string } | null
@@ -42,97 +44,38 @@ export const Dashboard: React.FC = () => {
   const { user, userProfile, userRole, signOut } = useAuth()
   const location = useLocation()
   const [activeTab, setActiveTab] = useState('home')
-  const [stations, setStations] = useState<Station[]>([])
-  const [mechanics, setMechanics] = useState<Agent[]>([])
-  const [loading, setLoading] = useState(true)
+  
+  // Prefetch data for all pages automatically
+  usePrefetchData(user?.id)
+  const [stations, setStations] = useState<Station[]>(() => {
+    const cached = localStorage.getItem('dashboard_stations')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [mechanics, setMechanics] = useState<Agent[]>(() => {
+    const cached = localStorage.getItem('dashboard_mechanics')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [loading, setLoading] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       fetchNearbyServices()
-    } else {
-      setLoading(false)
-    }
-  }, [user])
-
-  // Real-time subscriptions for customer
-  useEffect(() => {
-    if (!user?.id) return
-
-    // Subscribe to user's orders
-    const ordersSubscription = supabase
-      .channel(`customer-orders-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `customer_id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          toast.success('New order created!')
-        } else if (payload.eventType === 'UPDATE' && payload.new) {
-          const order = payload.new as any
-          if (order.status === 'accepted') {
-            toast.info('Your order has been accepted by an agent!')
-          } else if (order.status === 'in_progress') {
-            toast.info('Agent is on the way!')
-          } else if (order.status === 'completed') {
-            toast.success('Order completed successfully!')
-          }
-        }
-      })
-      .subscribe()
-
-    // Subscribe to wallet updates
-    const walletSubscription = supabase
-      .channel(`customer-wallet-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'wallets',
-        filter: `user_id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.eventType === 'UPDATE' && payload.new) {
-          toast.info('Wallet balance updated!')
-        }
-      })
-      .subscribe()
-
-    // Subscribe to notifications
-    const notificationsSubscription = supabase
-      .channel(`customer-notifications-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT' && payload.new) {
-          const notification = payload.new as any
-          toast.info(notification.message)
-        }
-      })
-      .subscribe()
-
-    // Subscribe to vehicles updates
-    const vehiclesSubscription = supabase
-      .channel(`customer-vehicles-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'vehicles',
-        filter: `user_id=eq.${user.id}`
-      }, (payload) => {
-        // Vehicle updates will be reflected when user navigates to vehicles page
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(ordersSubscription)
-      supabase.removeChannel(walletSubscription)
-      supabase.removeChannel(notificationsSubscription)
-      supabase.removeChannel(vehiclesSubscription)
+      
+      // Refresh data every 3 seconds
+      const interval = setInterval(() => {
+        fetchNearbyServices()
+      }, 3000)
+      
+      return () => clearInterval(interval)
     }
   }, [user?.id])
+
+  // Real-time subscriptions temporarily disabled for testing
+  // useEffect(() => {
+  //   if (!user?.id) return
+  //   // Subscriptions removed
+  // }, [user?.id])
 
   // Handle navigation state to set active tab
   useEffect(() => {
@@ -142,9 +85,11 @@ export const Dashboard: React.FC = () => {
   }, [location.state])
 
   const fetchNearbyServices = async () => {
+    if (!user?.id) return
+    
+    setLoading(true)
+    
     try {
-      setLoading(true)
-      
       // Fetch stations
       const { data: stationsData, error: stationsError } = await supabase
         .from('stations')
@@ -160,6 +105,7 @@ export const Dashboard: React.FC = () => {
         console.error('Error fetching stations:', stationsError)
       } else {
         setStations(stationsData || [])
+        localStorage.setItem('dashboard_stations', JSON.stringify(stationsData || []))
       }
 
       // Fetch mechanics (agents with mechanic service)
@@ -178,7 +124,10 @@ export const Dashboard: React.FC = () => {
         console.error('Error fetching mechanics:', mechanicsError)
       } else {
         setMechanics(mechanicsData || [])
+        localStorage.setItem('dashboard_mechanics', JSON.stringify(mechanicsData || []))
       }
+      
+      setDataLoaded(true)
     } catch (error) {
       console.error('Error fetching nearby services:', error)
       toast.error('Failed to load nearby services')
@@ -522,20 +471,14 @@ export const Dashboard: React.FC = () => {
               <button className="text-blue-600 text-xs sm:text-sm font-medium">View All</button>
             </div>
             
-            {loading ? (
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 animate-pulse">
-                    <div className="h-20 sm:h-24 bg-gray-200"></div>
-                    <div className="p-2 sm:p-3 space-y-2">
-                      <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-2 bg-gray-200 rounded w-1/2"></div>
-                    </div>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                {/* Show empty state if data loaded but no stations/mechanics */}
+                {dataLoaded && stations.length === 0 && mechanics.length === 0 ? (
+                  <div className="col-span-2 text-center py-8">
+                    <p className="text-gray-500">No services available nearby</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                ) : (
+                  <>
                 {/* Fuel Stations */}
                 {stations.slice(0, 2).map((station) => {
                   return (
@@ -619,8 +562,9 @@ export const Dashboard: React.FC = () => {
                     </div>
                   ))
                 }
+                </>
+                )}
               </div>
-            )}
           </div>
         </div>
       </div>

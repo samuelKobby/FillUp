@@ -95,8 +95,15 @@ export const RequestFuel: React.FC = () => {
   const { user, userProfile } = useAuth()
   const navigate = useNavigate()
   
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [stations, setStations] = useState<Station[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    const cached = localStorage.getItem('requestfuel_vehicles')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [stations, setStations] = useState<Station[]>(() => {
+    const cached = localStorage.getItem('requestfuel_stations')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
   const [selectedPayment, setSelectedPayment] = useState<string>('wallet')
@@ -130,25 +137,37 @@ export const RequestFuel: React.FC = () => {
   });
 
   useEffect(() => {
-    loadData()
-    // Try to get user's location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
-        },
-        (error) => {
-          console.error('Error getting location:', error)
-        }
-      )
+    if (user?.id) {
+      loadData()
+      
+      // Refresh data every 3 seconds
+      const interval = setInterval(() => {
+        loadData()
+      }, 3000)
+      
+      // Try to get user's location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            })
+          },
+          (error) => {
+            console.error('Error getting location:', error)
+          }
+        )
+      }
+      
+      return () => clearInterval(interval)
     }
-  }, [user])
+  }, [user?.id])
 
   const loadData = async () => {
     if (!user) return
+
+    setLoading(true)
 
     try {
       const [vehiclesResult, stationsResult, walletResult] = await Promise.all([
@@ -171,6 +190,8 @@ export const RequestFuel: React.FC = () => {
 
       setVehicles(vehiclesResult)
       setWalletBalance(walletResult?.balance || 0)
+      localStorage.setItem('requestfuel_vehicles', JSON.stringify(vehiclesResult))
+      localStorage.setItem('requestfuel_stations', JSON.stringify(stationsResult.data || []))
 
       const defaultVehicle = vehiclesResult.find(v => v.is_default)
       if (defaultVehicle) {
@@ -182,6 +203,8 @@ export const RequestFuel: React.FC = () => {
       if (stationsResult.data && stationsResult.data.length > 0) {
         setSelectedStation(stationsResult.data[0])
       }
+      
+      setDataLoaded(true)
     } catch (error) {
       console.error('Error loading data:', error)
       setLoadingError('Failed to load data')
@@ -301,7 +324,10 @@ export const RequestFuel: React.FC = () => {
       setShowOrderSuccess(true);
       
     } catch (err: any) {
-      setError("Failed to place order. Please try again.");
+      console.error('Error creating order:', err)
+      const errorMessage = err?.message || "Failed to place order. Please try again."
+      setError(errorMessage);
+      toast.error(errorMessage)
     } finally {
       setSubmitting(false);
     }
@@ -336,17 +362,6 @@ export const RequestFuel: React.FC = () => {
       alert('Please select a delivery location first');
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading fuel stations...</p>
-        </div>
-      </div>
-    )
-  }
 
   if (loadingError) {
     return (

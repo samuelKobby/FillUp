@@ -237,7 +237,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             key.includes('token') ||
             key.includes('sb-') ||
             key.includes('access_token') ||
-            key.includes('refresh_token')) {
+            key.includes('refresh_token') ||
+            key.includes('_last_user')) {  // Clear page load tracking
           sessionStorage.removeItem(key)
         }
       })

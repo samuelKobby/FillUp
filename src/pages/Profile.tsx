@@ -44,7 +44,11 @@ export const Profile: React.FC = () => {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    const cached = localStorage.getItem('profile_data')
+    return cached ? JSON.parse(cached) : null
+  })
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editedProfile, setEditedProfile] = useState({
     name: '',
@@ -63,14 +67,20 @@ export const Profile: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   useEffect(() => {
-    loadProfileData()
-  }, [user?.id]) // Only depend on user ID, not entire user object
+    if (user?.id) {
+      loadProfileData()
+      
+      // Refresh profile every 3 seconds
+      const interval = setInterval(() => {
+        loadProfileData()
+      }, 3000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [user?.id])
 
   const loadProfileData = async () => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
 
     setLoading(true)
     try {
@@ -101,6 +111,16 @@ export const Profile: React.FC = () => {
         name: profileData.name || '',
         phone: profileData.phone || ''
       })
+      
+      localStorage.setItem('profile_data', JSON.stringify({
+        name: profileData.name || '',
+        email: user.email || '',
+        phone: profileData.phone || '',
+        avatar_url: profileData.avatar_url || '',
+        created_at: profileData.created_at
+      }))
+      
+      setDataLoaded(true)
     } catch (error: any) {
       console.error('Error loading profile:', error)
       // Show error to user but don't prevent them from seeing the page
@@ -242,17 +262,6 @@ export const Profile: React.FC = () => {
   const cancelImageUpload = () => {
     setImageFile(null)
     setImagePreview(null)
-  }
-
-  if (loading && !profile) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    )
   }
 
   return (

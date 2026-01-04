@@ -30,8 +30,12 @@ interface Vehicle {
 export const Vehicles: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [loading, setLoading] = useState(true)
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    const cached = localStorage.getItem('vehicles_data')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [loading, setLoading] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -47,21 +51,27 @@ export const Vehicles: React.FC = () => {
   })
 
   useEffect(() => {
-    console.log('🔄 Vehicles useEffect triggered, user?.id:', user?.id)
-    loadVehicles()
-  }, [user?.id]) // Only depend on user ID, not entire user object
+    if (user?.id) {
+      loadVehicles()
+      
+      // Refresh vehicles every 3 seconds
+      const interval = setInterval(() => {
+        loadVehicles()
+      }, 3000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [user?.id])
 
   const loadVehicles = async () => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
     
-    console.log('📊 Loading vehicles for user:', user.id)
-
+    setLoading(true)
     try {
       const data = await getUserVehicles(user.id)
       setVehicles(data)
+      localStorage.setItem('vehicles_data', JSON.stringify(data))
+      setDataLoaded(true)
     } catch (error) {
       console.error('Error loading vehicles:', error)
     } finally {
@@ -227,14 +237,6 @@ export const Vehicles: React.FC = () => {
     } catch (error) {
       console.error('Error setting default vehicle:', error)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
   }
 
   return (

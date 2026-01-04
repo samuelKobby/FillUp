@@ -36,9 +36,16 @@ interface Wallet {
 
 export const Wallet: React.FC = () => {
   const { user } = useAuth()
-  const [wallet, setWallet] = useState<Wallet | null>(null)
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const [wallet, setWallet] = useState<Wallet | null>(() => {
+    const cached = localStorage.getItem('wallet_data')
+    return cached ? JSON.parse(cached) : null
+  })
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const cached = localStorage.getItem('transactions_data')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [loading, setLoading] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [showBalance, setShowBalance] = useState(false)
   const [topUpAmount, setTopUpAmount] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
@@ -48,15 +55,22 @@ export const Wallet: React.FC = () => {
   const [showAllTransactions, setShowAllTransactions] = useState(false)
 
   useEffect(() => {
-    loadWalletData()
-  }, [user?.id]) // Only depend on user ID, not entire user object
+    if (user?.id) {
+      loadWalletData()
+      
+      // Refresh wallet every 3 seconds
+      const interval = setInterval(() => {
+        loadWalletData()
+      }, 3000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [user?.id])
 
   const loadWalletData = async () => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
 
+    setLoading(true)
     try {
       const [walletData, transactionsData] = await Promise.all([
         getUserWallet(user.id),
@@ -70,6 +84,9 @@ export const Wallet: React.FC = () => {
 
       setWallet(walletData)
       setTransactions(transactionsData.data || [])
+      localStorage.setItem('wallet_data', JSON.stringify(walletData))
+      localStorage.setItem('transactions_data', JSON.stringify(transactionsData.data || []))
+      setDataLoaded(true)
     } catch (error) {
       console.error('Error loading wallet data:', error)
     } finally {
@@ -219,14 +236,6 @@ export const Wallet: React.FC = () => {
       style: 'currency',
       currency: 'GHS'
     }).format(amount)
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    )
   }
 
   return (

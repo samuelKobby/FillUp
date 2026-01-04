@@ -273,18 +273,40 @@ export const StationDashboard: React.FC = () => {
         schema: 'public',
         table: 'orders',
         filter: `station_id=eq.${stationData.id}`
-      }, (payload) => {
+      }, async (payload) => {
         if (!isSigningOut) {
-          if (payload.eventType === 'INSERT' && payload.new) {
-            setRecentOrders(prev => [payload.new as Order, ...prev])
-          } else if (payload.eventType === 'UPDATE' && payload.new) {
-            setRecentOrders(prev => 
-              prev.map(order => order.id === payload.new.id ? { ...order, ...payload.new } : order)
-            )
-          } else if (payload.eventType === 'DELETE' && payload.old) {
-            setRecentOrders(prev => prev.filter(order => order.id !== payload.old.id))
+          // Fetch the complete order with all joins
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const orderId = payload.new?.id
+            if (orderId) {
+              const { data: fullOrder } = await supabase
+                .from('orders')
+                .select(`
+                  *,
+                  users!orders_customer_id_fkey(name, phone),
+                  agents(id, users!agents_user_id_fkey(name, phone)),
+                  stations(name, image_url),
+                  vehicles(make, model, year, plate_number)
+                `)
+                .eq('id', orderId)
+                .single()
+
+              if (fullOrder) {
+                if (payload.eventType === 'INSERT') {
+                  setRecentOrders(prev => [fullOrder as Order, ...prev])
+                } else {
+                  setRecentOrders(prev => 
+                    prev.map(order => order.id === orderId ? fullOrder as Order : order)
+                  )
+                }
+              }
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const orderId = payload.old?.id
+            if (orderId) {
+              setRecentOrders(prev => prev.filter(order => order.id !== orderId))
+            }
           }
-          setTimeout(() => refreshOrders(), 500)
         }
       })
       .subscribe()
@@ -297,9 +319,40 @@ export const StationDashboard: React.FC = () => {
         schema: 'public',
         table: 'orders',
         filter: `service_type=eq.mechanic`
-      }, (payload) => {
+      }, async (payload) => {
         if (!isSigningOut) {
-          setTimeout(() => refreshOrders(), 500)
+          // Fetch the complete order with all joins
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const orderId = payload.new?.id
+            if (orderId) {
+              const { data: fullOrder } = await supabase
+                .from('orders')
+                .select(`
+                  *,
+                  users!orders_customer_id_fkey(name, phone),
+                  agents(id, users!agents_user_id_fkey(name, phone)),
+                  stations(name, image_url),
+                  vehicles(make, model, year, plate_number)
+                `)
+                .eq('id', orderId)
+                .single()
+
+              if (fullOrder) {
+                if (payload.eventType === 'INSERT') {
+                  setRecentOrders(prev => [fullOrder as Order, ...prev])
+                } else {
+                  setRecentOrders(prev => 
+                    prev.map(order => order.id === orderId ? fullOrder as Order : order)
+                  )
+                }
+              }
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const orderId = payload.old?.id
+            if (orderId) {
+              setRecentOrders(prev => prev.filter(order => order.id !== orderId))
+            }
+          }
         }
       })
       .subscribe()
@@ -656,21 +709,14 @@ export const StationDashboard: React.FC = () => {
   
   const refreshOrders = async () => {
     if (!stationData?.id || isSigningOut) {
-
       return
     }
     
     setRefreshing(true)
     try {
-
       await loadOrders(stationData.id)
-
     } catch (error) {
-
-      // Don't show alert for refresh errors as they can be annoying, and especially not during sign out
-      if (!isSigningOut) {
-        // Could add a subtle notification here instead of alert
-      }
+      // Silently handle errors during refresh
     } finally {
       if (!isSigningOut) {
         setRefreshing(false)

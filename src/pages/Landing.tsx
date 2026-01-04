@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
+import { Footer } from '../components/layout/Footer'
 import { useAuth } from '../contexts/AuthContext'
 import heroVideo from '../assets/hero.mp4'
 import wheelImg from '../assets/wheel.png'
@@ -606,6 +607,9 @@ export const Landing: React.FC = () => {
           <ChevronUp className="h-6 w-6" />
         </button>
       )}
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }

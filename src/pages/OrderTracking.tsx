@@ -71,31 +71,9 @@ export const OrderTracking: React.FC = () => {
 
     fetchOrder()
 
-    // Subscribe to order updates
-    const subscription = supabase
-      .channel(`order-${id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `id=eq.${id}`
-      }, (payload) => {
-        setOrder(prev => prev ? { ...prev, ...payload.new } : null)
-      })
-      .subscribe()
-
-    return () => {
-      subscription.unsubscribe()
-    }
+    // Real-time subscription temporarily disabled for testing
+    // Subscription removed
   }, [id])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    )
-  }
 
   if (!order) {
     return (

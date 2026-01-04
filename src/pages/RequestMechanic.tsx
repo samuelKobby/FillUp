@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import heroImg from '../assets/hero.png'
+
 import { 
   Wrench, 
   MapPin, 
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles, getUserWallet } from '../lib/supabase'
+import toast from '../lib/toast'
 
 interface Vehicle {
   id: string
@@ -107,7 +109,11 @@ export const RequestMechanic: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    const cached = localStorage.getItem('requestmechanic_vehicles')
+    return cached ? JSON.parse(cached) : []
+  })
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [selectedService, setSelectedService] = useState<any>(null)
   const [selectedPayment, setSelectedPayment] = useState<string>('wallet')
@@ -125,25 +131,37 @@ export const RequestMechanic: React.FC = () => {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   
   useEffect(() => {
-    loadData()
-    // Try to get user's location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
-        },
-        (error) => {
-          console.error('Error getting location:', error)
-        }
-      )
+    if (user?.id) {
+      loadData()
+      
+      // Refresh data every 3 seconds
+      const interval = setInterval(() => {
+        loadData()
+      }, 3000)
+      
+      // Try to get user's location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            })
+          },
+          (error) => {
+            console.error('Error getting location:', error)
+          }
+        )
+      }
+      
+      return () => clearInterval(interval)
     }
-  }, [user])
+  }, [user?.id])
 
   const loadData = async () => {
     if (!user) return
+
+    setLoading(true)
 
     try {
       const [vehiclesData, walletData] = await Promise.all([
@@ -153,11 +171,14 @@ export const RequestMechanic: React.FC = () => {
 
       setVehicles(vehiclesData)
       setWalletBalance(walletData?.balance || 0)
+      localStorage.setItem('requestmechanic_vehicles', JSON.stringify(vehiclesData))
 
       const defaultVehicle = vehiclesData.find(v => v.is_default)
       if (defaultVehicle) {
         setSelectedVehicle(defaultVehicle)
       }
+      
+      setDataLoaded(true)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -269,19 +290,13 @@ export const RequestMechanic: React.FC = () => {
 
       // Show success confirmation page instead of direct navigation
       setShowOrderSuccess(true)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating order:', error)
+      const errorMessage = error?.message || 'Failed to place order. Please try again.'
+      toast.error(errorMessage)
     } finally {
       setSubmitting(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
   }
 
   const total = calculateTotal()

@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Footer } from './components/layout/Footer'
 import { PageTransition } from './components/layout/PageTransition'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { SplashScreen } from './components/SplashScreen'
+import { motion } from 'framer-motion'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
@@ -149,11 +151,45 @@ const RoleBasedRedirect: React.FC = () => {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true)
+  const [splashExiting, setSplashExiting] = useState(false)
+
+  // Temporarily disabled - shows every time for testing
+  // useEffect(() => {
+  //   const hasSeenSplash = sessionStorage.getItem('splashShown')
+  //   if (hasSeenSplash) {
+  //     setShowSplash(false)
+  //   }
+  // }, [])
+
+  const handleSplashComplete = () => {
+    sessionStorage.setItem('splashShown', 'true')
+    setSplashExiting(true)
+    // Unmount splash after animation completes
+    setTimeout(() => {
+      setShowSplash(false)
+    }, 500)
+  }
+
   return (
     <Router>
       <AuthProvider>
-        <RedirectOnRefresh />
-        <Layout>
+        {showSplash && <SplashScreen onComplete={handleSplashComplete} duration={7000} />}
+        
+        {/* Main content with slide-up animation */}
+        <motion.div
+          initial={{ y: '100vh' }}
+          animate={{ 
+            y: splashExiting ? 0 : '100vh'
+          }}
+          transition={{
+            duration: 0.5,
+            ease: [0.43, 0.13, 0.23, 0.96],
+          }}
+          className="relative min-h-screen"
+        >
+          <RedirectOnRefresh />
+          <Layout>
           <PageTransition>
             <Routes>
               {/* Public routes */}
@@ -339,6 +375,7 @@ function App() {
           </Routes>
           </PageTransition>
         </Layout>
+        </motion.div>
       </AuthProvider>
     </Router>
   )

@@ -42,58 +42,45 @@ interface Order {
 export const OrderHistory: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const cached = localStorage.getItem('orders_data')
+    return cached ? JSON.parse(cached) : []
+  })
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [serviceFilter, setServiceFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
 
   useEffect(() => {
-    loadOrders()
-  }, [user?.id]) // Only depend on user ID, not entire user object
-
-  // Real-time subscription for order updates
-  useEffect(() => {
-    if (!user?.id) return
-
-    const ordersSubscription = supabase
-      .channel(`customer-orders-history-${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `customer_id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          // Reload orders to get complete data with relations
-          loadOrders()
-        } else if (payload.eventType === 'UPDATE' && payload.new) {
-          setOrders(prev => prev.map(order => 
-            order.id === payload.new.id ? { ...order, ...payload.new } : order
-          ))
-        } else if (payload.eventType === 'DELETE' && payload.old) {
-          setOrders(prev => prev.filter(order => order.id !== payload.old.id))
-        }
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(ordersSubscription)
+    if (user?.id) {
+      loadOrders()
+      
+      // Refresh orders every 3 seconds
+      const interval = setInterval(() => {
+        loadOrders()
+      }, 3000)
+      
+      return () => clearInterval(interval)
     }
   }, [user?.id])
+
+  // Real-time subscription temporarily disabled for testing
+  // useEffect(() => {
+  //   if (!user?.id) return
+  //   // Subscription removed
+  // }, [user?.id])
 
   useEffect(() => {
     filterOrders()
   }, [orders, searchTerm, statusFilter, serviceFilter, dateFilter])
 
   const loadOrders = async () => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
 
+    setLoading(true)
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -112,6 +99,8 @@ export const OrderHistory: React.FC = () => {
       }
       
       setOrders(data || [])
+      localStorage.setItem('orders_data', JSON.stringify(data || []))
+      setDataLoaded(true)
     } catch (error) {
       console.error('Error loading orders:', error)
     } finally {
@@ -178,14 +167,6 @@ export const OrderHistory: React.FC = () => {
       style: 'currency',
       currency: 'GHS'
     }).format(amount)
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    )
   }
 
   return (

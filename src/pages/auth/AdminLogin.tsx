@@ -75,7 +75,7 @@ export const AdminLogin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex overflow-hidden">
+    <div className="min-h-screen flex overflow-x-hidden">
       {/* Left Side - Background Image */}
       <div 
         className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"

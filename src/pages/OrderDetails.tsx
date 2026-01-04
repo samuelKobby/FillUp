@@ -68,24 +68,9 @@ export const OrderDetails: React.FC = () => {
 
     fetchOrderDetails();
 
-    // Real-time subscription for order updates
-    if (!id) return;
-
-    const orderSubscription = supabase
-      .channel(`order-details-${id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `id=eq.${id}`
-      }, (payload) => {
-        setOrder(prev => prev ? { ...prev, ...payload.new } as OrderDetails : null)
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(orderSubscription)
-    }
+    // Real-time subscription temporarily disabled for testing
+    // if (!id) return;
+    // Subscription removed
   }, [id]);
 
   const getStatusBadge = (status: string) => {
@@ -124,17 +109,6 @@ export const OrderDetails: React.FC = () => {
         return <ClockIcon className="h-5 w-5 text-yellow-500" />;
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading order details...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (
