@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Clock as ClockIcon, Loader2 } from 'lucide-react';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { useDataRefreshOnVisibility } from '../hooks/useDataRefreshOnVisibility';
+import { useCachedData } from '../hooks/useCachedData';
 
 interface OrderDetails {
   id: string;
@@ -34,37 +36,34 @@ interface OrderDetails {
 
 export const OrderDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [order, setOrder] = useState<OrderDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const fetchOrderDetails = async () => {
-    if (!id) return;
+  const fetchOrderDetails = useCallback(async (): Promise<OrderDetails> => {
+    if (!id) throw new Error('No order ID');
     
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          stations (name, address, phone),
-          vehicles (make, model, plate_number, fuel_type)
-        `)
-        .eq('id', id)
-        .single();
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        stations (name, address, phone),
+        vehicles (make, model, plate_number, fuel_type)
+      `)
+      .eq('id', id)
+      .single();
 
-      if (error) throw error;
-      if (!data) throw new Error('Order not found');
+    if (error) throw error;
+    if (!data) throw new Error('Order not found');
 
-      setOrder(data as OrderDetails);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load order details');
-    } finally {
-      setLoading(false);
-    }
-  };
+    return data as OrderDetails;
+  }, [id]);
+
+  const { data: order, loading, error } = useCachedData<OrderDetails>({
+    cacheKey: `order_details_${id}`,
+    userId: user?.id,
+    fetchFn: fetchOrderDetails,
+    enabled: !!id
+  });
 
   // Set up Realtime subscription with auto-reconnection
   useRealtimeSubscription({
@@ -74,10 +73,6 @@ export const OrderDetails: React.FC = () => {
     onUpdate: fetchOrderDetails,
     enabled: !!id
   })
-
-  useEffect(() => {
-    fetchOrderDetails();
-  }, [id]);
 
   const getStatusBadge = (status: string) => {
     const statusClasses = {

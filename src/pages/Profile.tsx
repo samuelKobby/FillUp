@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { uploadCustomerImage, updateCustomerImage, deleteCustomerImage } from '../lib/imageUpload'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { getCache, setCache } from '../lib/cache'
 
 interface UserProfile {
   name: string
@@ -46,8 +47,7 @@ export const Profile: React.FC = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(() => {
-    const cached = localStorage.getItem('profile_data')
-    return cached ? JSON.parse(cached) : null
+    return user ? getCache<UserProfile>('profile_data', user.id) : null
   })
   const [dataLoaded, setDataLoaded] = useState(false)
   const [editMode, setEditMode] = useState(false)
@@ -67,21 +67,6 @@ export const Profile: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
-  // Set up Realtime subscription with auto-reconnection
-  useRealtimeSubscription({
-    channelName: `profile-updates-${user?.id}`,
-    table: 'users',
-    filter: `id=eq.${user?.id}`,
-    onUpdate: loadProfileData,
-    enabled: !!user?.id
-  })
-
-  useEffect(() => {
-    if (user?.id) {
-      loadProfileData()
-    }
-  }, [user?.id])
-
   const loadProfileData = async () => {
     if (!user) return
 
@@ -94,12 +79,10 @@ export const Profile: React.FC = () => {
         .single()
 
       if (error) {
-        console.error('Error loading profile:', error)
         throw new Error(`Failed to load profile: ${error.message}`)
       }
 
       if (!profileData) {
-        console.error('No profile data found for user:', user.id)
         throw new Error('Profile not found. Please contact support.')
       }
 
@@ -115,17 +98,18 @@ export const Profile: React.FC = () => {
         phone: profileData.phone || ''
       })
       
-      localStorage.setItem('profile_data', JSON.stringify({
-        name: profileData.name || '',
-        email: user.email || '',
-        phone: profileData.phone || '',
-        avatar_url: profileData.avatar_url || '',
-        created_at: profileData.created_at
-      }))
+      if (user?.id) {
+        setCache('profile_data', {
+          name: profileData.name || '',
+          email: user.email || '',
+          phone: profileData.phone || '',
+          avatar_url: profileData.avatar_url || '',
+          created_at: profileData.created_at
+        }, user.id)
+      }
       
       setDataLoaded(true)
     } catch (error: any) {
-      console.error('Error loading profile:', error)
       // Show error to user but don't prevent them from seeing the page
       // Use email as fallback for display
       setProfile({
@@ -144,6 +128,21 @@ export const Profile: React.FC = () => {
     }
   }
 
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `profile-updates-${user?.id}`,
+    table: 'users',
+    filter: `id=eq.${user?.id}`,
+    onUpdate: loadProfileData,
+    enabled: !!user?.id
+  })
+
+  useEffect(() => {
+    if (user?.id) {
+      loadProfileData()
+    }
+  }, [user?.id])
+
   const handleUpdateProfile = async () => {
     if (!user) return
 
@@ -157,7 +156,6 @@ export const Profile: React.FC = () => {
             try {
               await deleteCustomerImage(profile.avatar_url)
             } catch (deleteError) {
-              console.warn('Failed to delete old image:', deleteError)
             }
           }
 
@@ -176,7 +174,6 @@ export const Profile: React.FC = () => {
 
           if (error) throw error
         } catch (imageError) {
-          console.error('Error uploading image:', imageError)
           throw new Error('Failed to upload profile picture')
         }
       } else {
@@ -202,7 +199,6 @@ export const Profile: React.FC = () => {
       
       alert('Profile updated successfully!')
     } catch (error: any) {
-      console.error('Error updating profile:', error)
       alert(`Failed to update profile: ${error.message || 'Please try again.'}`)
     } finally {
       setLoading(false)
@@ -224,7 +220,6 @@ export const Profile: React.FC = () => {
         window.location.href = '/'
       }, 500)
     } catch (error) {
-      console.error('Error signing out:', error)
       toast.dismiss()
       toast.error('Error signing out, but redirecting...')
       // Force redirect even if signOut fails

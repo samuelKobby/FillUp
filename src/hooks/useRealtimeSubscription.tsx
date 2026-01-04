@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { supabase } from '../lib/supabase'
-import { RealtimeChannel } from '@supabase/supabase-js'
+import { useEffect, useRef, useCallback } from 'react'
+import { RealtimeManager } from '../lib/RealtimeManager'
 
 interface RealtimeSubscriptionConfig {
   channelName: string
@@ -12,8 +11,8 @@ interface RealtimeSubscriptionConfig {
 }
 
 /**
- * Custom hook for managing Supabase Realtime subscriptions with automatic reconnection
- * Handles page visibility changes and network reconnection
+ * Custom hook for managing Supabase Realtime subscriptions
+ * Uses singleton RealtimeManager for proper deduplication and React Strict Mode compatibility
  */
 export const useRealtimeSubscription = ({
   channelName,
@@ -23,93 +22,59 @@ export const useRealtimeSubscription = ({
   onUpdate,
   enabled = true
 }: RealtimeSubscriptionConfig) => {
-  const channelRef = useRef<RealtimeChannel | null>(null)
-  const isSubscribedRef = useRef(false)
+  const callbackRef = useRef(onUpdate)
+  const isMountedRef = useRef(true)
 
-  const subscribe = () => {
-    // Don't subscribe if disabled or already subscribed
-    if (!enabled || isSubscribedRef.current) return
+  // Update callback ref when onUpdate changes (without triggering resubscription)
+  useEffect(() => {
+    callbackRef.current = onUpdate
+  }, [onUpdate])
 
-    // Create unique channel with timestamp to prevent duplicates
-    const timestamp = Date.now()
-    const uniqueChannelName = `${channelName}-${timestamp}`
-
-    const channel = supabase
-      .channel(uniqueChannelName)
-      .on(
-        'postgres_changes',
-        {
-          event,
-          schema: 'public',
-          table,
-          ...(filter && { filter })
-        },
-        () => {
-          onUpdate()
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true
-          console.log(`✅ Subscribed to ${table}`)
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn(`⚠️ Subscription error for ${table}, will retry...`)
-          isSubscribedRef.current = false
-        }
-      })
-
-    channelRef.current = channel
-  }
-
-  const unsubscribe = async () => {
-    if (channelRef.current) {
-      await supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-      isSubscribedRef.current = false
-      console.log(`🔌 Unsubscribed from ${table}`)
+  // Stable callback wrapper that always calls the latest onUpdate
+  const stableCallback = useCallback(() => {
+    if (isMountedRef.current) {
+      callbackRef.current()
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!enabled) return
 
-    // Initial subscription
-    subscribe()
+    isMountedRef.current = true
+    let subscribed = false
 
-    // Handle page visibility changes (tab becomes active again)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('👀 Page visible, checking connection...')
-        // Trigger data refresh when page becomes visible
-        onUpdate()
+    // Subscribe through RealtimeManager
+    const doSubscribe = async () => {
+      try {
+        await RealtimeManager.subscribe({
+          channelName,
+          table,
+          filter,
+          event,
+          callback: stableCallback
+        })
+        subscribed = true
+      } catch (error) {
+        // Error already logged by RealtimeManager
+        if (import.meta.env.DEV) {
+          console.error(`Failed to subscribe to ${channelName}:`, error)
+        }
       }
     }
 
-    // Handle network reconnection
-    const handleOnline = () => {
-      console.log('🌐 Network reconnected, resubscribing...')
-      unsubscribe().then(() => {
-        subscribe()
-        onUpdate()
-      })
-    }
+    doSubscribe()
 
-    // Handle network disconnection
-    const handleOffline = () => {
-      console.log('📡 Network disconnected')
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
+    // Cleanup on unmount
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-      unsubscribe()
+      isMountedRef.current = false
+      if (subscribed) {
+        RealtimeManager.unsubscribe(channelName, stableCallback)
+      }
     }
-  }, [enabled, channelName, table, filter, event])
+  }, [enabled, channelName, table, filter, event, stableCallback])
 
-  return { subscribe, unsubscribe }
+  return {
+    // Expose manager stats for debugging
+    getStats: () => RealtimeManager.getStats()
+  }
 }

@@ -22,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles, getUserWallet } from '../lib/supabase'
 import toast from '../lib/toast'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { getCache, setCache } from '../lib/cache'
 
 interface Vehicle {
   id: string
@@ -111,8 +112,7 @@ export const RequestMechanic: React.FC = () => {
   const navigate = useNavigate()
   
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const cached = localStorage.getItem('requestmechanic_vehicles')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Vehicle[]>('requestmechanic_vehicles', user.id) || []) : []
   })
   const [dataLoaded, setDataLoaded] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
@@ -131,6 +131,35 @@ export const RequestMechanic: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   
+  const loadData = async () => {
+    if (!user) return
+
+    setLoading(true)
+
+    try {
+      const [vehiclesData, walletData] = await Promise.all([
+        getUserVehicles(user.id),
+        getUserWallet(user.id)
+      ])
+
+      setVehicles(vehiclesData)
+      setWalletBalance(walletData?.balance || 0)
+      if (user?.id) {
+        setCache('requestmechanic_vehicles', vehiclesData, user.id)
+      }
+
+      const defaultVehicle = vehiclesData.find(v => v.is_default)
+      if (defaultVehicle) {
+        setSelectedVehicle(defaultVehicle)
+      }
+      
+      setDataLoaded(true)
+    } catch (error) {
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Set up Realtime subscriptions with auto-reconnection
   useRealtimeSubscription({
     channelName: `requestmechanic-vehicles-${user?.id}`,
@@ -162,40 +191,11 @@ export const RequestMechanic: React.FC = () => {
             })
           },
           (error) => {
-            console.error('Error getting location:', error)
           }
         )
       }
     }
   }, [user?.id])
-
-  const loadData = async () => {
-    if (!user) return
-
-    setLoading(true)
-
-    try {
-      const [vehiclesData, walletData] = await Promise.all([
-        getUserVehicles(user.id),
-        getUserWallet(user.id)
-      ])
-
-      setVehicles(vehiclesData)
-      setWalletBalance(walletData?.balance || 0)
-      localStorage.setItem('requestmechanic_vehicles', JSON.stringify(vehiclesData))
-
-      const defaultVehicle = vehiclesData.find(v => v.is_default)
-      if (defaultVehicle) {
-        setSelectedVehicle(defaultVehicle)
-      }
-      
-      setDataLoaded(true)
-    } catch (error) {
-      console.error('Error loading data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const calculateSubtotal = () => {
     if (!selectedService) return 0
@@ -229,18 +229,15 @@ export const RequestMechanic: React.FC = () => {
 
   const handleSubmitOrder = async () => {
     if (!selectedVehicle || !selectedService || !location.trim() || !description.trim() || !selectedPayment) {
-      console.error('Validation failed: Missing required fields')
       return
     }
 
     setSubmitting(true)
     try {
       const total = calculateTotal()
-      console.log('Calculated total:', total)
       
       // Create a PostgreSQL Point for the delivery location
       const deliveryLocation = userLocation ? `(${userLocation.lng}, ${userLocation.lat})` : '(0, 0)';
-      console.log('Delivery location:', deliveryLocation)
       
       const orderPayload = {
         customer_id: user!.id,
@@ -256,7 +253,6 @@ export const RequestMechanic: React.FC = () => {
         scheduled_time: scheduledTime || null,
         status: 'pending'
       }
-      console.log('Order payload:', orderPayload)
       
       const { data, error } = await supabase
         .from('orders')
@@ -265,11 +261,8 @@ export const RequestMechanic: React.FC = () => {
         .single()
 
       if (error) {
-        console.error('Error inserting order:', error)
         throw error
       }
-
-      console.log('Order data:', data)
 
       const transactionPayload = {
         user_id: user!.id,
@@ -280,7 +273,6 @@ export const RequestMechanic: React.FC = () => {
         payment_method: selectedPayment,
         status: selectedPayment === 'wallet' ? 'completed' : 'pending'
       }
-      console.log('Transaction payload:', transactionPayload)
       
       await supabase
         .from('transactions')
@@ -291,7 +283,6 @@ export const RequestMechanic: React.FC = () => {
           balance: walletBalance - total,
           total_spent: (walletBalance - total) + total
         }
-        console.log('Wallet update payload:', walletUpdatePayload)
         
         await supabase
           .from('wallets')
@@ -302,7 +293,6 @@ export const RequestMechanic: React.FC = () => {
       // Show success confirmation page instead of direct navigation
       setShowOrderSuccess(true)
     } catch (error: any) {
-      console.error('Error creating order:', error)
       const errorMessage = error?.message || 'Failed to place order. Please try again.'
       toast.error(errorMessage)
     } finally {
@@ -672,11 +662,9 @@ export const RequestMechanic: React.FC = () => {
                         setLocation("Current Location");
                       },
                       (error) => {
-                        console.error("Error getting location:", error);
                       }
                     );
                   } else {
-                    console.error("Geolocation is not supported by this browser.");
                   }
                 }}
                 className="mt-4 flex items-center justify-center bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors"

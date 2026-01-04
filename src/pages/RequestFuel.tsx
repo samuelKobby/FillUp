@@ -24,10 +24,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles, getUserWallet } from '../lib/supabase'
 import { GeoJSONPoint } from '../lib/database.types'
 import toast from '../lib/toast'
+import { getCache, setCache } from '../lib/cache'
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { useGeolocated } from 'react-geolocated';
 import heroImg from '../assets/hero.png'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { useNetworkStatus } from '../hooks/useNetworkStatus'
 
 interface Vehicle {
   id: string
@@ -96,27 +98,32 @@ const fuelCategories = [
 export const RequestFuel: React.FC = () => {
   const { user, userProfile } = useAuth()
   const navigate = useNavigate()
+  const { isOffline, wasOffline } = useNetworkStatus()
   
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const cached = localStorage.getItem('requestfuel_vehicles')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Vehicle[]>('requestfuel_vehicles', user.id) || []) : []
   })
   const [stations, setStations] = useState<Station[]>(() => {
-    const cached = localStorage.getItem('requestfuel_stations')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Station[]>('requestfuel_stations', user.id) || []) : []
   })
   const [dataLoaded, setDataLoaded] = useState(false)
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
-  const [selectedStation, setSelectedStation] = useState<Station | null>(null)
-  const [selectedPayment, setSelectedPayment] = useState<string>('wallet')
-  const [fuelQuantity, setFuelQuantity] = useState(20)
-  const [deliveryAddress, setDeliveryAddress] = useState('')
-  const [scheduledTime, setScheduledTime] = useState('')
-  const [notes, setNotes] = useState('')
+  const [showCachedData, setShowCachedData] = useState(false)
+  
+  // Restore draft state from cache on mount
+  const draftKey = `requestfuel_draft_${user?.id}`
+  const savedDraft = user ? getCache<any>(draftKey, user.id, { ttl: 24 * 60 * 60 * 1000 }) : null
+  
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(savedDraft?.selectedVehicleId ? null : null)
+  const [selectedStation, setSelectedStation] = useState<Station | null>(savedDraft?.selectedStationId ? null : null)
+  const [selectedPayment, setSelectedPayment] = useState<string>(savedDraft?.selectedPayment || 'wallet')
+  const [fuelQuantity, setFuelQuantity] = useState(savedDraft?.fuelQuantity || 20)
+  const [deliveryAddress, setDeliveryAddress] = useState(savedDraft?.deliveryAddress || '')
+  const [scheduledTime, setScheduledTime] = useState(savedDraft?.scheduledTime || '')
+  const [notes, setNotes] = useState(savedDraft?.notes || '')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(1) // Always start at step 1 (station selection)
   const [loadingError, setLoadingError] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [showVehicleSelect, setShowVehicleSelect] = useState(false)
@@ -129,6 +136,7 @@ export const RequestFuel: React.FC = () => {
   const [address, setAddress] = useState('');
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+  const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('home')
 
   const { coords, isGeolocationAvailable, isGeolocationEnabled } = useGeolocated({
@@ -137,6 +145,93 @@ export const RequestFuel: React.FC = () => {
     },
     userDecisionTimeout: 5000,
   });
+
+  // Save draft state whenever form changes (debounced)
+  useEffect(() => {
+    if (!user?.id) return
+    
+    const draftData = {
+      selectedVehicleId: selectedVehicle?.id,
+      selectedStationId: selectedStation?.id,
+      selectedPayment,
+      fuelQuantity,
+      deliveryAddress,
+      scheduledTime,
+      notes,
+      step,
+      selectedLocation,
+    }
+    
+    // Only save if user has made some progress (not on step 1 with defaults)
+    if (step > 1 || deliveryAddress || notes || fuelQuantity !== 20) {
+      const timer = setTimeout(() => {
+        setCache(draftKey, draftData, user.id, { ttl: 24 * 60 * 60 * 1000 })
+      }, 1000) // Debounce 1 second
+      
+      return () => clearTimeout(timer)
+    }
+  }, [user?.id, selectedVehicle, selectedStation, selectedPayment, fuelQuantity, deliveryAddress, scheduledTime, notes, step, selectedLocation])
+
+  const loadData = async () => {
+    if (!user) return
+
+    setLoading(true)
+
+    try {
+      const [vehiclesResult, stationsResult, walletResult] = await Promise.all([
+        getUserVehicles(user.id),
+        supabase
+          .from('stations')
+          .select('*')
+          .eq('is_verified', true)
+          .eq('is_active', true)
+          .order('name'),
+        getUserWallet(user.id)
+      ])
+
+      if (stationsResult.error) {
+        setLoadingError('Failed to load fuel stations')
+      } else {
+        setStations(stationsResult.data || [])
+      }
+
+      setVehicles(vehiclesResult)
+      setWalletBalance(walletResult?.balance || 0)
+      if (user?.id) {
+        setCache('requestfuel_vehicles', vehiclesResult, user.id)
+        setCache('requestfuel_stations', stationsResult.data || [], user.id)
+      }
+
+      // Restore vehicle from draft if available, otherwise use default
+      if (savedDraft?.selectedVehicleId) {
+        const draftVehicle = vehiclesResult.find(v => v.id === savedDraft.selectedVehicleId)
+        if (draftVehicle) setSelectedVehicle(draftVehicle)
+      } else {
+        const defaultVehicle = vehiclesResult.find(v => v.is_default)
+        if (defaultVehicle) {
+          setSelectedVehicle(defaultVehicle)
+        } else if (vehiclesResult.length > 0) {
+          setSelectedVehicle(vehiclesResult[0])
+        }
+      }
+
+      // Restore station from draft if available
+      if (savedDraft?.selectedStationId && stationsResult.data) {
+        const draftStation = stationsResult.data.find(s => s.id === savedDraft.selectedStationId)
+        if (draftStation) setSelectedStation(draftStation)
+      } else if (stationsResult.data && stationsResult.data.length > 0 && !selectedStation) {
+        // Only auto-select station if user hasn't selected one yet
+        setSelectedStation(stationsResult.data[0])
+      }
+      
+      setDataLoaded(true)
+      setShowCachedData(true)
+    } catch (error) {
+      setLoadingError(isOffline ? 'No internet connection' : 'Failed to load data')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Set up Realtime subscriptions with auto-reconnection
   useRealtimeSubscription({
@@ -166,6 +261,13 @@ export const RequestFuel: React.FC = () => {
     if (user?.id) {
       loadData()
       
+      // Show cached data after 500ms if fresh data is taking time
+      const timer = setTimeout(() => {
+        if (!dataLoaded) {
+          setShowCachedData(true)
+        }
+      }, 500)
+      
       // Try to get user's location
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -176,62 +278,20 @@ export const RequestFuel: React.FC = () => {
             })
           },
           (error) => {
-            console.error('Error getting location:', error)
           }
         )
       }
+      
+      return () => clearTimeout(timer)
     }
   }, [user?.id])
 
-  const loadData = async () => {
-    if (!user) return
-
-    setLoading(true)
-
-    try {
-      const [vehiclesResult, stationsResult, walletResult] = await Promise.all([
-        getUserVehicles(user.id),
-        supabase
-          .from('stations')
-          .select('*')
-          .eq('is_verified', true)
-          .eq('is_active', true)
-          .order('name'),
-        getUserWallet(user.id)
-      ])
-
-      if (stationsResult.error) {
-        console.error('Error loading stations:', stationsResult.error)
-        setLoadingError('Failed to load fuel stations')
-      } else {
-        setStations(stationsResult.data || [])
-      }
-
-      setVehicles(vehiclesResult)
-      setWalletBalance(walletResult?.balance || 0)
-      localStorage.setItem('requestfuel_vehicles', JSON.stringify(vehiclesResult))
-      localStorage.setItem('requestfuel_stations', JSON.stringify(stationsResult.data || []))
-
-      const defaultVehicle = vehiclesResult.find(v => v.is_default)
-      if (defaultVehicle) {
-        setSelectedVehicle(defaultVehicle)
-      } else if (vehiclesResult.length > 0) {
-        setSelectedVehicle(vehiclesResult[0])
-      }
-
-      // Only auto-select station if user hasn't selected one yet
-      if (stationsResult.data && stationsResult.data.length > 0 && !selectedStation) {
-        setSelectedStation(stationsResult.data[0])
-      }
-      
-      setDataLoaded(true)
-    } catch (error) {
-      console.error('Error loading data:', error)
-      setLoadingError('Failed to load data')
-    } finally {
-      setLoading(false)
+  // Reload data when coming back online
+  useEffect(() => {
+    if (wasOffline && user?.id) {
+      loadData()
     }
-  }
+  }, [wasOffline, user?.id])
 
   const calculateSubtotal = () => {
     if (!selectedStation || !selectedVehicle) return 0
@@ -272,6 +332,14 @@ export const RequestFuel: React.FC = () => {
 
     setSubmitting(true);
     setError('');
+    
+    // Check network connectivity
+    if (isOffline) {
+      setError('No internet connection. Please check your network and try again.')
+      setSubmitting(false)
+      toast.error('Cannot place order while offline')
+      return
+    }
     
     try {
       // Validate required fields
@@ -340,11 +408,19 @@ export const RequestFuel: React.FC = () => {
           .eq('user_id', user!.id)
       }
 
+      // Clear draft after successful submission
+      if (user?.id) {
+        localStorage.removeItem(`requestfuel_draft_${user.id}`)
+      }
+
+      // Store order ID in session storage for refresh recovery
+      sessionStorage.setItem('orderSuccessId', data.id)
+      setSuccessOrderId(data.id)
+
       // Show success confirmation page instead of direct navigation
       setShowOrderSuccess(true);
       
     } catch (err: any) {
-      console.error('Error creating order:', err)
       const errorMessage = err?.message || "Failed to place order. Please try again."
       setError(errorMessage);
       toast.error(errorMessage)
@@ -421,7 +497,15 @@ export const RequestFuel: React.FC = () => {
             
             {/* Congratulations Text */}
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Congratulations</h1>
-            <p className="text-gray-600 mb-8">Your Order is Confirmed !</p>
+            <p className="text-gray-600 mb-4">Your Order is Confirmed!</p>
+            
+            {/* Order ID */}
+            {successOrderId && (
+              <div className="mb-6 p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">Order ID</p>
+                <p className="text-sm font-mono font-semibold text-gray-900">{successOrderId.slice(0, 8).toUpperCase()}</p>
+              </div>
+            )}
             
             {/* Additional Message */}
             <p className="text-sm text-gray-500 mb-8">
@@ -431,7 +515,13 @@ export const RequestFuel: React.FC = () => {
             
             {/* Track Order Button */}
             <button 
-              onClick={() => navigate('/dashboard', { state: { activeTab: 'orders' } })}
+              onClick={() => {
+                // Clear success state before navigation
+                sessionStorage.removeItem('orderSuccessId')
+                setShowOrderSuccess(false)
+                setSuccessOrderId(null)
+                navigate('/dashboard', { state: { activeTab: 'orders' } })
+              }}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
             >
               Track Order
@@ -518,6 +608,15 @@ export const RequestFuel: React.FC = () => {
          {/* Content with rounded top corners */}
         <div className="bg-white rounded-t-3xl -mt-6 relative z-10 min-h-screen"> 
           <div className="px-3 sm:px-4 pt-6 sm:pt-8 pb-4 sm:pb-6">
+          
+          {/* Show loading indicator if data is being fetched */}
+          {!dataLoaded && showCachedData && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              <span className="text-sm text-blue-600">Updating stations...</span>
+            </div>
+          )}
+          
           {/* Categories */}
           <div className="flex space-x-3 mb-6 overflow-x-auto pb-2">
             {fuelCategories.map((category) => (
@@ -540,7 +639,13 @@ export const RequestFuel: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">Service Your Location</h2>
           </div>
             
-            {stations.length === 0 ? (
+            {stations.length === 0 && !showCachedData ? (
+              <div className="text-center py-8 bg-white rounded-lg shadow-sm">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600 mb-2">Loading stations...</p>
+                <p className="text-sm text-gray-500">Please wait</p>
+              </div>
+            ) : stations.length === 0 ? (
               <div className="text-center py-8 bg-white rounded-lg shadow-sm">
                 <FuelStationIcon size={48} color="#9CA3AF" className="mx-auto mb-4" />
                 <p className="text-gray-600 mb-2">No fuel stations available</p>
@@ -574,7 +679,6 @@ export const RequestFuel: React.FC = () => {
                           alt={station.name}
                           className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => {
-                            console.error('Image failed to load:', station.image_url)
                             e.currentTarget.style.display = 'none'
                           }}
                         />
@@ -659,7 +763,6 @@ export const RequestFuel: React.FC = () => {
               alt={selectedStation.name} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                console.error('Image failed to load:', selectedStation.image_url)
                 e.currentTarget.src = '/src/assets/hero.png'
               }}
             />
@@ -892,11 +995,9 @@ export const RequestFuel: React.FC = () => {
                         setDeliveryAddress("Current Location");
                       },
                       (error) => {
-                        console.error("Error getting location:", error);
                       }
                     );
                   } else {
-                    console.error("Geolocation is not supported by this browser.");
                   }
                 }}
                 className="mt-4 flex items-center justify-center bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors"

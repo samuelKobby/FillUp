@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserWallet } from '../lib/supabase'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { getCache, setCache } from '../lib/cache'
 
 interface Transaction {
   id: string
@@ -38,12 +39,10 @@ interface Wallet {
 export const Wallet: React.FC = () => {
   const { user } = useAuth()
   const [wallet, setWallet] = useState<Wallet | null>(() => {
-    const cached = localStorage.getItem('wallet_data')
-    return cached ? JSON.parse(cached) : null
+    return user ? getCache<Wallet>('wallet_data', user.id) : null
   })
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const cached = localStorage.getItem('transactions_data')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Transaction[]>('transactions_data', user.id) || []) : []
   })
   const [loading, setLoading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
@@ -54,6 +53,34 @@ export const Wallet: React.FC = () => {
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [showAllTransactions, setShowAllTransactions] = useState(false)
+
+  const loadWalletData = async () => {
+    if (!user) return
+
+    setLoading(true)
+    try {
+      const [walletData, transactionsData] = await Promise.all([
+        getUserWallet(user.id),
+        supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50)
+      ])
+
+      setWallet(walletData)
+      setTransactions(transactionsData.data || [])
+      if (user?.id) {
+        setCache('wallet_data', walletData, user.id)
+        setCache('transactions_data', transactionsData.data || [], user.id)
+      }
+      setDataLoaded(true)
+    } catch (error) {
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Set up Realtime subscriptions with auto-reconnection
   useRealtimeSubscription({
@@ -77,33 +104,6 @@ export const Wallet: React.FC = () => {
       loadWalletData()
     }
   }, [user?.id])
-
-  const loadWalletData = async () => {
-    if (!user) return
-
-    setLoading(true)
-    try {
-      const [walletData, transactionsData] = await Promise.all([
-        getUserWallet(user.id),
-        supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(50)
-      ])
-
-      setWallet(walletData)
-      setTransactions(transactionsData.data || [])
-      localStorage.setItem('wallet_data', JSON.stringify(walletData))
-      localStorage.setItem('transactions_data', JSON.stringify(transactionsData.data || []))
-      setDataLoaded(true)
-    } catch (error) {
-      console.error('Error loading wallet data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleTopUp = async () => {
     if (!topUpAmount || parseFloat(topUpAmount) <= 0) return
@@ -144,7 +144,6 @@ export const Wallet: React.FC = () => {
       setTopUpAmount('')
       setShowTopUp(false)
     } catch (error) {
-      console.error('Error topping up wallet:', error)
     } finally {
       setProcessing(false)
     }
@@ -191,7 +190,6 @@ export const Wallet: React.FC = () => {
       setWithdrawAmount('')
       setShowWithdraw(false)
     } catch (error) {
-      console.error('Error withdrawing from wallet:', error)
     } finally {
       setProcessing(false)
     }

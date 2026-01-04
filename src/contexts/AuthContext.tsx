@@ -40,7 +40,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const profile = await getUserProfile(userId)
       
       if (!profile) {
-        console.warn('⚠️ No profile found for user:', userId)
         setUserProfile(null)
         setUserRole(null)
         return null
@@ -50,7 +49,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole(profile.role)
       return profile
     } catch (error) {
-      console.error('❌ Error loading user profile:', error)
       // Don't set profile to null on error - keep existing profile if available
       // This prevents the app from breaking when there are temporary network issues
       return null
@@ -60,30 +58,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true
     
-    // Get initial session
-    const initializeAuth = async () => {
+    // Validate and refresh session
+    const validateSession = async () => {
       try {
+        // Get current session
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
-          console.error('❌ Session error:', error)
-          if (mounted) setLoading(false)
+          if (mounted) {
+            setUser(null)
+            setUserProfile(null)
+            setUserRole(null)
+            setLoading(false)
+          }
           return
         }
-        
-        if (mounted) {
-          setUser(session?.user ?? null)
-          if (session?.user) {
+
+        // No session found
+        if (!session) {
+          if (mounted) {
+            setUser(null)
+            setUserProfile(null)
+            setUserRole(null)
+            setLoading(false)
+          }
+          return
+        }
+
+        // Check if token is expired
+        const expiresAt = session.expires_at
+        const now = Math.floor(Date.now() / 1000)
+        const isExpired = expiresAt ? now >= expiresAt : false
+
+        if (isExpired) {
+          // Try to refresh the session
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+          
+          if (refreshError || !refreshData.session) {
+            // Force logout on expired session
+            await supabase.auth.signOut()
+            if (mounted) {
+              setUser(null)
+              setUserProfile(null)
+              setUserRole(null)
+              setLoading(false)
+            }
+            return
+          }
+
+          // Use refreshed session
+          if (mounted) {
+            setUser(refreshData.session.user)
+            await loadUserProfile(refreshData.session.user.id)
+            setLoading(false)
+          }
+        } else {
+          // Valid session
+          if (mounted) {
+            setUser(session.user)
             try {
               await loadUserProfile(session.user.id)
             } catch (profileError) {
-              console.error('Profile load failed during init:', profileError)
             }
+            setLoading(false)
           }
-          setLoading(false)
         }
       } catch (error) {
-        console.error('❌ Auth initialization error:', error)
         if (mounted) {
           setUser(null)
           setUserProfile(null)
@@ -93,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     
-    initializeAuth()
+    validateSession()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -111,9 +151,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     )
 
+    // Handle page visibility changes to refresh session
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && mounted) {
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession()
+          if (error) {
+            setUser(null)
+            setUserProfile(null)
+            setUserRole(null)
+            return
+          }
+
+          if (!session) {
+            if (mounted) {
+              setUser(null)
+              setUserProfile(null)
+              setUserRole(null)
+            }
+            return
+          }
+
+          // Check token expiration
+          const expiresAt = session.expires_at
+          const now = Math.floor(Date.now() / 1000)
+          const isExpired = expiresAt ? now >= expiresAt : false
+
+          if (isExpired) {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+            
+            if (refreshError || !refreshData.session) {
+              await supabase.auth.signOut()
+              if (mounted) {
+                setUser(null)
+                setUserProfile(null)
+                setUserRole(null)
+              }
+              return
+            }
+
+            if (mounted) {
+              setUser(refreshData.session.user)
+              await loadUserProfile(refreshData.session.user.id)
+            }
+          } else {
+            // Valid session, just sync state
+            if (mounted && session.user) {
+              setUser(session.user)
+              await loadUserProfile(session.user.id)
+            }
+          }
+        } catch (error) {
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       mounted = false
       subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
@@ -125,7 +223,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (error) {
-        console.error('❌ Sign in error:', error)
         throw error
       }
 
@@ -154,7 +251,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       return { user: data.user, userRole: profile?.role || null }
     } catch (error) {
-      console.error('💥 Sign in failed:', error)
       throw error
     }
   }
@@ -174,13 +270,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (error) {
-        console.error('Sign up error:', error)
         throw error
       }
 
       // Don't return data, just complete successfully
     } catch (error) {
-      console.error('Sign up failed:', error)
       throw error
     }
   }
@@ -190,20 +284,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // First, invalidate all active sessions globally
       const { error: globalSignOutError } = await supabase.auth.signOut({ scope: 'global' })
       if (globalSignOutError) {
-        console.error('❌ Global sign out error:', globalSignOutError)
       }
       
       // Also perform local sign out as backup
       const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' })
       if (localSignOutError) {
-        console.error('❌ Local sign out error:', localSignOutError)
       }
       
       // Force refresh the auth session to ensure it's cleared
       await supabase.auth.refreshSession()
       
     } catch (error) {
-      console.error('❌ Sign out error (non-blocking):', error)
       // Continue with local cleanup even if server sign out fails
     }
     
@@ -214,9 +305,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Clear all session/local storage aggressively
     try {
-      // Clear all localStorage keys
+      // Clear all localStorage keys (auth AND app data)
       const localStorageKeys = Object.keys(localStorage)
       localStorageKeys.forEach(key => {
+        // Clear auth-related keys
         if (key.startsWith('supabase') || 
             key.includes('auth') || 
             key.includes('session') || 
@@ -224,6 +316,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             key.includes('sb-') ||
             key.includes('access_token') ||
             key.includes('refresh_token')) {
+          localStorage.removeItem(key)
+        }
+        
+        // Clear ALL app-specific cached data to prevent data leakage
+        if (key.includes('_data') ||
+            key.includes('vehicles') ||
+            key.includes('stations') ||
+            key.includes('orders') ||
+            key.includes('wallet') ||
+            key.includes('transactions') ||
+            key.includes('profile') ||
+            key.includes('mechanics') ||
+            key.includes('dashboard') ||
+            key.includes('requestfuel') ||
+            key.includes('requestmechanic')) {
           localStorage.removeItem(key)
         }
       })
@@ -238,12 +345,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             key.includes('sb-') ||
             key.includes('access_token') ||
             key.includes('refresh_token') ||
-            key.includes('_last_user')) {  // Clear page load tracking
+            key.includes('_last_user')) {
           sessionStorage.removeItem(key)
         }
       })
       
-      // Also clear common application storage keys
+      // Clear common application storage keys
       sessionStorage.removeItem('lastPath')
       sessionStorage.removeItem('redirectPath')
       sessionStorage.removeItem('userRole')
@@ -251,13 +358,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('userRole')
       localStorage.removeItem('userProfile')
       
+      // Keep splashShown to avoid showing splash on re-login
+      // sessionStorage 'splashShown' is intentionally NOT cleared
+      
       // Clear any cookies related to authentication
       document.cookie.split(";").forEach(function(c) { 
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
       });
       
     } catch (storageError) {
-      console.warn('⚠️ Storage cleanup error (non-critical):', storageError)
     }
     
     // Force a small delay to ensure all cleanup operations complete
@@ -269,11 +378,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Force invalidate all sessions globally
       const { error } = await supabase.auth.signOut({ scope: 'global' })
       if (error) {
-        console.error('❌ Session invalidation error:', error)
         throw error
       }
     } catch (error) {
-      console.error('❌ Failed to invalidate sessions:', error)
       throw error
     }
   }
@@ -294,7 +401,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   if (loading) {
     const handleClearAll = () => {
-      console.log('🧹 Clearing all local storage and session data')
       localStorage.clear()
       sessionStorage.clear()
       window.location.href = '/'

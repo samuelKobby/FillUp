@@ -37,8 +37,10 @@ import { StationDashboard } from './pages/station/StationDashboard'
 import { DebugPage } from './pages/DebugPage'
 import { useState, useEffect } from 'react'
 import loaderGif from './assets/lodaer.gif'
+import { useNetworkStatus } from './hooks/useNetworkStatus'
+import { OfflineIndicator } from './components/OfflineIndicator'
 
-// Component to handle browser refresh
+// Component to handle browser refresh - only redirects from root/landing pages
 const RedirectOnRefresh: React.FC = () => {
   const { user, userRole, loading } = useAuth()
   const navigate = useNavigate()
@@ -47,41 +49,37 @@ const RedirectOnRefresh: React.FC = () => {
 
   useEffect(() => {
     // Only run this once when component mounts
-    if (hasRedirected) return
+    if (hasRedirected || loading || !user || !userRole) return
     
-    // Check if this is a page refresh (not a navigation)
-    const isRefresh = performance.navigation.type === 1 || 
-                      (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)?.type === 'reload'
+    // Check if this is a page refresh using modern Navigation Timing API
+    const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
+    const isRefresh = navEntry?.type === 'reload'
     
-    if (isRefresh && user && userRole && !loading) {
-      // Clear any stored paths
-      sessionStorage.removeItem('lastPath')
-      sessionStorage.removeItem('redirectPath')
-      
+    // Only redirect from root/landing pages, preserve deep links
+    const shouldRedirect = isRefresh && (
+      location.pathname === '/' || 
+      location.pathname === '/app' ||
+      location.pathname === '/login' ||
+      location.pathname === '/register'
+    )
+    
+    if (shouldRedirect) {
       // Mark that we've done the redirect
       setHasRedirected(true)
       
       // Redirect to default dashboard based on role
       switch (userRole) {
         case 'admin':
-          if (location.pathname !== '/admin/dashboard') {
-            navigate('/admin/dashboard', { replace: true })
-          }
+          navigate('/admin/dashboard', { replace: true })
           break
         case 'agent':
-          if (location.pathname !== '/agent/dashboard') {
-            navigate('/agent/dashboard', { replace: true })
-          }
+          navigate('/agent/dashboard', { replace: true })
           break
         case 'station':
-          if (location.pathname !== '/station/dashboard') {
-            navigate('/station/dashboard', { replace: true })
-          }
+          navigate('/station/dashboard', { replace: true })
           break
         case 'customer':
-          if (location.pathname !== '/dashboard') {
-            navigate('/dashboard', { replace: true })
-          }
+          navigate('/dashboard', { replace: true })
           break
       }
     }
@@ -151,16 +149,21 @@ const RoleBasedRedirect: React.FC = () => {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true)
+  const [showSplash, setShowSplash] = useState(() => {
+    // Don't show splash if this is an auto-refresh
+    const isAutoRefresh = sessionStorage.getItem('autoRefresh')
+    if (isAutoRefresh) {
+      sessionStorage.removeItem('autoRefresh')
+      sessionStorage.setItem('splashShown', 'true')
+      return false
+    }
+    
+    // Check if splash was already shown this session
+    const hasSeenSplash = sessionStorage.getItem('splashShown')
+    return !hasSeenSplash
+  })
   const [splashExiting, setSplashExiting] = useState(false)
-
-  // Temporarily disabled - shows every time for testing
-  // useEffect(() => {
-  //   const hasSeenSplash = sessionStorage.getItem('splashShown')
-  //   if (hasSeenSplash) {
-  //     setShowSplash(false)
-  //   }
-  // }, [])
+  const { isOffline } = useNetworkStatus()
 
   const handleSplashComplete = () => {
     sessionStorage.setItem('splashShown', 'true')
@@ -171,19 +174,67 @@ function App() {
     }, 500)
   }
 
+  // Auto-refresh page when tab becomes visible after being hidden
+  useEffect(() => {
+    let hiddenTime: number | null = null
+    const REFRESH_THRESHOLD = 0 // Refresh immediately on any tab switch
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden - record timestamp
+        hiddenTime = Date.now()
+      } else {
+        // Tab is visible
+        if (hiddenTime) {
+          // Tab was previously hidden - check duration
+          const hiddenDuration = Date.now() - hiddenTime
+          
+          if (hiddenDuration >= REFRESH_THRESHOLD) {
+            // Check if Google Maps is active or loading
+            const hasGoogleMapsScript = document.querySelector('[src*="maps.googleapis.com"]')
+            const hasGoogleMapsComponent = document.querySelector('[class*="gm-style"]') || 
+                                          document.querySelector('[style*="maps.gstatic"]')
+            
+            // Only refresh if Google Maps is not being used at all
+            if (!hasGoogleMapsScript && !hasGoogleMapsComponent) {
+              // Mark that auto-refresh is happening (prevent splash screen)
+              sessionStorage.setItem('autoRefresh', 'true')
+              
+              // Tab was hidden long enough - refresh the page
+              setTimeout(() => {
+                window.location.reload()
+              }, 100)
+            }
+          }
+          
+          hiddenTime = null
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   return (
     <Router>
       <AuthProvider>
+        {/* Offline Indicator */}
+        <OfflineIndicator isOffline={isOffline} />
+        
         {showSplash && <SplashScreen onComplete={handleSplashComplete} duration={7000} />}
         
         {/* Main content with slide-up animation */}
         <motion.div
-          initial={{ y: '100vh' }}
+          initial={{ y: showSplash ? '100vh' : 0 }}
           animate={{ 
-            y: splashExiting ? 0 : '100vh'
+            y: splashExiting || !showSplash ? 0 : '100vh'
           }}
           transition={{
-            duration: 0.5,
+            duration: showSplash ? 0.5 : 0,
             ease: [0.43, 0.13, 0.23, 0.96],
           }}
           className="relative min-h-screen"

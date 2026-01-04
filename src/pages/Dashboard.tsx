@@ -31,6 +31,7 @@ import { supabase } from '../lib/supabase'
 import type { Database } from '../lib/database.types'
 import { usePrefetchData } from '../hooks/usePrefetchData'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { getCache, setCache } from '../lib/cache'
 
 type Station = Database['public']['Tables']['stations']['Row'] & {
   users: { name: string } | null
@@ -46,47 +47,15 @@ export const Dashboard: React.FC = () => {
   const location = useLocation()
   const [activeTab, setActiveTab] = useState('home')
   
-  // Prefetch data for all pages automatically
-  usePrefetchData(user?.id)
-  
-  // Set up Realtime subscriptions with auto-reconnection
-  useRealtimeSubscription({
-    channelName: `dashboard-stations-${user?.id}`,
-    table: 'stations',
-    onUpdate: fetchNearbyServices,
-    enabled: !!user?.id
-  })
-  
-  useRealtimeSubscription({
-    channelName: `dashboard-agents-${user?.id}`,
-    table: 'agents',
-    onUpdate: fetchNearbyServices,
-    enabled: !!user?.id
-  })
-  
   const [stations, setStations] = useState<Station[]>(() => {
-    const cached = localStorage.getItem('dashboard_stations')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Station[]>('dashboard_stations', user.id) || []) : []
   })
   const [mechanics, setMechanics] = useState<Agent[]>(() => {
-    const cached = localStorage.getItem('dashboard_mechanics')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Agent[]>('dashboard_mechanics', user.id) || []) : []
   })
   const [loading, setLoading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchNearbyServices()
-    }
-  }, [user?.id])
-
-  // Handle navigation state to set active tab
-  useEffect(() => {
-    if (location.state?.activeTab) {
-      setActiveTab(location.state.activeTab)
-    }
-  }, [location.state])
+  const [showCachedData, setShowCachedData] = useState(false)
 
   const fetchNearbyServices = async () => {
     if (!user?.id) return
@@ -106,10 +75,12 @@ export const Dashboard: React.FC = () => {
         .limit(4)
 
       if (stationsError) {
-        console.error('Error fetching stations:', stationsError)
+        // Error fetching stations
       } else {
         setStations(stationsData || [])
-        localStorage.setItem('dashboard_stations', JSON.stringify(stationsData || []))
+        if (user?.id) {
+          setCache('dashboard_stations', stationsData || [], user.id)
+        }
       }
 
       // Fetch mechanics (agents with mechanic service)
@@ -125,20 +96,62 @@ export const Dashboard: React.FC = () => {
         .limit(4)
 
       if (mechanicsError) {
-        console.error('Error fetching mechanics:', mechanicsError)
+        // Error fetching mechanics
       } else {
         setMechanics(mechanicsData || [])
-        localStorage.setItem('dashboard_mechanics', JSON.stringify(mechanicsData || []))
+        if (user?.id) {
+          setCache('dashboard_mechanics', mechanicsData || [], user.id)
+        }
       }
       
       setDataLoaded(true)
+      setShowCachedData(true)
     } catch (error) {
-      console.error('Error fetching nearby services:', error)
       toast.error('Failed to load nearby services')
     } finally {
       setLoading(false)
     }
   }
+  
+  // Prefetch data for all pages automatically
+  usePrefetchData(user?.id)
+  
+  // Set up Realtime subscriptions with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `dashboard-stations-${user?.id}`,
+    table: 'stations',
+    onUpdate: fetchNearbyServices,
+    enabled: !!user?.id
+  })
+  
+  useRealtimeSubscription({
+    channelName: `dashboard-agents-${user?.id}`,
+    table: 'agents',
+    onUpdate: fetchNearbyServices,
+    enabled: !!user?.id
+  })
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchNearbyServices()
+      
+      // Show cached data after 500ms if fresh data is taking time
+      const timer = setTimeout(() => {
+        if (!dataLoaded) {
+          setShowCachedData(true)
+        }
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [user?.id])
+
+  // Handle navigation state to set active tab
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab)
+    }
+  }, [location.state])
 
   const calculateDistance = (location: any) => {
     // For now, return a random distance between 0.5-5km
@@ -155,7 +168,6 @@ export const Dashboard: React.FC = () => {
       window.location.replace('/')
       await signOut()
     } catch (error) {
-      console.error('Error signing out:', error)
       window.location.replace('/')
     }
   }

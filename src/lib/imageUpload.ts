@@ -5,14 +5,11 @@ export const uploadStationImage = async (
   stationId: string
 ): Promise<string> => {
   try {
-    console.log('uploadStationImage called:', { fileName: file.name, fileSize: file.size, stationId })
     
     // Generate unique filename
     const fileExt = file.name.split('.').pop()
     const fileName = `${stationId}-${Date.now()}.${fileExt}`
     const filePath = `stations/${fileName}`
-
-    console.log('Uploading to path:', filePath)
 
     // Upload file to Supabase storage
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -23,22 +20,16 @@ export const uploadStationImage = async (
       })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
       throw uploadError
     }
-
-    console.log('Upload successful:', uploadData)
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('station-images')
       .getPublicUrl(filePath)
 
-    console.log('Public URL:', urlData.publicUrl)
-
     return urlData.publicUrl
   } catch (error) {
-    console.error('Error uploading image:', error)
     throw error
   }
 }
@@ -48,7 +39,6 @@ export const updateStationImage = async (
   imageUrl: string
 ): Promise<void> => {
   try {
-    console.log('updateStationImage called:', { stationId, imageUrl })
     
     const { error } = await supabase
       .from('stations')
@@ -56,13 +46,9 @@ export const updateStationImage = async (
       .eq('id', stationId)
 
     if (error) {
-      console.error('Update error:', error)
       throw error
     }
-    
-    console.log('Station image URL updated successfully')
   } catch (error) {
-    console.error('Error updating station image:', error)
     throw error
   }
 }
@@ -83,7 +69,6 @@ export const deleteStationImage = async (imageUrl: string): Promise<void> => {
       throw error
     }
   } catch (error) {
-    console.error('Error deleting image:', error)
     throw error
   }
 }
@@ -94,14 +79,11 @@ export const uploadCustomerImage = async (
   userId: string
 ): Promise<string> => {
   try {
-    console.log('uploadCustomerImage called:', { fileName: file.name, fileSize: file.size, userId })
     
     // Generate unique filename
     const fileExt = file.name.split('.').pop()
     const fileName = `${userId}-${Date.now()}.${fileExt}`
     const filePath = `customers/${fileName}`
-
-    console.log('Uploading to path:', filePath)
 
     // Upload file to Supabase storage
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -112,22 +94,16 @@ export const uploadCustomerImage = async (
       })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
       throw uploadError
     }
-
-    console.log('Upload successful:', uploadData)
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath)
 
-    console.log('Public URL:', urlData.publicUrl)
-
     return urlData.publicUrl
   } catch (error) {
-    console.error('Error uploading customer image:', error)
     throw error
   }
 }
@@ -137,7 +113,6 @@ export const updateCustomerImage = async (
   imageUrl: string
 ): Promise<void> => {
   try {
-    console.log('updateCustomerImage called:', { userId, imageUrl })
     
     const { error } = await supabase
       .from('users')
@@ -145,13 +120,9 @@ export const updateCustomerImage = async (
       .eq('id', userId)
 
     if (error) {
-      console.error('Update error:', error)
       throw error
     }
-    
-    console.log('Customer image URL updated successfully')
   } catch (error) {
-    console.error('Error updating customer image:', error)
     throw error
   }
 }
@@ -172,7 +143,6 @@ export const deleteCustomerImage = async (imageUrl: string): Promise<void> => {
       throw error
     }
   } catch (error) {
-    console.error('Error deleting customer image:', error)
     throw error
   }
 }
@@ -184,14 +154,11 @@ export const uploadVehicleImage = async (
   userId: string
 ): Promise<string> => {
   try {
-    console.log('uploadVehicleImage called:', { fileName: file.name, fileSize: file.size, vehicleId, userId })
     
     // Generate unique filename with user ID in path
     const fileExt = file.name.split('.').pop()
     const fileName = `${vehicleId}-${Date.now()}.${fileExt}`
     const filePath = `${userId}/vehicles/${fileName}`
-
-    console.log('Uploading to path:', filePath)
 
     // Upload file to Supabase storage
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -202,22 +169,16 @@ export const uploadVehicleImage = async (
       })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
       throw uploadError
     }
-
-    console.log('Upload successful:', uploadData)
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath)
 
-    console.log('Public URL:', urlData.publicUrl)
-
     return urlData.publicUrl
   } catch (error) {
-    console.error('Error uploading vehicle image:', error)
     throw error
   }
 }
@@ -227,7 +188,6 @@ export const updateVehicleImage = async (
   imageUrl: string
 ): Promise<void> => {
   try {
-    console.log('updateVehicleImage called:', { vehicleId, imageUrl })
     
     const { error } = await supabase
       .from('vehicles')
@@ -235,13 +195,9 @@ export const updateVehicleImage = async (
       .eq('id', vehicleId)
 
     if (error) {
-      console.error('Update error:', error)
       throw error
     }
-    
-    console.log('Vehicle image URL updated successfully')
   } catch (error) {
-    console.error('Error updating vehicle image:', error)
     throw error
   }
 }
@@ -262,7 +218,6 @@ export const deleteVehicleImage = async (imageUrl: string): Promise<void> => {
       throw error
     }
   } catch (error) {
-    console.error('Error deleting vehicle image:', error)
     throw error
   }
 }
@@ -273,7 +228,6 @@ export const uploadAgentImage = async (
   userId: string
 ): Promise<string> => {
   try {
-    console.log('uploadAgentImage called:', { fileName: file.name, fileSize: file.size, userId })
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
@@ -290,8 +244,6 @@ export const uploadAgentImage = async (
     const fileName = `${userId}-${Date.now()}.${fileExt}`
     const filePath = `agents/${fileName}`
 
-    console.log('Uploading to path:', filePath)
-
     // Upload file to Supabase storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-images')
@@ -301,22 +253,16 @@ export const uploadAgentImage = async (
       })
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
       throw uploadError
     }
-
-    console.log('Upload successful:', uploadData)
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath)
 
-    console.log('Public URL:', urlData.publicUrl)
-
     return urlData.publicUrl
   } catch (error) {
-    console.error('Error uploading agent image:', error)
     throw error
   }
 }
@@ -326,7 +272,6 @@ export const updateAgentImage = async (
   imageUrl: string
 ): Promise<void> => {
   try {
-    console.log('updateAgentImage called:', { userId, imageUrl })
     
     const { error } = await supabase
       .from('users')
@@ -334,13 +279,9 @@ export const updateAgentImage = async (
       .eq('id', userId)
 
     if (error) {
-      console.error('Update error:', error)
       throw error
     }
-    
-    console.log('Agent image URL updated successfully')
   } catch (error) {
-    console.error('Error updating agent image:', error)
     throw error
   }
 }
@@ -360,10 +301,7 @@ export const deleteAgentImage = async (imageUrl: string): Promise<void> => {
     if (error) {
       throw error
     }
-    
-    console.log('Agent image deleted successfully')
   } catch (error) {
-    console.error('Error deleting agent image:', error)
     throw error
   }
 }

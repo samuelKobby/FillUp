@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,6 +11,8 @@ import {
   MessageMultiple02Icon
 } from 'hugeicons-react'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { useDataRefreshOnVisibility } from '../hooks/useDataRefreshOnVisibility'
+import { useCachedData } from '../hooks/useCachedData'
 
 interface OrderTracking {
   id: string
@@ -38,36 +40,35 @@ interface OrderTracking {
 
 export const OrderTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const [order, setOrder] = useState<OrderTracking | null>(null)
-  const [loading, setLoading] = useState(true)
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const fetchOrder = async () => {
-    if (!id) return
+  const fetchOrder = useCallback(async (): Promise<OrderTracking> => {
+    if (!id) throw new Error('No order ID')
     
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          agents (
-            rating,
-            users (name, avatar_url, phone)
-          ),
-          stations (name, address)
-        `)
-        .eq('id', id)
-        .single()
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        agents (
+          rating,
+          users (name, avatar_url, phone)
+        ),
+        stations (name, address)
+      `)
+      .eq('id', id)
+      .single()
 
-      if (error) throw error
-      setOrder(data as OrderTracking)
-    } catch (err) {
-      console.error('Error fetching order:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+    if (error) throw error
+    return data as OrderTracking
+  }, [id])
+
+  const { data: order, loading } = useCachedData<OrderTracking>({
+    cacheKey: `order_tracking_${id}`,
+    userId: user?.id,
+    fetchFn: fetchOrder,
+    enabled: !!id
+  })
 
   // Set up Realtime subscription with auto-reconnection
   useRealtimeSubscription({
@@ -77,10 +78,6 @@ export const OrderTracking: React.FC = () => {
     onUpdate: fetchOrder,
     enabled: !!id
   })
-
-  useEffect(() => {
-    fetchOrder()
-  }, [id])
 
   if (!order) {
     return (

@@ -7,4 +7,14 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        // Remove console.* calls in production
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+  },
 });

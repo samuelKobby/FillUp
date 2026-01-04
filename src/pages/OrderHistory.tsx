@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { getCache, setCache } from '../lib/cache'
 
 interface Order {
   id: string
@@ -44,8 +45,7 @@ export const OrderHistory: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>(() => {
-    const cached = localStorage.getItem('orders_data')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Order[]>('orders_data', user.id) || []) : []
   })
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
@@ -54,31 +54,6 @@ export const OrderHistory: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all')
   const [serviceFilter, setServiceFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
-
-  // Set up Realtime subscription with auto-reconnection
-  useRealtimeSubscription({
-    channelName: `orderhistory-orders-${user?.id}`,
-    table: 'orders',
-    filter: `customer_id=eq.${user?.id}`,
-    onUpdate: loadOrders,
-    enabled: !!user?.id
-  })
-
-  useEffect(() => {
-    if (user?.id) {
-      loadOrders()
-    }
-  }, [user?.id])
-
-  // Real-time subscription temporarily disabled for testing
-  // useEffect(() => {
-  //   if (!user?.id) return
-  //   // Subscription removed
-  // }, [user?.id])
-
-  useEffect(() => {
-    filterOrders()
-  }, [orders, searchTerm, statusFilter, serviceFilter, dateFilter])
 
   const loadOrders = async () => {
     if (!user) return
@@ -97,19 +72,39 @@ export const OrderHistory: React.FC = () => {
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error loading orders:', error)
         throw error
       }
       
       setOrders(data || [])
-      localStorage.setItem('orders_data', JSON.stringify(data || []))
+      if (user?.id) {
+        setCache('orders_data', data || [], user.id)
+      }
       setDataLoaded(true)
     } catch (error) {
-      console.error('Error loading orders:', error)
+      // Error loading orders
     } finally {
       setLoading(false)
     }
   }
+
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `orderhistory-orders-${user?.id}`,
+    table: 'orders',
+    filter: `customer_id=eq.${user?.id}`,
+    onUpdate: loadOrders,
+    enabled: !!user?.id
+  })
+
+  useEffect(() => {
+    if (user?.id) {
+      loadOrders()
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    filterOrders()
+  }, [orders, searchTerm, statusFilter, serviceFilter, dateFilter])
 
   const filterOrders = () => {
     let filtered = orders

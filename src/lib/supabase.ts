@@ -12,7 +12,11 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   auth: {
     persistSession: true,
-    autoRefreshToken: true
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+    storageKey: 'fillup-auth-token',
+    flowType: 'pkce'
   }
 })
 

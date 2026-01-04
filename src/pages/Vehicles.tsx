@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles } from '../lib/supabase'
 import { uploadVehicleImage, updateVehicleImage, deleteVehicleImage } from '../lib/imageUpload'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
+import { getCache, setCache } from '../lib/cache'
 
 interface Vehicle {
   id: string
@@ -32,8 +33,7 @@ export const Vehicles: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const cached = localStorage.getItem('vehicles_data')
-    return cached ? JSON.parse(cached) : []
+    return user ? (getCache<Vehicle[]>('vehicles_data', user.id) || []) : []
   })
   const [loading, setLoading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
@@ -51,6 +51,23 @@ export const Vehicles: React.FC = () => {
     tank_capacity: '50'
   })
 
+  const loadVehicles = async () => {
+    if (!user) return
+    
+    setLoading(true)
+    try {
+      const data = await getUserVehicles(user.id)
+      setVehicles(data)
+      if (user?.id) {
+        setCache('vehicles_data', data, user.id)
+      }
+      setDataLoaded(true)
+    } catch (error) {
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Set up Realtime subscription with auto-reconnection
   useRealtimeSubscription({
     channelName: `vehicles-updates-${user?.id}`,
@@ -65,22 +82,6 @@ export const Vehicles: React.FC = () => {
       loadVehicles()
     }
   }, [user?.id])
-
-  const loadVehicles = async () => {
-    if (!user) return
-    
-    setLoading(true)
-    try {
-      const data = await getUserVehicles(user.id)
-      setVehicles(data)
-      localStorage.setItem('vehicles_data', JSON.stringify(data))
-      setDataLoaded(true)
-    } catch (error) {
-      console.error('Error loading vehicles:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const resetForm = () => {
     setFormData({
@@ -199,7 +200,6 @@ export const Vehicles: React.FC = () => {
       await loadVehicles()
       resetForm()
     } catch (error) {
-      console.error('Error saving vehicle:', error)
     } finally {
       setSubmitting(false)
     }
@@ -217,7 +217,6 @@ export const Vehicles: React.FC = () => {
       if (error) throw error
       await loadVehicles()
     } catch (error) {
-      console.error('Error deleting vehicle:', error)
     }
   }
 
@@ -238,7 +237,6 @@ export const Vehicles: React.FC = () => {
       if (error) throw error
       await loadVehicles()
     } catch (error) {
-      console.error('Error setting default vehicle:', error)
     }
   }
 
