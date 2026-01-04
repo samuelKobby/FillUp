@@ -14,6 +14,7 @@ import {
 } from 'hugeicons-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserWallet } from '../lib/supabase'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface Transaction {
   id: string
@@ -54,40 +55,26 @@ export const Wallet: React.FC = () => {
   const [processing, setProcessing] = useState(false)
   const [showAllTransactions, setShowAllTransactions] = useState(false)
 
+  // Set up Realtime subscriptions with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `wallet-updates-${user?.id}`,
+    table: 'wallets',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadWalletData,
+    enabled: !!user?.id
+  })
+
+  useRealtimeSubscription({
+    channelName: `transactions-updates-${user?.id}`,
+    table: 'transactions',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadWalletData,
+    enabled: !!user?.id
+  })
+
   useEffect(() => {
     if (user?.id) {
       loadWalletData()
-      
-      // Set up Realtime subscriptions for instant wallet updates
-      const timestamp = Date.now()
-      const walletsChannel = supabase
-        .channel(`wallet-updates-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'wallets',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadWalletData()
-        })
-        .subscribe()
-
-      const transactionsChannel = supabase
-        .channel(`transactions-updates-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadWalletData()
-        })
-        .subscribe()
-      
-      return () => {
-        supabase.removeChannel(walletsChannel)
-        supabase.removeChannel(transactionsChannel)
-      }
     }
   }, [user?.id])
 

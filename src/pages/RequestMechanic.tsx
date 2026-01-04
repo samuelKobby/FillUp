@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles, getUserWallet } from '../lib/supabase'
 import toast from '../lib/toast'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface Vehicle {
   id: string
@@ -130,35 +131,26 @@ export const RequestMechanic: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   
+  // Set up Realtime subscriptions with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `requestmechanic-vehicles-${user?.id}`,
+    table: 'vehicles',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadData,
+    enabled: !!user?.id
+  })
+
+  useRealtimeSubscription({
+    channelName: `requestmechanic-wallets-${user?.id}`,
+    table: 'wallets',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadData,
+    enabled: !!user?.id
+  })
+
   useEffect(() => {
     if (user?.id) {
       loadData()
-      
-      // Set up Realtime subscriptions for instant updates
-      const timestamp = Date.now()
-      const vehiclesChannel = supabase
-        .channel(`requestmechanic-vehicles-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'vehicles',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadData()
-        })
-        .subscribe()
-
-      const walletsChannel = supabase
-        .channel(`requestmechanic-wallets-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'wallets',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadData()
-        })
-        .subscribe()
       
       // Try to get user's location
       if (navigator.geolocation) {
@@ -173,11 +165,6 @@ export const RequestMechanic: React.FC = () => {
             console.error('Error getting location:', error)
           }
         )
-      }
-      
-      return () => {
-        supabase.removeChannel(vehiclesChannel)
-        supabase.removeChannel(walletsChannel)
       }
     }
   }, [user?.id])

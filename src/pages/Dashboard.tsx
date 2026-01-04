@@ -30,6 +30,7 @@ import { toast } from 'react-toastify'
 import { supabase } from '../lib/supabase'
 import type { Database } from '../lib/database.types'
 import { usePrefetchData } from '../hooks/usePrefetchData'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 type Station = Database['public']['Tables']['stations']['Row'] & {
   users: { name: string } | null
@@ -47,6 +48,22 @@ export const Dashboard: React.FC = () => {
   
   // Prefetch data for all pages automatically
   usePrefetchData(user?.id)
+  
+  // Set up Realtime subscriptions with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `dashboard-stations-${user?.id}`,
+    table: 'stations',
+    onUpdate: fetchNearbyServices,
+    enabled: !!user?.id
+  })
+  
+  useRealtimeSubscription({
+    channelName: `dashboard-agents-${user?.id}`,
+    table: 'agents',
+    onUpdate: fetchNearbyServices,
+    enabled: !!user?.id
+  })
+  
   const [stations, setStations] = useState<Station[]>(() => {
     const cached = localStorage.getItem('dashboard_stations')
     return cached ? JSON.parse(cached) : []
@@ -61,43 +78,8 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     if (user?.id) {
       fetchNearbyServices()
-      
-      // Set up Realtime subscriptions for instant updates with unique timestamps
-      const timestamp = Date.now()
-      const stationsChannel = supabase
-        .channel(`dashboard-stations-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'stations'
-        }, () => {
-          fetchNearbyServices()
-        })
-        .subscribe()
-
-      const agentsChannel = supabase
-        .channel(`dashboard-agents-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'agents'
-        }, () => {
-          fetchNearbyServices()
-        })
-        .subscribe()
-      
-      return () => {
-        supabase.removeChannel(stationsChannel)
-        supabase.removeChannel(agentsChannel)
-      }
     }
   }, [user?.id])
-
-  // Real-time subscriptions temporarily disabled for testing
-  // useEffect(() => {
-  //   if (!user?.id) return
-  //   // Subscriptions removed
-  // }, [user?.id])
 
   // Handle navigation state to set active tab
   useEffect(() => {

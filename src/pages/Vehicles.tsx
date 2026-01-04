@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles } from '../lib/supabase'
 import { uploadVehicleImage, updateVehicleImage, deleteVehicleImage } from '../lib/imageUpload'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface Vehicle {
   id: string
@@ -50,27 +51,18 @@ export const Vehicles: React.FC = () => {
     tank_capacity: '50'
   })
 
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `vehicles-updates-${user?.id}`,
+    table: 'vehicles',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadVehicles,
+    enabled: !!user?.id
+  })
+
   useEffect(() => {
     if (user?.id) {
       loadVehicles()
-      
-      // Set up Realtime subscription for instant vehicle updates
-      const timestamp = Date.now()
-      const vehiclesChannel = supabase
-        .channel(`vehicles-updates-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'vehicles',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadVehicles()
-        })
-        .subscribe()
-      
-      return () => {
-        supabase.removeChannel(vehiclesChannel)
-      }
     }
   }, [user?.id])
 

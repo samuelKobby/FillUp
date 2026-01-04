@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Clock as ClockIcon, Loader2 } from 'lucide-react';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 
 interface OrderDetails {
   id: string;
@@ -39,54 +40,43 @@ export const OrderDetails: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchOrderDetails = async () => {
-      if (!id) return;
-      
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('orders')
-          .select(`
-            *,
-            stations (name, address, phone),
-            vehicles (make, model, plate_number, fuel_type)
-          `)
-          .eq('id', id)
-          .single();
-
-        if (error) throw error;
-        if (!data) throw new Error('Order not found');
-
-        setOrder(data as OrderDetails);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load order details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrderDetails();
-
-    // Set up Realtime subscription for instant order updates
+  const fetchOrderDetails = async () => {
     if (!id) return;
     
-    const timestamp = Date.now();
-    const orderChannel = supabase
-      .channel(`order-details-${id}-${timestamp}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `id=eq.${id}`
-      }, () => {
-        fetchOrderDetails();
-      })
-      .subscribe();
-    
-    return () => {
-      supabase.removeChannel(orderChannel);
-    };
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          stations (name, address, phone),
+          vehicles (make, model, plate_number, fuel_type)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Order not found');
+
+      setOrder(data as OrderDetails);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load order details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `order-details-${id}`,
+    table: 'orders',
+    filter: `id=eq.${id}`,
+    onUpdate: fetchOrderDetails,
+    enabled: !!id
+  })
+
+  useEffect(() => {
+    fetchOrderDetails();
   }, [id]);
 
   const getStatusBadge = (status: string) => {

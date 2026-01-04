@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { uploadCustomerImage, updateCustomerImage, deleteCustomerImage } from '../lib/imageUpload'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface UserProfile {
   name: string
@@ -66,27 +67,18 @@ export const Profile: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `profile-updates-${user?.id}`,
+    table: 'users',
+    filter: `id=eq.${user?.id}`,
+    onUpdate: loadProfileData,
+    enabled: !!user?.id
+  })
+
   useEffect(() => {
     if (user?.id) {
       loadProfileData()
-      
-      // Set up Realtime subscription for instant profile updates
-      const timestamp = Date.now()
-      const profileChannel = supabase
-        .channel(`profile-updates-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'users',
-          filter: `id=eq.${user.id}`
-        }, () => {
-          loadProfileData()
-        })
-        .subscribe()
-      
-      return () => {
-        supabase.removeChannel(profileChannel)
-      }
     }
   }, [user?.id])
 

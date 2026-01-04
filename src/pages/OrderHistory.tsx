@@ -10,6 +10,7 @@ import {
 } from 'hugeicons-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface Order {
   id: string
@@ -54,27 +55,18 @@ export const OrderHistory: React.FC = () => {
   const [serviceFilter, setServiceFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
 
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `orderhistory-orders-${user?.id}`,
+    table: 'orders',
+    filter: `customer_id=eq.${user?.id}`,
+    onUpdate: loadOrders,
+    enabled: !!user?.id
+  })
+
   useEffect(() => {
     if (user?.id) {
       loadOrders()
-      
-      // Set up Realtime subscription for instant order updates
-      const timestamp = Date.now()
-      const ordersChannel = supabase
-        .channel(`orderhistory-orders-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `customer_id=eq.${user.id}`
-        }, () => {
-          loadOrders()
-        })
-        .subscribe()
-      
-      return () => {
-        supabase.removeChannel(ordersChannel)
-      }
     }
   }, [user?.id])
 

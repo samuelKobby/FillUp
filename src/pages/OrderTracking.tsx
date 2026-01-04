@@ -10,6 +10,7 @@ import {
   CallIcon,
   MessageMultiple02Icon
 } from 'hugeicons-react'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface OrderTracking {
   id: string
@@ -42,54 +43,43 @@ export const OrderTracking: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      if (!id) return
-      
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select(`
-            *,
-            agents (
-              rating,
-              users (name, avatar_url, phone)
-            ),
-            stations (name, address)
-          `)
-          .eq('id', id)
-          .single()
-
-        if (error) throw error
-        setOrder(data as OrderTracking)
-      } catch (err) {
-        console.error('Error fetching order:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchOrder()
-
-    // Set up Realtime subscription for instant order tracking updates
+  const fetchOrder = async () => {
     if (!id) return
     
-    const timestamp = Date.now()
-    const trackingChannel = supabase
-      .channel(`order-tracking-${id}-${timestamp}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `id=eq.${id}`
-      }, () => {
-        fetchOrder()
-      })
-      .subscribe()
-    
-    return () => {
-      supabase.removeChannel(trackingChannel)
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          agents (
+            rating,
+            users (name, avatar_url, phone)
+          ),
+          stations (name, address)
+        `)
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+      setOrder(data as OrderTracking)
+    } catch (err) {
+      console.error('Error fetching order:', err)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  // Set up Realtime subscription with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `order-tracking-${id}`,
+    table: 'orders',
+    filter: `id=eq.${id}`,
+    onUpdate: fetchOrder,
+    enabled: !!id
+  })
+
+  useEffect(() => {
+    fetchOrder()
   }, [id])
 
   if (!order) {

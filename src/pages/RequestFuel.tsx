@@ -27,6 +27,7 @@ import toast from '../lib/toast'
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { useGeolocated } from 'react-geolocated';
 import heroImg from '../assets/hero.png'
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 
 interface Vehicle {
   id: string
@@ -137,46 +138,33 @@ export const RequestFuel: React.FC = () => {
     userDecisionTimeout: 5000,
   });
 
+  // Set up Realtime subscriptions with auto-reconnection
+  useRealtimeSubscription({
+    channelName: `requestfuel-stations-${user?.id}`,
+    table: 'stations',
+    onUpdate: loadData,
+    enabled: !!user?.id
+  })
+
+  useRealtimeSubscription({
+    channelName: `requestfuel-vehicles-${user?.id}`,
+    table: 'vehicles',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadData,
+    enabled: !!user?.id
+  })
+
+  useRealtimeSubscription({
+    channelName: `requestfuel-wallets-${user?.id}`,
+    table: 'wallets',
+    filter: `user_id=eq.${user?.id}`,
+    onUpdate: loadData,
+    enabled: !!user?.id
+  })
+
   useEffect(() => {
     if (user?.id) {
       loadData()
-      
-      // Set up Realtime subscriptions for instant updates
-      const timestamp = Date.now()
-      const stationsChannel = supabase
-        .channel(`requestfuel-stations-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'stations'
-        }, () => {
-          loadData()
-        })
-        .subscribe()
-
-      const vehiclesChannel = supabase
-        .channel(`requestfuel-vehicles-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'vehicles',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadData()
-        })
-        .subscribe()
-
-      const walletsChannel = supabase
-        .channel(`requestfuel-wallets-${user.id}-${timestamp}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'wallets',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          loadData()
-        })
-        .subscribe()
       
       // Try to get user's location
       if (navigator.geolocation) {
@@ -191,12 +179,6 @@ export const RequestFuel: React.FC = () => {
             console.error('Error getting location:', error)
           }
         )
-      }
-      
-      return () => {
-        supabase.removeChannel(stationsChannel)
-        supabase.removeChannel(vehiclesChannel)
-        supabase.removeChannel(walletsChannel)
       }
     }
   }, [user?.id])
