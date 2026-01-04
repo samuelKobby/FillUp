@@ -62,12 +62,33 @@ export const Dashboard: React.FC = () => {
     if (user?.id) {
       fetchNearbyServices()
       
-      // Refresh data every 3 seconds
-      const interval = setInterval(() => {
-        fetchNearbyServices()
-      }, 3000)
+      // Set up Realtime subscriptions for instant updates
+      const stationsChannel = supabase
+        .channel('dashboard-stations')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'stations'
+        }, () => {
+          fetchNearbyServices()
+        })
+        .subscribe()
+
+      const agentsChannel = supabase
+        .channel('dashboard-agents')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'agents'
+        }, () => {
+          fetchNearbyServices()
+        })
+        .subscribe()
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(stationsChannel)
+        supabase.removeChannel(agentsChannel)
+      }
     }
   }, [user?.id])
 

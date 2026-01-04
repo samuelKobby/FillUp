@@ -68,9 +68,24 @@ export const OrderDetails: React.FC = () => {
 
     fetchOrderDetails();
 
-    // Real-time subscription temporarily disabled for testing
-    // if (!id) return;
-    // Subscription removed
+    // Set up Realtime subscription for instant order updates
+    if (!id) return;
+    
+    const orderChannel = supabase
+      .channel(`order-details-${id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${id}`
+      }, () => {
+        fetchOrderDetails();
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(orderChannel);
+    };
   }, [id]);
 
   const getStatusBadge = (status: string) => {

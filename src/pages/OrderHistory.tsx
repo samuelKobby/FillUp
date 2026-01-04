@@ -58,12 +58,22 @@ export const OrderHistory: React.FC = () => {
     if (user?.id) {
       loadOrders()
       
-      // Refresh orders every 3 seconds
-      const interval = setInterval(() => {
-        loadOrders()
-      }, 3000)
+      // Set up Realtime subscription for instant order updates
+      const ordersChannel = supabase
+        .channel('orderhistory-orders')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `customer_id=eq.${user.id}`
+        }, () => {
+          loadOrders()
+        })
+        .subscribe()
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(ordersChannel)
+      }
     }
   }, [user?.id])
 

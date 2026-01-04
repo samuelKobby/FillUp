@@ -26,6 +26,7 @@ import { GeoJSONPoint } from '../lib/database.types'
 import toast from '../lib/toast'
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { useGeolocated } from 'react-geolocated';
+import heroImg from '../assets/hero.png'
 
 interface Vehicle {
   id: string
@@ -140,10 +141,41 @@ export const RequestFuel: React.FC = () => {
     if (user?.id) {
       loadData()
       
-      // Refresh data every 3 seconds
-      const interval = setInterval(() => {
-        loadData()
-      }, 3000)
+      // Set up Realtime subscriptions for instant updates
+      const stationsChannel = supabase
+        .channel('requestfuel-stations')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'stations'
+        }, () => {
+          loadData()
+        })
+        .subscribe()
+
+      const vehiclesChannel = supabase
+        .channel('requestfuel-vehicles')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'vehicles',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadData()
+        })
+        .subscribe()
+
+      const walletsChannel = supabase
+        .channel('requestfuel-wallets')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadData()
+        })
+        .subscribe()
       
       // Try to get user's location
       if (navigator.geolocation) {
@@ -160,7 +192,11 @@ export const RequestFuel: React.FC = () => {
         )
       }
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(stationsChannel)
+        supabase.removeChannel(vehiclesChannel)
+        supabase.removeChannel(walletsChannel)
+      }
     }
   }, [user?.id])
 
@@ -200,7 +236,8 @@ export const RequestFuel: React.FC = () => {
         setSelectedVehicle(vehiclesResult[0])
       }
 
-      if (stationsResult.data && stationsResult.data.length > 0) {
+      // Only auto-select station if user hasn't selected one yet
+      if (stationsResult.data && stationsResult.data.length > 0 && !selectedStation) {
         setSelectedStation(stationsResult.data[0])
       }
       
@@ -463,7 +500,7 @@ export const RequestFuel: React.FC = () => {
           {/* Hero Image Section */}
         <div className="relative h-64 bg-gradient-to-r from-purple-600 to-blue-600 overflow-hidden">
           <img 
-            src="/src/assets/hero.png" 
+            src={heroImg}
             alt="Fuel Station" 
             className="w-full h-full object-cover"
           />

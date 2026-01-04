@@ -54,12 +54,22 @@ export const Vehicles: React.FC = () => {
     if (user?.id) {
       loadVehicles()
       
-      // Refresh vehicles every 3 seconds
-      const interval = setInterval(() => {
-        loadVehicles()
-      }, 3000)
+      // Set up Realtime subscription for instant vehicle updates
+      const vehiclesChannel = supabase
+        .channel('vehicles-updates')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'vehicles',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadVehicles()
+        })
+        .subscribe()
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(vehiclesChannel)
+      }
     }
   }, [user?.id])
 

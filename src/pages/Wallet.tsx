@@ -58,12 +58,35 @@ export const Wallet: React.FC = () => {
     if (user?.id) {
       loadWalletData()
       
-      // Refresh wallet every 3 seconds
-      const interval = setInterval(() => {
-        loadWalletData()
-      }, 3000)
+      // Set up Realtime subscriptions for instant wallet updates
+      const walletsChannel = supabase
+        .channel('wallet-updates')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadWalletData()
+        })
+        .subscribe()
+
+      const transactionsChannel = supabase
+        .channel('transactions-updates')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadWalletData()
+        })
+        .subscribe()
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(walletsChannel)
+        supabase.removeChannel(transactionsChannel)
+      }
     }
   }, [user?.id])
 

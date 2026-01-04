@@ -134,10 +134,30 @@ export const RequestMechanic: React.FC = () => {
     if (user?.id) {
       loadData()
       
-      // Refresh data every 3 seconds
-      const interval = setInterval(() => {
-        loadData()
-      }, 3000)
+      // Set up Realtime subscriptions for instant updates
+      const vehiclesChannel = supabase
+        .channel('requestmechanic-vehicles')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'vehicles',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadData()
+        })
+        .subscribe()
+
+      const walletsChannel = supabase
+        .channel('requestmechanic-wallets')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`
+        }, () => {
+          loadData()
+        })
+        .subscribe()
       
       // Try to get user's location
       if (navigator.geolocation) {
@@ -154,7 +174,10 @@ export const RequestMechanic: React.FC = () => {
         )
       }
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(vehiclesChannel)
+        supabase.removeChannel(walletsChannel)
+      }
     }
   }, [user?.id])
 

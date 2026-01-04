@@ -71,8 +71,24 @@ export const OrderTracking: React.FC = () => {
 
     fetchOrder()
 
-    // Real-time subscription temporarily disabled for testing
-    // Subscription removed
+    // Set up Realtime subscription for instant order tracking updates
+    if (!id) return
+    
+    const trackingChannel = supabase
+      .channel(`order-tracking-${id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${id}`
+      }, () => {
+        fetchOrder()
+      })
+      .subscribe()
+    
+    return () => {
+      supabase.removeChannel(trackingChannel)
+    }
   }, [id])
 
   if (!order) {

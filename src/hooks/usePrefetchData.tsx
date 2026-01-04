@@ -130,14 +130,98 @@ export const usePrefetchData = (userId: string | undefined) => {
       prefetchAllData()
     }, 1000)
 
-    // Set up interval to refresh prefetched data every 3 seconds
-    const intervalId = setInterval(() => {
-      prefetchAllData()
-    }, 3000)
+    // Set up Supabase Realtime subscriptions for instant updates
+    const ordersChannel = supabase
+      .channel('customer-orders')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `customer_id=eq.${userId}`
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
+
+    const vehiclesChannel = supabase
+      .channel('customer-vehicles')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'vehicles',
+        filter: `user_id=eq.${userId}`
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
+
+    const transactionsChannel = supabase
+      .channel('customer-transactions')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'transactions',
+        filter: `user_id=eq.${userId}`
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
+
+    const walletsChannel = supabase
+      .channel('customer-wallets')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'wallets',
+        filter: `user_id=eq.${userId}`
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
+
+    const stationsChannel = supabase
+      .channel('customer-stations')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'stations'
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
+
+    const agentsChannel = supabase
+      .channel('customer-agents')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'agents'
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
+
+    const usersChannel = supabase
+      .channel('customer-profile')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'users',
+        filter: `id=eq.${userId}`
+      }, () => {
+        prefetchAllData()
+      })
+      .subscribe()
 
     return () => {
       clearTimeout(timeoutId)
-      clearInterval(intervalId)
+      supabase.removeChannel(ordersChannel)
+      supabase.removeChannel(vehiclesChannel)
+      supabase.removeChannel(transactionsChannel)
+      supabase.removeChannel(walletsChannel)
+      supabase.removeChannel(stationsChannel)
+      supabase.removeChannel(agentsChannel)
+      supabase.removeChannel(usersChannel)
     }
   }, [userId])
 }

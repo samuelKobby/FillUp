@@ -70,12 +70,22 @@ export const Profile: React.FC = () => {
     if (user?.id) {
       loadProfileData()
       
-      // Refresh profile every 3 seconds
-      const interval = setInterval(() => {
-        loadProfileData()
-      }, 3000)
+      // Set up Realtime subscription for instant profile updates
+      const profileChannel = supabase
+        .channel('profile-updates')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`
+        }, () => {
+          loadProfileData()
+        })
+        .subscribe()
       
-      return () => clearInterval(interval)
+      return () => {
+        supabase.removeChannel(profileChannel)
+      }
     }
   }, [user?.id])
 
