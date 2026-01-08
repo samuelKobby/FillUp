@@ -37,6 +37,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { uploadStationImage, updateStationImage, deleteStationImage } from '../../lib/imageUpload'
 import loaderGif from '../../assets/lodaer.gif'
+import { getCache, setCache } from '../../lib/cache'
 
 // Type definitions
 interface Order {
@@ -126,15 +127,28 @@ export const StationDashboard: React.FC = () => {
   const [isResizing, setIsResizing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
-  const [stationData, setStationData] = useState<Station | null>(null)
-  const [stats, setStats] = useState({
-    todayRevenue: 0,
-    todayOrders: 0,
-    totalOrders: 0,
-    avgOrderValue: 0
+  const [stationData, setStationData] = useState<Station | null>(() => {
+    return user ? (getCache<Station>('station_data', user.id) || null) : null
   })
-  const [recentOrders, setRecentOrders] = useState<Order[]>([])
-  const [agents, setAgents] = useState<Agent[]>([])
+  const [stats, setStats] = useState(() => {
+    return user ? (getCache('station_stats', user.id) || {
+      todayRevenue: 0,
+      todayOrders: 0,
+      totalOrders: 0,
+      avgOrderValue: 0
+    }) : {
+      todayRevenue: 0,
+      todayOrders: 0,
+      totalOrders: 0,
+      avgOrderValue: 0
+    }
+  })
+  const [recentOrders, setRecentOrders] = useState<Order[]>(() => {
+    return user ? (getCache<Order[]>('station_orders', user.id) || []) : []
+  })
+  const [agents, setAgents] = useState<Agent[]>(() => {
+    return user ? (getCache<Agent[]>('station_agents', user.id) || []) : []
+  })
   const [loadingAgents, setLoadingAgents] = useState(false)
 
   // Sidebar resize handlers
@@ -480,14 +494,16 @@ export const StationDashboard: React.FC = () => {
         return
       }
 
-
-
-
       setStationData(stationProfile)
       setFuelPrices({
         petrol: stationProfile.petrol_price,
         diesel: stationProfile.diesel_price
       })
+      
+      // Cache station data
+      if (user?.id) {
+        setCache('station_data', stationProfile, user.id)
+      }
 
       // Load agents and orders in parallel
       await Promise.all([
@@ -650,6 +666,12 @@ export const StationDashboard: React.FC = () => {
       }
 
       setStats(newStats)
+      
+      // Cache orders and stats
+      if (user?.id) {
+        setCache('station_orders', orders || [], user.id)
+        setCache('station_stats', newStats, user.id)
+      }
     } catch (error) {
 
       throw error // Re-throw so calling function can handle it
@@ -698,8 +720,12 @@ export const StationDashboard: React.FC = () => {
         throw agentsError
       }
       
-      console.log('Filtered agents (fuel_delivery + verified):', agentsData)
       setAgents(agentsData || [])
+      
+      // Cache agents data
+      if (user?.id) {
+        setCache('station_agents', agentsData || [], user.id)
+      }
     } catch (error) {
 
     } finally {

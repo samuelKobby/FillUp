@@ -36,6 +36,8 @@ import { MapPin, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import loaderGif from '../../assets/lodaer.gif'
+import { getCache, setCache } from '../../lib/cache'
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription'
 
 // Countdown component for timeout display (24 hours from created_at)
 const TimeoutCountdown: React.FC<{ createdAt: string }> = ({ createdAt }) => {
@@ -187,76 +189,48 @@ export const AgentDashboard: React.FC = () => {
     }
   }, [isSigningOut])
   
+  // Use RealtimeManager for all subscriptions
+  useRealtimeSubscription({
+    channelName: `agent-all-orders-${agentData?.id}`,
+    table: 'orders',
+    onUpdate: () => { if (!isSigningOut) refreshAvailableOrders() },
+    enabled: !!agentData?.id && !isSigningOut
+  })
+  
+  useRealtimeSubscription({
+    channelName: `agent-my-orders-${agentData?.id}`,
+    table: 'orders',
+    filter: `agent_id=eq.${agentData?.id}`,
+    onUpdate: () => { if (!isSigningOut) refreshData() },
+    enabled: !!agentData?.id && !isSigningOut
+  })
+  
+  useRealtimeSubscription({
+    channelName: `agent-profile-${agentData?.id}`,
+    table: 'agents',
+    filter: `id=eq.${agentData?.id}`,
+    onUpdate: () => { if (!isSigningOut) loadAgentData() },
+    enabled: !!agentData?.id && !isSigningOut
+  })
+  
+  // Poll for available orders every 10 seconds to ensure we catch station-accepted orders
   useEffect(() => {
-    // Set up real-time subscriptions for orders and agent profile
     if (!agentData?.id || isSigningOut) return
     
-    // Subscribe to all orders for available orders list
-    const allOrdersSubscription = supabase
-      .channel('agent-all-orders')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders'
-      }, (payload) => {
-        if (!isSigningOut) {
-          refreshAvailableOrders()
-        }
-      })
-      .subscribe()
-
-    // Subscribe to this agent's assigned orders
-    const myOrdersSubscription = supabase
-      .channel('agent-my-orders')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `agent_id=eq.${agentData.id}`
-      }, (payload) => {
-        if (!isSigningOut) {
-          refreshData()
-        }
-      })
-      .subscribe()
-
-    // Subscribe to agent profile changes
-    const agentProfileSubscription = supabase
-      .channel('agent-profile')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'agents',
-        filter: `id=eq.${agentData.id}`
-      }, (payload) => {
-        if (!isSigningOut && payload.eventType === 'UPDATE' && payload.new) {
-          setAgentData(prev => prev ? { ...prev, ...(payload.new as any) } : null)
-        }
-      })
-      .subscribe()
-
-    // Subscribe to notifications
-    const notificationsSubscription = supabase
-      .channel('agent-notifications')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${user?.id}`
-      }, (payload) => {
-        if (!isSigningOut && payload.eventType === 'INSERT' && payload.new) {
-          toast.success((payload.new as any).message)
-        }
-      })
-      .subscribe()
+    // Initial fetch
+    refreshAvailableOrders()
+    
+    // Poll every 10 seconds
+    const availableOrdersInterval = setInterval(() => {
+      if (!isSigningOut) {
+        refreshAvailableOrders()
+      }
+    }, 10000)
     
     return () => {
-      supabase.removeChannel(allOrdersSubscription)
-      supabase.removeChannel(myOrdersSubscription)
-      supabase.removeChannel(agentProfileSubscription)
-      supabase.removeChannel(notificationsSubscription)
+      clearInterval(availableOrdersInterval)
     }
-  }, [agentData?.id, user?.id, isSigningOut])
+  }, [agentData?.id, isSigningOut])
   
   // Set up two different polling intervals:
   // 1. For available orders (more frequent)
@@ -365,7 +339,6 @@ export const AgentDashboard: React.FC = () => {
         .single()
 
       if (agentError) {
-        console.error('Error loading agent profile:', agentError)
         throw agentError
       }
       
@@ -374,7 +347,6 @@ export const AgentDashboard: React.FC = () => {
 
       await refreshData(agentProfile.id)
     } catch (error) {
-      console.error('Error loading agent data:', error)
     } finally {
       setLoading(false)
     }
@@ -387,7 +359,9 @@ export const AgentDashboard: React.FC = () => {
     setRefreshing(true)
     
     try {
-      // SIMPLIFIED: Get ALL orders first to see what's in the database
+      console.log('🔎 Fetching orders for agent:', agentData.id)
+      
+      // Try fetching with explicit filter for orders that agents should see
       const { data: allOrders, error: allOrdersError } = await supabase
         .from('orders')
         .select(`
@@ -396,13 +370,23 @@ export const AgentDashboard: React.FC = () => {
           vehicles(make, model, plate_number, fuel_type, image_url),
           stations(name, address, phone, location, image_url)
         `)
+        .in('status', ['accepted', 'in_progress', 'completed'])
         .order('created_at', { ascending: false })
         .limit(100)
 
       if (allOrdersError) {
-        console.error('❌ Error fetching all orders:', allOrdersError)
+        console.error('❌ Error fetching orders:', allOrdersError)
         throw allOrdersError
       }
+
+      console.log('🔍 All orders fetched:', allOrders?.length)
+      console.log('📋 First few orders:', allOrders?.slice(0, 3).map(o => ({
+        id: o.id.slice(0, 8),
+        status: o.status,
+        agent_id: o.agent_id,
+        station_id: o.station_id,
+        created_at: o.created_at
+      })))
 
       // Filter to show only orders that agents can accept:
       // 1. Status is 'accepted' (confirmed by station, not 'pending')
@@ -417,8 +401,21 @@ export const AgentDashboard: React.FC = () => {
         const now = new Date()
         const isRecent = (now.getTime() - orderTime.getTime()) <= (24 * 60 * 60 * 1000) // 24 hours
         
+        console.log(`Order ${order.id.slice(0, 8)}:`, {
+          status: order.status,
+          isAvailableStatus,
+          agent_id: order.agent_id,
+          notAssigned,
+          station_id: order.station_id,
+          hasStation,
+          isRecent,
+          passes: isAvailableStatus && notAssigned && hasStation && isRecent
+        })
+        
         return isAvailableStatus && notAssigned && hasStation && isRecent
       }) || []
+      
+      console.log('✅ Available orders after filter:', availableForAgents.length)
       
       setAvailableOrders(availableForAgents)
       
@@ -447,7 +444,6 @@ export const AgentDashboard: React.FC = () => {
         .order('created_at', { ascending: false })
 
       if (ordersError) {
-        console.error('Error loading orders:', ordersError)
         throw ordersError
       }
 
@@ -464,7 +460,6 @@ export const AgentDashboard: React.FC = () => {
         .limit(100)
 
       if (availableError) {
-        console.error('Error loading available orders:', availableError)
         throw availableError
       }
       

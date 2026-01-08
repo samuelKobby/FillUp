@@ -158,15 +158,6 @@ function App() {
       return false
     }
     
-    // Don't show splash on page refresh (only on first visit)
-    const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
-    const isRefresh = navEntry?.type === 'reload'
-    
-    if (isRefresh) {
-      sessionStorage.setItem('splashShown', 'true')
-      return false
-    }
-    
     // Check if splash was already shown this session
     const hasSeenSplash = sessionStorage.getItem('splashShown')
     return !hasSeenSplash
