@@ -179,99 +179,93 @@ function App() {
     let hiddenTime: number | null = null
     const REFRESH_THRESHOLD = 0 // Refresh immediately on any tab switch
 
-    const shouldRefresh = () => {
-      if (!hiddenTime) return false
+    const checkAndRefresh = () => {
+      console.log('Check refresh, hiddenTime:', hiddenTime)
       
-      const hiddenDuration = Date.now() - hiddenTime
-      console.log('Hidden duration:', hiddenDuration, 'ms, threshold:', REFRESH_THRESHOLD)
-      
-      if (hiddenDuration >= REFRESH_THRESHOLD) {
-        // Check if Google Maps is active or loading
-        const hasGoogleMapsScript = document.querySelector('[src*="maps.googleapis.com"]')
-        const hasGoogleMapsComponent = document.querySelector('[class*="gm-style"]') || 
-                                      document.querySelector('[style*="maps.gstatic"]')
+      if (hiddenTime) {
+        const hiddenDuration = Date.now() - hiddenTime
+        console.log('Hidden duration:', hiddenDuration, 'ms, threshold:', REFRESH_THRESHOLD)
         
-        console.log('Google Maps check - script:', !!hasGoogleMapsScript, 'component:', !!hasGoogleMapsComponent)
-        
-        // Only refresh if Google Maps is not being used at all
-        if (!hasGoogleMapsScript && !hasGoogleMapsComponent) {
-          console.log('Triggering page refresh...')
-          sessionStorage.setItem('autoRefresh', 'true')
-          setTimeout(() => window.location.reload(), 100)
-          return true
-        } else {
-          console.log('Skipping refresh - Google Maps detected')
+        if (hiddenDuration >= REFRESH_THRESHOLD) {
+          // Check if Google Maps is active or loading
+          const hasGoogleMapsScript = document.querySelector('[src*="maps.googleapis.com"]')
+          const hasGoogleMapsComponent = document.querySelector('[class*="gm-style"]') || 
+                                        document.querySelector('[style*="maps.gstatic"]')
+          
+          console.log('Google Maps check - script:', !!hasGoogleMapsScript, 'component:', !!hasGoogleMapsComponent)
+          
+          // Only refresh if Google Maps is not being used at all
+          if (!hasGoogleMapsScript && !hasGoogleMapsComponent) {
+            console.log('Triggering page refresh...')
+            
+            // Mark that auto-refresh is happening (prevent splash screen)
+            sessionStorage.setItem('autoRefresh', 'true')
+            
+            // Use hard reload to bypass cache
+            setTimeout(() => {
+              window.location.reload()
+            }, 100)
+          } else {
+            console.log('Skipping refresh - Google Maps detected')
+          }
         }
+        
+        hiddenTime = null
       }
-      return false
     }
 
     const handleVisibilityChange = () => {
-      console.log('visibilitychange:', document.visibilityState, 'hidden:', document.hidden)
+      console.log('Visibility changed:', document.visibilityState, 'hidden:', document.hidden)
       
       if (document.hidden || document.visibilityState === 'hidden') {
+        // Tab is hidden - record timestamp
         hiddenTime = Date.now()
         console.log('Tab hidden at:', hiddenTime)
       } else if (document.visibilityState === 'visible') {
-        console.log('Tab visible, hiddenTime:', hiddenTime)
-        if (!shouldRefresh()) {
-          hiddenTime = null
-        }
+        // Tab is visible
+        console.log('Tab visible')
+        checkAndRefresh()
       }
     }
 
-    // Handle page show/hide (iOS Safari)
+    // For mobile: pageshow event (fires when navigating back to the page)
     const handlePageShow = (event: PageTransitionEvent) => {
-      console.log('pageshow event, persisted:', event.persisted)
-      // If page is being restored from cache (back button or app switch)
-      if (event.persisted && hiddenTime) {
-        shouldRefresh()
+      console.log('PageShow event, persisted:', event.persisted)
+      
+      if (event.persisted) {
+        // Page was loaded from cache (back/forward navigation)
+        checkAndRefresh()
       }
     }
 
+    // For mobile: pagehide event (fires when navigating away)
     const handlePageHide = () => {
-      console.log('pagehide event')
+      console.log('PageHide event')
       hiddenTime = Date.now()
     }
 
-    // Handle focus/blur events as backup for mobile
+    // For mobile: focus event (fires when window regains focus)
     const handleFocus = () => {
-      console.log('window focus event, hiddenTime:', hiddenTime)
-      if (hiddenTime) {
-        if (!shouldRefresh()) {
-          hiddenTime = null
-        }
-      }
+      console.log('Window focus event')
+      checkAndRefresh()
     }
 
+    // For mobile: blur event (fires when window loses focus)
     const handleBlur = () => {
-      console.log('window blur event')
+      console.log('Window blur event')
       hiddenTime = Date.now()
     }
 
-    // Page Lifecycle API (Chrome mobile)
-    const handleResume = () => {
-      console.log('resume event')
-      if (hiddenTime) {
-        if (!shouldRefresh()) {
-          hiddenTime = null
-        }
-      }
-    }
-
-    const handleFreeze = () => {
-      console.log('freeze event')
-      hiddenTime = Date.now()
-    }
-
-    // Add all event listeners
+    // Desktop: visibilitychange
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // Mobile: page show/hide events
     window.addEventListener('pageshow', handlePageShow)
     window.addEventListener('pagehide', handlePageHide)
+    
+    // Mobile: window focus/blur
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
-    document.addEventListener('resume', handleResume)
-    document.addEventListener('freeze', handleFreeze)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -279,8 +273,6 @@ function App() {
       window.removeEventListener('pagehide', handlePageHide)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
-      document.removeEventListener('resume', handleResume)
-      document.removeEventListener('freeze', handleFreeze)
     }
   }, [])
 
