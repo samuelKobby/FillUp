@@ -176,103 +176,71 @@ function App() {
 
   // Auto-refresh page when tab becomes visible after being hidden
   useEffect(() => {
-    let hiddenTime: number | null = null
-    const REFRESH_THRESHOLD = 0 // Refresh immediately on any tab switch
+    // Store page load time
+    const pageLoadTime = Date.now()
+    localStorage.setItem('lastPageLoad', pageLoadTime.toString())
 
-    const checkAndRefresh = () => {
-      console.log('Check refresh, hiddenTime:', hiddenTime)
+    const shouldRefresh = () => {
+      // Check if Google Maps is active
+      const hasGoogleMapsScript = document.querySelector('[src*="maps.googleapis.com"]')
+      const hasGoogleMapsComponent = document.querySelector('[class*="gm-style"]') || 
+                                    document.querySelector('[style*="maps.gstatic"]')
       
-      if (hiddenTime) {
-        const hiddenDuration = Date.now() - hiddenTime
-        console.log('Hidden duration:', hiddenDuration, 'ms, threshold:', REFRESH_THRESHOLD)
+      if (hasGoogleMapsScript || hasGoogleMapsComponent) {
+        console.log('Skipping refresh - Google Maps detected')
+        return false
+      }
+
+      // Check if page was loaded from cache (mobile)
+      const lastLoad = localStorage.getItem('lastPageLoad')
+      if (lastLoad && parseInt(lastLoad) < pageLoadTime) {
+        console.log('Page loaded from cache, should refresh')
+        return true
+      }
+
+      return true
+    }
+
+    const triggerRefresh = () => {
+      if (shouldRefresh()) {
+        console.log('Triggering page refresh...')
+        sessionStorage.setItem('autoRefresh', 'true')
         
-        if (hiddenDuration >= REFRESH_THRESHOLD) {
-          // Check if Google Maps is active or loading
-          const hasGoogleMapsScript = document.querySelector('[src*="maps.googleapis.com"]')
-          const hasGoogleMapsComponent = document.querySelector('[class*="gm-style"]') || 
-                                        document.querySelector('[style*="maps.gstatic"]')
-          
-          console.log('Google Maps check - script:', !!hasGoogleMapsScript, 'component:', !!hasGoogleMapsComponent)
-          
-          // Only refresh if Google Maps is not being used at all
-          if (!hasGoogleMapsScript && !hasGoogleMapsComponent) {
-            console.log('Triggering page refresh...')
-            
-            // Mark that auto-refresh is happening (prevent splash screen)
-            sessionStorage.setItem('autoRefresh', 'true')
-            
-            // Use hard reload to bypass cache
-            setTimeout(() => {
-              window.location.reload()
-            }, 100)
-          } else {
-            console.log('Skipping refresh - Google Maps detected')
-          }
-        }
-        
-        hiddenTime = null
+        // Force hard reload
+        window.location.href = window.location.href
       }
     }
 
     const handleVisibilityChange = () => {
-      console.log('Visibility changed:', document.visibilityState, 'hidden:', document.hidden)
+      console.log('Visibility:', document.visibilityState)
       
-      if (document.hidden || document.visibilityState === 'hidden') {
-        // Tab is hidden - record timestamp
-        hiddenTime = Date.now()
-        console.log('Tab hidden at:', hiddenTime)
-      } else if (document.visibilityState === 'visible') {
-        // Tab is visible
-        console.log('Tab visible')
-        checkAndRefresh()
+      if (document.visibilityState === 'visible' && !document.hidden) {
+        // Small delay to ensure page is fully active
+        setTimeout(triggerRefresh, 150)
       }
     }
 
-    // For mobile: pageshow event (fires when navigating back to the page)
     const handlePageShow = (event: PageTransitionEvent) => {
-      console.log('PageShow event, persisted:', event.persisted)
+      console.log('PageShow, persisted:', event.persisted)
       
-      if (event.persisted) {
-        // Page was loaded from cache (back/forward navigation)
-        checkAndRefresh()
-      }
+      // On mobile, always refresh when coming back
+      setTimeout(triggerRefresh, 150)
     }
 
-    // For mobile: pagehide event (fires when navigating away)
-    const handlePageHide = () => {
-      console.log('PageHide event')
-      hiddenTime = Date.now()
-    }
-
-    // For mobile: focus event (fires when window regains focus)
     const handleFocus = () => {
-      console.log('Window focus event')
-      checkAndRefresh()
+      console.log('Window focus')
+      setTimeout(triggerRefresh, 150)
     }
 
-    // For mobile: blur event (fires when window loses focus)
-    const handleBlur = () => {
-      console.log('Window blur event')
-      hiddenTime = Date.now()
-    }
-
-    // Desktop: visibilitychange
+    // All event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    
-    // Mobile: page show/hide events
     window.addEventListener('pageshow', handlePageShow)
-    window.addEventListener('pagehide', handlePageHide)
-    
-    // Mobile: window focus/blur
     window.addEventListener('focus', handleFocus)
-    window.addEventListener('blur', handleBlur)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
-      window.removeEventListener('pagehide', handlePageHide)
       window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('blur', handleBlur)
     }
   }, [])
 
