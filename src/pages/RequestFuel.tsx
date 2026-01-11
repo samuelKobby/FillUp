@@ -26,6 +26,9 @@ import { GeoJSONPoint } from '../lib/database.types'
 import toast from '../lib/toast'
 import { getCache, setCache } from '../lib/cache'
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
+import { MapContainer, TileLayer, Marker as LeafletMarker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import { useGeolocated } from 'react-geolocated';
 import heroImg from '../assets/hero.png'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
@@ -130,8 +133,6 @@ export const RequestFuel: React.FC = () => {
   const [showPaymentSelect, setShowPaymentSelect] = useState(false)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
   const [error, setError] = useState('')
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [marker, setMarker] = useState<google.maps.Marker | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [address, setAddress] = useState('');
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
@@ -430,24 +431,29 @@ export const RequestFuel: React.FC = () => {
   }
 
   const handleOpenGoogleMaps = () => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(deliveryAddress)}`;
-    window.open(url, '_blank');
+    if (selectedLocation) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${selectedLocation.lat},${selectedLocation.lng}`;
+      window.open(url, '_blank');
+    }
   }
 
-  const handleMapClick = (event: google.maps.MapMouseEvent) => {
-    if (!event.latLng) return;
-    
-    if (marker) {
-      marker.setMap(null);
-    }
-    
-    const newMarker = new google.maps.Marker({
-      position: event.latLng,
-      map: map
+  // Fix Leaflet default marker icon issue
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  });
+
+  // Component to handle map clicks
+  const MapClickHandler = () => {
+    useMapEvents({
+      click: (e) => {
+        setSelectedLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
+        setDeliveryAddress(`${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`);
+      },
     });
-    
-    setMarker(newMarker);
-    setSelectedLocation(event.latLng.toJSON());
+    return null;
   };
 
   const handleConfirmAndSubmit = () => {
@@ -968,22 +974,21 @@ export const RequestFuel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Delivery Address
               </label>
-              <div className="relative">
-                <LoadScript
-                  googleMapsApiKey="AIzaSyBWCbHMuNHAbZougcmsn9RXfNowa7z03zA"
+              <div className="relative rounded-lg overflow-hidden border border-gray-300" style={{ height: "400px" }}>
+                <MapContainer
+                  center={userLocation || { lat: 5.6037, lng: -0.187 }}
+                  zoom={15}
+                  style={{ height: "100%", width: "100%" }}
                 >
-                  <GoogleMap
-                    mapContainerStyle={{ height: "400px", width: "100%" }}
-                    center={userLocation || { lat: 5.6037, lng: -0.187 }}
-                    zoom={15}
-                    onClick={handleMapClick}
-                    onLoad={(mapInstance: google.maps.Map) => setMap(mapInstance)}
-                  >
-                    {marker && (
-                      <Marker position={marker.getPosition()!} />
-                    )}
-                  </GoogleMap>
-                </LoadScript>
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapClickHandler />
+                  {selectedLocation && (
+                    <LeafletMarker position={[selectedLocation.lat, selectedLocation.lng]} />
+                  )}
+                </MapContainer>
               </div>
               <button 
                 onClick={() => {
@@ -1000,7 +1005,7 @@ export const RequestFuel: React.FC = () => {
                   } else {
                   }
                 }}
-                className="mt-4 flex items-center justify-center bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors"
+                className="mt-4 w-full flex items-center justify-center bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Location01Icon size={20} color="white" className="mr-2" /> Use My Current Location
               </button>

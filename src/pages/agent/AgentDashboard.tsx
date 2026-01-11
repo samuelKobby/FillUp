@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MapContainer, TileLayer, Marker, Polyline, Circle } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
 import logo1 from '../../assets/logo1.png'
 import { 
   DashboardSquare01Icon,
@@ -38,6 +41,14 @@ import { supabase } from '../../lib/supabase'
 import loaderGif from '../../assets/lodaer.gif'
 import { getCache, setCache } from '../../lib/cache'
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription'
+
+// Fix Leaflet default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
 
 // Countdown component for timeout display (24 hours from created_at)
 const TimeoutCountdown: React.FC<{ createdAt: string }> = ({ createdAt }) => {
@@ -975,119 +986,203 @@ export const AgentDashboard: React.FC = () => {
   
   const renderAvailableJobsPage = () => {
     return (
-      <div className="min-h-screen bg-gray-900 pb-32">
-        {/* Profile Header Bar */}
-        <div className="bg-gray-900 px-6 py-6 flex items-center justify-between">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 pb-32">
+        {/* Header Bar */}
+        <div className="bg-gray-900/80 backdrop-blur-md px-6 py-6 flex items-center justify-between sticky top-0 z-10 border-b border-gray-700/50 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-700 border-2 border-gray-700">
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 border-2 border-gray-700 shadow-lg">
               {userProfile?.avatar_url ? (
                 <img src={userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-lime-400 to-lime-500 text-gray-900 text-lg font-bold">
+                <div className="w-full h-full flex items-center justify-center text-white text-lg font-bold">
                   {userProfile?.name?.charAt(0) || 'A'}
                 </div>
               )}
             </div>
             <div>
               <p className="text-xs text-gray-400">Available Jobs</p>
-              <h3 className="text-base font-semibold text-white">{availableOrders.length} New Orders</h3>
+              <h3 className="text-base font-bold text-white">
+                {availableOrders.length} New {availableOrders.length === 1 ? 'Order' : 'Orders'}
+              </h3>
             </div>
           </div>
-          <button 
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => refreshAvailableOrders()}
-            className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center"
+            className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 transition-colors"
           >
-            <Loading03Icon className={`h-5 w-5 text-white ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+            <Loading03Icon className={`h-5 w-5 text-blue-400 ${refreshing ? 'animate-spin' : ''}`} />
+          </motion.button>
         </div>
 
-        {/* Job Cards */}
-        <div className="px-4 space-y-3">
-          {availableOrders.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center mt-4">
-              <Task01Icon size={48} className="mx-auto mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500">No available jobs at the moment</p>
-              <p className="text-xs text-gray-400 mt-1">Jobs will appear here when customers place orders</p>
-            </div>
-          ) : (
-            availableOrders.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0">
-                    {order.service_type === 'fuel_delivery' && order.vehicles?.image_url ? (
-                      <img 
-                        src={order.vehicles.image_url} 
-                        alt={`${order.vehicles.make} ${order.vehicles.model}`}
-                        className="w-full h-full object-contain p-1"
-                      />
-                    ) : order.stations?.image_url ? (
-                      <img 
-                        src={order.stations.image_url} 
-                        alt={order.stations.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        {order.service_type === 'fuel_delivery' ? (
-                          <FuelStationIcon size={24} className="text-gray-600" />
-                        ) : (
-                          <Wrench01Icon size={24} className="text-gray-600" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-bold text-gray-900 text-sm">
-                          {order.service_type === 'fuel_delivery' ? 'Fuel Delivery Order' : 'Mechanic Service'}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {order.users?.name || 'Customer'}
-                        </p>
-                        <div className="flex items-center gap-1 mt-1">
-                          <Location01Icon size={12} className="text-gray-400" />
-                          <span className="text-xs text-gray-500 truncate">
-                            {order.delivery_address.length > 30 
-                              ? order.delivery_address.substring(0, 30) + '...' 
-                              : order.delivery_address}
-                          </span>
+        {/* Order Cards */}
+        <div className="px-4 py-4 space-y-4">
+          <AnimatePresence mode="popLayout">
+            {availableOrders.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-gray-800 rounded-3xl p-8 text-center mt-4 shadow-sm border border-gray-700"
+              >
+                <Task01Icon size={48} className="mx-auto mb-3 text-gray-600" />
+                <p className="text-sm font-semibold text-gray-300">No available jobs at the moment</p>
+                <p className="text-xs text-gray-500 mt-1">New orders will appear here when customers place them</p>
+              </motion.div>
+            ) : (
+              availableOrders.map((order, index) => (
+                <motion.div
+                  key={order.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-gray-800 rounded-3xl overflow-hidden shadow-lg hover:shadow-xl transition-all border border-gray-700"
+                >
+                  <div className="p-5">
+                    <div className="flex items-start gap-4">
+                      {/* Vehicle/Service Image with Profile Overlay */}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-700 flex items-center justify-center">
+                          {order.service_type === 'fuel_delivery' && order.vehicles?.image_url ? (
+                            <img 
+                              src={order.vehicles.image_url} 
+                              alt={`${order.vehicles.make} ${order.vehicles.model}`}
+                              className="w-full h-full object-contain p-2"
+                            />
+                          ) : order.stations?.image_url ? (
+                            <img 
+                              src={order.stations.image_url} 
+                              alt={order.stations.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-gray-600 rounded-xl flex items-center justify-center">
+                              {order.service_type === 'fuel_delivery' ? (
+                                <FuelStationIcon size={32} className="text-gray-400" />
+                              ) : (
+                                <Wrench01Icon size={32} className="text-gray-400" />
+                              )}
+                            </div>
+                          )}
                         </div>
-                        {order.service_type === 'fuel_delivery' && (
-                          <p className="text-xs text-blue-600 mt-1">
-                            {order.fuel_quantity}L {order.fuel_type}
-                          </p>
+                        {/* Customer Profile Image Overlay */}
+                        {order.users?.avatar_url && (
+                          <div className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full overflow-hidden border-2 border-gray-800 bg-gray-700">
+                            <img 
+                              src={order.users.avatar_url} 
+                              alt={order.users.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         )}
                       </div>
                       
-                      <div className="bg-lime-400 px-3 py-2 rounded-xl text-center ml-2 flex-shrink-0">
-                        <div className="text-xs font-medium text-gray-900">
-                          ₵{order.agent_fee?.toFixed(0) || '0'}
+                      {/* Order Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-white text-base mb-0.5">
+                              {order.users?.name || 'Customer'}
+                            </h4>
+                            <p className="text-sm text-gray-400">
+                              {order.service_type === 'fuel_delivery' && order.vehicles 
+                                ? `${order.vehicles.make} ${order.vehicles.model}`
+                                : order.service_type === 'fuel_delivery' 
+                                ? 'Fuel Delivery' 
+                                : 'Mechanic Service'}
+                            </p>
+                          </div>
+                          
+                          {/* Price Badge */}
+                          <div className="bg-gradient-to-br from-lime-400 to-lime-500 text-gray-900 px-4 py-2 rounded-2xl text-center ml-2 shadow-lg">
+                            <div className="text-sm font-bold">
+                              ₵{order.agent_fee?.toFixed(0) || '0'}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-gray-700">Fee</div>
+
+                        {/* Time and Distance */}
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+                          <div className="flex items-center gap-1">
+                            <Clock01Icon size={14} className="text-gray-400" />
+                            <span>8 mins</span>
+                          </div>
+                          <span>•</span>
+                          <div className="flex items-center gap-1">
+                            <Location01Icon size={14} className="text-gray-400" />
+                            <span>2.8 kms</span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {/* Decline order */}}
+                            className="flex-1 border-2 border-gray-600 text-gray-300 py-3 px-4 rounded-2xl text-sm font-semibold hover:border-gray-500 hover:bg-gray-700 transition-all"
+                          >
+                            Decline
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => acceptOrder(order.id)}
+                            className="flex-1 bg-gradient-to-r from-lime-400 to-lime-500 hover:from-lime-500 hover:to-lime-600 text-gray-900 py-3 px-4 rounded-2xl text-sm font-semibold shadow-lg transition-all"
+                          >
+                            Accept
+                          </motion.button>
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="flex items-center gap-2 mt-3">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => viewOrderDetails(order)}
+                            className="flex-1 bg-gray-700 text-gray-300 py-2 px-3 rounded-xl text-xs font-medium hover:bg-gray-600 transition-colors flex items-center justify-center gap-1"
+                          >
+                            <ViewIcon size={14} />
+                            <span>Details</span>
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openMaps(order.delivery_address, order.delivery_coordinates)}
+                            className="flex-1 bg-green-500/20 text-green-400 py-2 px-3 rounded-xl text-xs font-medium hover:bg-green-500/30 transition-colors flex items-center justify-center gap-1"
+                          >
+                            <Navigation01Icon size={14} />
+                            <span>Navigate</span>
+                          </motion.button>
+                        </div>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => acceptOrder(order.id)}
-                        className="flex-1 bg-gray-900 text-white py-2.5 px-4 rounded-xl text-xs font-medium hover:bg-gray-800 transition-colors"
-                      >
-                        Accept Order
-                      </button>
-                      <button 
-                        onClick={() => viewOrderDetails(order)}
-                        className="bg-blue-500 text-white py-2.5 px-4 rounded-xl text-xs font-medium hover:bg-blue-600 transition-colors"
-                      >
-                        View
-                      </button>
+                  {/* Order Details Strip */}
+                  <div className="bg-gradient-to-r from-gray-700/50 to-gray-800/50 px-5 py-3 border-t border-gray-700">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <Location01Icon size={14} className="text-blue-400" />
+                        <span className="truncate max-w-[180px]">
+                          {order.delivery_address.length > 25 
+                            ? order.delivery_address.substring(0, 25) + '...' 
+                            : order.delivery_address}
+                        </span>
+                      </div>
+                      {order.service_type === 'fuel_delivery' && (
+                        <div className="text-lime-400 font-semibold">
+                          {order.fuel_quantity}L {order.fuel_type?.toUpperCase()}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              </div>
-            ))
-          )}
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
         </div>
       </div>
     )
@@ -1226,10 +1321,17 @@ export const AgentDashboard: React.FC = () => {
                           </button>
                         )}
                         <button 
+                          onClick={() => openMaps(order.delivery_address)}
+                          className="bg-green-600 text-white py-2.5 px-4 rounded-xl text-xs font-medium hover:bg-green-700 transition-colors"
+                          title="Navigate to address"
+                        >
+                          <Navigation01Icon size={16} />
+                        </button>
+                        <button 
                           onClick={() => viewOrderDetails(order)}
                           className="bg-gray-900 text-white py-2.5 px-4 rounded-xl text-xs font-medium hover:bg-gray-800 transition-colors"
                         >
-                          Details
+                          <ViewIcon size={16} />
                         </button>
                       </div>
                     </div>
@@ -2227,45 +2329,34 @@ export const AgentDashboard: React.FC = () => {
               </h3>
               
               <div className="flex gap-3">
-                {/* Vehicle Image with Customer Overlay - Now Circular */}
+                {/* Vehicle Image with Customer Overlay */}
                 <div className="relative w-20 h-20 flex-shrink-0">
-                  {/* Main circular image container */}
-                  <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-700">
+                  {/* Main circular vehicle image container */}
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center">
                     {order.vehicles?.image_url ? (
                       <img 
                         src={order.vehicles.image_url} 
                         alt={`${order.vehicles.make} ${order.vehicles.model}`}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gray-700"><svg width="28" height="28" fill="none" stroke="currentColor" class="text-gray-500"><path d="M12 2L2 7l10 5 10-5-10-5z"></path></svg></div>`
-                        }}
                       />
+                    ) : order.service_type === 'fuel_delivery' ? (
+                      <FuelStationIcon size={32} className="text-gray-400" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        {order.service_type === 'fuel_delivery' ? (
-                          <FuelStationIcon size={28} className="text-gray-500" />
-                        ) : (
-                          <Wrench01Icon size={28} className="text-gray-500" />
-                        )}
-                      </div>
+                      <Wrench01Icon size={32} className="text-gray-400" />
                     )}
                   </div>
                   
-                  {/* Customer Avatar Overlay - positioned outside the main circle */}
+                  {/* Customer Avatar Overlay - positioned at bottom right */}
                   {order.users && (
-                    <div className="absolute bottom-0 right-0 w-10 h-10 rounded-full border-3 border-gray-900 overflow-hidden bg-green-500 shadow-lg">
+                    <div className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full border-2 border-gray-800 overflow-hidden bg-gray-700 shadow-lg">
                       {order.users.avatar_url ? (
                         <img 
                           src={order.users.avatar_url} 
                           alt={order.users.name}
                           className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
-                            e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center text-white text-sm font-semibold">${order.users.name?.charAt(0) || 'C'}</div>`
-                          }}
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white text-sm font-semibold">
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-sm font-semibold">
                           {order.users.name?.charAt(0) || 'C'}
                         </div>
                       )}
@@ -2353,61 +2444,86 @@ export const AgentDashboard: React.FC = () => {
                   <p className="text-xs text-gray-400 mb-1">Delivery Address</p>
                   <p className="text-sm font-medium text-white">{order.delivery_address || 'Address not provided'}</p>
                 </div>
+                <button
+                  onClick={() => openMaps(order.delivery_address)}
+                  className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-medium flex items-center gap-2 transition-colors"
+                >
+                  <Navigation01Icon size={16} />
+                  Navigate
+                </button>
               </div>
             </div>
 
-            {/* Map Placeholder */}
+            {/* Real Map */}
             <div className="mt-4">
               <div className="w-full h-48 bg-gray-800 rounded-2xl overflow-hidden relative">
-                {/* Simple map placeholder with route visualization */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg width="100%" height="100%" viewBox="0 0 300 200" preserveAspectRatio="none">
-                    {/* Background pattern */}
-                    <defs>
-                      <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" strokeWidth="0.5"/>
-                      </pattern>
-                    </defs>
-                    <rect width="300" height="200" fill="url(#grid)"/>
-                    
-                    {/* Route path */}
-                    <path
-                      d="M 60 160 Q 80 120, 120 100 T 240 40"
-                      stroke="#10b981"
-                      strokeWidth="3"
-                      strokeDasharray="5,5"
-                      fill="none"
-                      opacity="0.6"
-                    />
-                  </svg>
+                <MapContainer
+                  center={[
+                    order.stations?.location?.coordinates?.[1] || 5.6037,
+                    order.stations?.location?.coordinates?.[0] || -0.187
+                  ]}
+                  zoom={13}
+                  style={{ height: '100%', width: '100%' }}
+                  zoomControl={false}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
                   
-                  {/* Pickup marker */}
-                  <div className="absolute" style={{ bottom: '20px', left: '60px' }}>
-                    <div className="w-10 h-10 bg-green-500 rounded-full shadow-lg flex items-center justify-center">
-                      <FuelStationIcon size={20} className="text-white" />
-                    </div>
-                  </div>
+                  {/* Station/Pickup Marker */}
+                  {order.stations?.location?.coordinates && (
+                    <>
+                      <Marker position={[
+                        order.stations.location.coordinates[1],
+                        order.stations.location.coordinates[0]
+                      ]} />
+                      <Circle
+                        center={[
+                          order.stations.location.coordinates[1],
+                          order.stations.location.coordinates[0]
+                        ]}
+                        radius={500}
+                        pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.1 }}
+                      />
+                    </>
+                  )}
                   
-                  {/* Delivery markers */}
-                  <div className="absolute" style={{ top: '40px', right: '60px' }}>
-                    <div className="w-10 h-10 bg-red-500 rounded-full shadow-lg flex items-center justify-center border-4 border-gray-800">
-                      <Location01Icon size={20} className="text-white" />
-                    </div>
-                  </div>
-                  
-                  {/* Additional location markers */}
-                  <div className="absolute" style={{ top: '100px', left: '120px' }}>
-                    <div className="w-8 h-8 bg-red-500 rounded-full shadow-md flex items-center justify-center border-3 border-gray-800">
-                      <Location01Icon size={16} className="text-white" />
-                    </div>
-                  </div>
-                  
-                  <div className="absolute" style={{ bottom: '80px', left: '30px' }}>
-                    <div className="w-6 h-6 bg-red-500 rounded-full shadow-md flex items-center justify-center border-2 border-gray-800">
-                      <Location01Icon size={12} className="text-white" />
-                    </div>
-                  </div>
-                </div>
+                  {/* Delivery Location Marker */}
+                  {order.delivery_coordinates && (
+                    <>
+                      <Marker position={[
+                        order.delivery_coordinates.lat,
+                        order.delivery_coordinates.lng
+                      ]} />
+                      <Circle
+                        center={[
+                          order.delivery_coordinates.lat,
+                          order.delivery_coordinates.lng
+                        ]}
+                        radius={300}
+                        pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.15 }}
+                      />
+                      
+                      {/* Route Line */}
+                      {order.stations?.location?.coordinates && (
+                        <Polyline
+                          positions={[
+                            [
+                              order.stations.location.coordinates[1],
+                              order.stations.location.coordinates[0]
+                            ],
+                            [
+                              order.delivery_coordinates.lat,
+                              order.delivery_coordinates.lng
+                            ]
+                          ]}
+                          pathOptions={{ color: '#10b981', weight: 3, opacity: 0.7, dashArray: '10, 10' }}
+                        />
+                      )}
+                    </>
+                  )}
+                </MapContainer>
               </div>
             </div>
 
