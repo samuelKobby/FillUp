@@ -89,7 +89,7 @@ export const OrderDetails: React.FC = () => {
     filter: `id=eq.${id}`,
     onUpdate: fetchOrderDetails,
     enabled: !!id
-  })
+  });
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -131,6 +131,18 @@ export const OrderDetails: React.FC = () => {
     };
 
     const config = statusConfig[status as keyof typeof statusConfig];
+    if (!config) {
+      return {
+        badge: (
+          <span className="bg-gray-50 text-gray-700 border-2 border-gray-200 px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2">
+            <ClockIcon className="h-4 w-4" />
+            Unknown Status
+          </span>
+        ),
+        config: statusConfig.pending
+      };
+    }
+
     const StatusIcon = config.icon;
 
     return {
