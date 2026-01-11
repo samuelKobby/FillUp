@@ -180,14 +180,20 @@ function App() {
     const REFRESH_THRESHOLD = 0 // Refresh immediately on any tab switch
 
     const handleVisibilityChange = () => {
+      console.log('Visibility changed:', document.visibilityState, 'hidden:', document.hidden)
+      
       if (document.hidden) {
         // Tab is hidden - record timestamp
         hiddenTime = Date.now()
+        console.log('Tab hidden at:', hiddenTime)
       } else {
         // Tab is visible
+        console.log('Tab visible, hiddenTime:', hiddenTime)
+        
         if (hiddenTime) {
           // Tab was previously hidden - check duration
           const hiddenDuration = Date.now() - hiddenTime
+          console.log('Hidden duration:', hiddenDuration, 'ms, threshold:', REFRESH_THRESHOLD)
           
           if (hiddenDuration >= REFRESH_THRESHOLD) {
             // Check if Google Maps is active or loading
@@ -195,15 +201,21 @@ function App() {
             const hasGoogleMapsComponent = document.querySelector('[class*="gm-style"]') || 
                                           document.querySelector('[style*="maps.gstatic"]')
             
+            console.log('Google Maps check - script:', !!hasGoogleMapsScript, 'component:', !!hasGoogleMapsComponent)
+            
             // Only refresh if Google Maps is not being used at all
             if (!hasGoogleMapsScript && !hasGoogleMapsComponent) {
+              console.log('Triggering page refresh...')
+              
               // Mark that auto-refresh is happening (prevent splash screen)
               sessionStorage.setItem('autoRefresh', 'true')
               
-              // Tab was hidden long enough - refresh the page
+              // Use hard reload to bypass cache
               setTimeout(() => {
                 window.location.reload()
               }, 100)
+            } else {
+              console.log('Skipping refresh - Google Maps detected')
             }
           }
           
