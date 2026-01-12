@@ -41,6 +41,7 @@ import { supabase } from '../../lib/supabase'
 import loaderGif from '../../assets/lodaer.gif'
 import { getCache, setCache } from '../../lib/cache'
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription'
+import { useAgentLocationTracking } from '../../hooks/useAgentLocationTracking'
 
 // Fix Leaflet default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -169,6 +170,17 @@ export const AgentDashboard: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
+
+  // Check if agent has active orders (accepted or in_progress)
+  const hasActiveOrders = myOrders.some(order => 
+    order.status === 'accepted' || order.status === 'in_progress'
+  )
+
+  // GPS Location Tracking - only when agent has active orders
+  const { isTracking, error: trackingError, lastUpdate } = useAgentLocationTracking({
+    enabled: hasActiveOrders && isAvailable,
+    updateInterval: 10000 // Update every 10 seconds
+  })
 
   useEffect(() => {
     if (user && !isSigningOut) {

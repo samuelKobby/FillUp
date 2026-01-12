@@ -18,7 +18,7 @@ import {
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 import { useDataRefreshOnVisibility } from '../hooks/useDataRefreshOnVisibility'
 import { useCachedData } from '../hooks/useCachedData'
-import { MapContainer, TileLayer, Marker, Polyline, Circle } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, Circle, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -39,6 +39,10 @@ interface OrderTracking {
   fuel_type?: string
   fuel_quantity?: number
   delivery_address: string
+  delivery_location?: {
+    type: string
+    coordinates: [number, number]
+  }
   total_amount: number
   updated_at: string
   agent_id?: string
@@ -71,6 +75,7 @@ export const OrderTracking: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [mapCenter, setMapCenter] = useState<[number, number]>([5.6037, -0.187]) // Accra, Ghana
+  const [agentLocation, setAgentLocation] = useState<[number, number] | null>(null)
 
   const fetchOrder = useCallback(async (): Promise<OrderTracking> => {
     if (!id) throw new Error('No order ID')
@@ -81,6 +86,8 @@ export const OrderTracking: React.FC = () => {
         *,
         agents (
           rating,
+          current_latitude,
+          current_longitude,
           users (name, avatar_url, phone)
         ),
         stations (name, address, location),
@@ -90,6 +97,12 @@ export const OrderTracking: React.FC = () => {
       .single()
 
     if (error) throw error
+    
+    // Update agent location if available
+    if (data.agents?.current_latitude && data.agents?.current_longitude) {
+      setAgentLocation([data.agents.current_latitude, data.agents.current_longitude])
+    }
+    
     return data as OrderTracking
   }, [id])
 
@@ -109,12 +122,40 @@ export const OrderTracking: React.FC = () => {
     enabled: !!id
   })
 
+  // Set up Realtime subscription for agent location updates
+  useRealtimeSubscription({
+    channelName: `agent-location-${order?.agent_id}`,
+    table: 'agents',
+    filter: `id=eq.${order?.agent_id}`,
+    onUpdate: async () => {
+      if (!order?.agent_id) return
+      
+      const { data, error } = await supabase
+        .from('agents')
+        .select('current_latitude, current_longitude')
+        .eq('id', order.agent_id)
+        .single()
+      
+      if (!error && data?.current_latitude && data?.current_longitude) {
+        setAgentLocation([data.current_latitude, data.current_longitude])
+      }
+    },
+    enabled: !!order?.agent_id && order?.status === 'in_progress'
+  })
+
   // Update map center when order data loads
   useEffect(() => {
     if (order?.stations?.location?.coordinates) {
       setMapCenter([order.stations.location.coordinates[1], order.stations.location.coordinates[0]])
     }
   }, [order])
+  
+  // Center map on agent when tracking starts
+  useEffect(() => {
+    if (agentLocation && order?.status === 'in_progress') {
+      setMapCenter(agentLocation)
+    }
+  }, [agentLocation, order?.status])
 
   if (loading || !order) {
     return (
@@ -185,8 +226,26 @@ export const OrderTracking: React.FC = () => {
     ? [order.stations.location.coordinates[1], order.stations.location.coordinates[0]]
     : null
 
-  // Simulated delivery location (you would get this from actual GPS tracking)
-  const deliveryCoords: [number, number] = [5.6137, -0.177]
+  // Agent's current GPS location
+  const agentCoords: [number, number] | null = agentLocation
+
+  // Delivery destination from order
+  const deliveryCoords: [number, number] | null = order.delivery_location?.coordinates
+    ? [order.delivery_location.coordinates[1], order.delivery_location.coordinates[0]]
+    : null
+
+  // Auto-center map to follow agent when in progress
+  const MapAutoCenter = () => {
+    const map = useMap()
+    
+    useEffect(() => {
+      if (order.status === 'in_progress' && agentCoords) {
+        map.setView(agentCoords, 14, { animate: true, duration: 1 })
+      }
+    }, [agentCoords, map])
+    
+    return null
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -195,17 +254,18 @@ export const OrderTracking: React.FC = () => {
         {/* Map Layer */}
         <div className="absolute inset-0 z-0">
           <MapContainer
-            center={mapCenter}
+            center={stationCoords || [5.6037, -0.187]}
             zoom={13}
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
           >
+            <MapAutoCenter />
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
-            {/* Station Marker */}
+            {/* Station Marker (Blue - Pickup Location) */}
             {stationCoords && (
               <>
                 <Marker position={stationCoords} />
@@ -217,21 +277,41 @@ export const OrderTracking: React.FC = () => {
               </>
             )}
             
-            {/* Delivery Location Marker */}
-            {order.status === 'in_progress' && (
+            {/* Delivery Address Marker (Green - Destination) */}
+            {deliveryCoords && (
               <>
                 <Marker position={deliveryCoords} />
                 <Circle
                   center={deliveryCoords}
                   radius={300}
-                  pathOptions={{ color: '#8b5cf6', fillColor: '#8b5cf6', fillOpacity: 0.15 }}
+                  pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.1 }}
+                />
+              </>
+            )}
+            
+            {/* Agent Location Marker (Purple - Real-time GPS) */}
+            {order.status === 'in_progress' && agentCoords && (
+              <>
+                <Marker position={agentCoords} />
+                <Circle
+                  center={agentCoords}
+                  radius={200}
+                  pathOptions={{ color: '#8b5cf6', fillColor: '#8b5cf6', fillOpacity: 0.2 }}
                 />
                 
-                {/* Route Line */}
+                {/* Route Line: Agent → Station (agent driving to pickup) */}
                 {stationCoords && (
                   <Polyline
+                    positions={[agentCoords, stationCoords]}
+                    pathOptions={{ color: '#8b5cf6', weight: 3, opacity: 0.7, dashArray: '10, 10' }}
+                  />
+                )}
+                
+                {/* Route Line: Station → Delivery (final route after pickup) */}
+                {stationCoords && deliveryCoords && (
+                  <Polyline
                     positions={[stationCoords, deliveryCoords]}
-                    pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 10' }}
+                    pathOptions={{ color: '#3b82f6', weight: 4, opacity: 0.6, dashArray: '15, 10' }}
                   />
                 )}
               </>

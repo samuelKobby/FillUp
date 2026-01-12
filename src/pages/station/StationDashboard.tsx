@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react'
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
 import logo1 from '../../assets/logo1.png'
 import { 
   BarChart3, 
@@ -95,6 +98,10 @@ interface Station {
   id: string
   name: string
   address: string
+  location?: {
+    type: string
+    coordinates: [number, number]
+  } | null
   is_active: boolean
   petrol_price: number
   diesel_price: number
@@ -117,6 +124,14 @@ interface StatCardProps {
 interface StatusBadgeProps {
   status: string
 }
+
+// Fix Leaflet default marker icon
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
 
 export const StationDashboard: React.FC = () => {
 
@@ -196,6 +211,9 @@ export const StationDashboard: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [editingLocation, setEditingLocation] = useState(false)
+  const [selectedCoordinates, setSelectedCoordinates] = useState<[number, number] | null>(null)
+  const [savingLocation, setSavingLocation] = useState(false)
 
   useEffect(() => {
     // Initial load when component mounts - enhanced with sign out protection
@@ -903,6 +921,53 @@ export const StationDashboard: React.FC = () => {
     } finally {
       setUploadingImage(false)
     }
+  }
+
+  const handleUpdateLocation = async () => {
+    if (!selectedCoordinates || !stationData?.id) return
+
+    setSavingLocation(true)
+    try {
+      const { error } = await supabase
+        .from('stations')
+        .update({
+          location: {
+            type: 'Point',
+            coordinates: [selectedCoordinates[1], selectedCoordinates[0]] // [lng, lat]
+          }
+        })
+        .eq('id', stationData.id)
+
+      if (error) throw error
+
+      // Update local state
+      setStationData({
+        ...stationData,
+        location: {
+          type: 'Point',
+          coordinates: [selectedCoordinates[1], selectedCoordinates[0]]
+        }
+      })
+
+      alert('Location updated successfully!')
+      setEditingLocation(false)
+      setSelectedCoordinates(null)
+    } catch (error: any) {
+      console.error('Error updating location:', error)
+      alert('Failed to update location: ' + error.message)
+    } finally {
+      setSavingLocation(false)
+    }
+  }
+
+  // Map picker component for location editing
+  const LocationPicker = () => {
+    useMapEvents({
+      click(e) {
+        setSelectedCoordinates([e.latlng.lat, e.latlng.lng])
+      },
+    })
+    return selectedCoordinates ? <Marker position={selectedCoordinates} /> : null
   }
   
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -3008,6 +3073,110 @@ export const StationDashboard: React.FC = () => {
                 <p className="text-xs text-gray-500 mt-2">
                   To update other station information, please contact support.
                 </p>
+              </div>
+
+              {/* GPS Location Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <MapPin className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="text-blue-900 font-semibold">Station GPS Location</h4>
+                      <p className="text-blue-700 text-sm">Set your exact location for agent navigation</p>
+                    </div>
+                  </div>
+                  {!editingLocation && (
+                    <button
+                      onClick={() => {
+                        setEditingLocation(true)
+                        // Initialize with current location if available
+                        if (stationData?.location?.coordinates) {
+                          setSelectedCoordinates([stationData.location.coordinates[1], stationData.location.coordinates[0]])
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm flex items-center gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      {stationData?.location?.coordinates ? 'Update Location' : 'Set Location'}
+                    </button>
+                  )}
+                </div>
+
+                {stationData?.location?.coordinates && !editingLocation && (
+                  <div className="mb-3 p-3 bg-blue-100 rounded-lg">
+                    <p className="text-sm text-blue-900">
+                      <strong>Current Location:</strong> {stationData.location.coordinates[1].toFixed(6)}, {stationData.location.coordinates[0].toFixed(6)}
+                    </p>
+                  </div>
+                )}
+
+                {!stationData?.location?.coordinates && !editingLocation && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ No GPS location set. Click "Set Location" to add your station's coordinates.
+                    </p>
+                  </div>
+                )}
+
+                {editingLocation && (
+                  <div>
+                    {selectedCoordinates && (
+                      <div className="mb-3 p-3 bg-blue-100 rounded-lg">
+                        <p className="text-sm text-blue-900">
+                          <strong>Selected Location:</strong> {selectedCoordinates[0].toFixed(6)}, {selectedCoordinates[1].toFixed(6)}
+                        </p>
+                      </div>
+                    )}
+                    <div className="h-96 rounded-lg overflow-hidden border-2 border-blue-300 mb-3">
+                      <MapContainer
+                        center={
+                          selectedCoordinates ||
+                          (stationData?.location?.coordinates 
+                            ? [stationData.location.coordinates[1], stationData.location.coordinates[0]] 
+                            : [5.6037, -0.187]) // Default: Accra, Ghana
+                        }
+                        zoom={13}
+                        style={{ height: '100%', width: '100%' }}
+                      >
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <LocationPicker />
+                      </MapContainer>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setEditingLocation(false)
+                          setSelectedCoordinates(null)
+                        }}
+                        className="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleUpdateLocation}
+                        disabled={!selectedCoordinates || savingLocation}
+                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {savingLocation ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Save Location
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

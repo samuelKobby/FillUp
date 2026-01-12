@@ -203,27 +203,19 @@ export const OrderDetails: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Hero Section with Image */}
-      <div className="relative h-64 bg-gradient-to-br from-blue-500 to-indigo-600 overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0" style={{
-            backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
-            backgroundSize: '40px 40px'
-          }}></div>
-        </div>
-
+      <div className="relative h-64 bg-gray-100 overflow-hidden">
         {/* Vehicle/Station Image */}
         {(order.vehicles?.image_url || order.stations?.image_url) && (
           <div className="absolute inset-0 flex items-center justify-center">
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 0.3 }}
+              animate={{ scale: 1, opacity: 1 }}
               className="w-full h-full"
             >
               <img 
                 src={order.vehicles?.image_url || order.stations?.image_url} 
                 alt="Order"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
               />
             </motion.div>
           </div>
@@ -236,7 +228,7 @@ export const OrderDetails: React.FC = () => {
           onClick={() => navigate(-1)}
           className="absolute top-4 left-4 z-50 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg hover:bg-white/30 transition-all hover:scale-110"
         >
-          <ArrowLeft className="h-5 w-5 text-white" />
+          <ArrowLeft className="h-5 w-5 text-black" />
         </motion.button>
 
         {/* Floating Status Badge */}

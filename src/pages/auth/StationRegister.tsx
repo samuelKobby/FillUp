@@ -1,8 +1,19 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, User, Phone, Fuel, MapPin, Building, Clock, DollarSign, Upload, X } from 'lucide-react'
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
+
+// Fix Leaflet default marker icon
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
 
 export const StationRegister: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -36,9 +47,20 @@ export const StationRegister: React.FC = () => {
   const [step, setStep] = useState(1)
   const [stationImage, setStationImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [coordinates, setCoordinates] = useState<[number, number] | null>(null)
   
   const { signUp } = useAuth()
   const navigate = useNavigate()
+
+  // Map picker component
+  const LocationPicker = () => {
+    useMapEvents({
+      click(e) {
+        setCoordinates([e.latlng.lat, e.latlng.lng])
+      },
+    })
+    return coordinates ? <Marker position={coordinates} /> : null
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -129,6 +151,11 @@ export const StationRegister: React.FC = () => {
       return false
     }
 
+    if (!coordinates) {
+      setError('Please select your station location on the map')
+      return false
+    }
+
     if (formData.fuelTypes.length === 0) {
       setError('Please select at least one fuel type')
       return false
@@ -173,8 +200,11 @@ export const StationRegister: React.FC = () => {
       // Store station data for later use after email verification
       localStorage.setItem('pendingStationData', JSON.stringify({
         stationName: formData.stationName,
-        address: formData.address,
-        location: formData.location,
+        address: formData.address + ', ' + formData.location, // Combine address with city/region
+        location: coordinates ? {
+          type: 'Point',
+          coordinates: [coordinates[1], coordinates[0]] // [longitude, latitude]
+        } : null,
         stationPhone: formData.stationPhone,
         fuelTypes: formData.fuelTypes,
         petrolPrice: parseFloat(formData.petrolPrice) || 0,
@@ -527,6 +557,37 @@ export const StationRegister: React.FC = () => {
                     <option value="Wa">Wa</option>
                     <option value="Bolgatanga">Bolgatanga</option>
                   </select>
+                </div>
+
+                {/* GPS Location Map Picker */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2 flex items-center">
+                    <MapPin className="h-5 w-5 mr-2" />
+                    Station GPS Location *
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Click on the map to mark your station's exact location. This will help agents find you easily.
+                  </p>
+                  {coordinates && (
+                    <div className="mb-3 p-3 bg-blue-100 rounded-lg">
+                      <p className="text-sm text-blue-900">
+                        <strong>Selected Location:</strong> {coordinates[0].toFixed(6)}, {coordinates[1].toFixed(6)}
+                      </p>
+                    </div>
+                  )}
+                  <div className="h-96 rounded-lg overflow-hidden border-2 border-blue-300">
+                    <MapContainer
+                      center={[5.6037, -0.187]} // Default: Accra, Ghana
+                      zoom={13}
+                      style={{ height: '100%', width: '100%' }}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <LocationPicker />
+                    </MapContainer>
+                  </div>
                 </div>
 
                 <div className="bg-green-50 border border-green-200 rounded-lg p-6">
