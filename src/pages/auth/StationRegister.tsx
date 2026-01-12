@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, User, Phone, Fuel, MapPin, Building, Clock, DollarSign, Upload, X } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, Phone, Fuel, MapPin, Building, Clock, DollarSign, Upload, X, Search, RefreshCw } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
@@ -48,6 +48,10 @@ export const StationRegister: React.FC = () => {
   const [stationImage, setStationImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [mapCenter, setMapCenter] = useState<[number, number]>([5.6037, -0.187])
+  const [mapZoom, setMapZoom] = useState(13)
   
   const { signUp } = useAuth()
   const navigate = useNavigate()
@@ -60,6 +64,34 @@ export const StationRegister: React.FC = () => {
       },
     })
     return coordinates ? <Marker position={coordinates} /> : null
+  }
+
+  // Search for location using Nominatim (OpenStreetMap geocoding)
+  const handleSearchLocation = async () => {
+    if (!searchQuery.trim()) return
+    
+    setSearching(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ', Ghana')}&limit=1`
+      )
+      const data = await response.json()
+      
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0]
+        const newCoords: [number, number] = [parseFloat(lat), parseFloat(lon)]
+        setMapCenter(newCoords)
+        setMapZoom(15)
+        setCoordinates(newCoords)
+      } else {
+        alert('Location not found. Try searching with more details (e.g., "Shell Station, Accra Central")')
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+      alert('Failed to search location. Please try again.')
+    } finally {
+      setSearching(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -201,10 +233,10 @@ export const StationRegister: React.FC = () => {
       localStorage.setItem('pendingStationData', JSON.stringify({
         stationName: formData.stationName,
         address: formData.address + ', ' + formData.location, // Combine address with city/region
-        location: coordinates ? {
-          type: 'Point',
-          coordinates: [coordinates[1], coordinates[0]] // [longitude, latitude]
-        } : null,
+        coordinates: coordinates ? {
+          lat: coordinates[0],
+          lng: coordinates[1]
+        } : null, // Store as simple lat/lng object
         stationPhone: formData.stationPhone,
         fuelTypes: formData.fuelTypes,
         petrolPrice: parseFloat(formData.petrolPrice) || 0,
@@ -566,8 +598,41 @@ export const StationRegister: React.FC = () => {
                     Station GPS Location *
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Click on the map to mark your station's exact location. This will help agents find you easily.
+                    Search for your location or click on the map to mark your station's exact location.
                   </p>
+                  
+                  {/* Search Input */}
+                  <div className="mb-4">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSearchLocation()}
+                        placeholder="Search location (e.g., Shell Station, Accra Central)"
+                        className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSearchLocation}
+                        disabled={searching || !searchQuery.trim()}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {searching ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-4 w-4" />
+                            Search
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
                   {coordinates && (
                     <div className="mb-3 p-3 bg-blue-100 rounded-lg">
                       <p className="text-sm text-blue-900">
@@ -577,9 +642,10 @@ export const StationRegister: React.FC = () => {
                   )}
                   <div className="h-96 rounded-lg overflow-hidden border-2 border-blue-300">
                     <MapContainer
-                      center={[5.6037, -0.187]} // Default: Accra, Ghana
-                      zoom={13}
+                      center={mapCenter}
+                      zoom={mapZoom}
                       style={{ height: '100%', width: '100%' }}
+                      key={`${mapCenter[0]}-${mapCenter[1]}-${mapZoom}`}
                     >
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

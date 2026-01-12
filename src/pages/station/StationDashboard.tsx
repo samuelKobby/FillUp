@@ -214,6 +214,8 @@ export const StationDashboard: React.FC = () => {
   const [editingLocation, setEditingLocation] = useState(false)
   const [selectedCoordinates, setSelectedCoordinates] = useState<[number, number] | null>(null)
   const [savingLocation, setSavingLocation] = useState(false)
+  const [locationSearch, setLocationSearch] = useState('')
+  const [searchingLocation, setSearchingLocation] = useState(false)
 
   useEffect(() => {
     // Initial load when component mounts - enhanced with sign out protection
@@ -928,26 +930,18 @@ export const StationDashboard: React.FC = () => {
 
     setSavingLocation(true)
     try {
+      // Use RPC function to properly handle PostGIS point type
       const { error } = await supabase
-        .from('stations')
-        .update({
-          location: {
-            type: 'Point',
-            coordinates: [selectedCoordinates[1], selectedCoordinates[0]] // [lng, lat]
-          }
+        .rpc('update_station_location', {
+          station_id: stationData.id,
+          lat: selectedCoordinates[0],
+          lng: selectedCoordinates[1]
         })
-        .eq('id', stationData.id)
 
       if (error) throw error
 
-      // Update local state
-      setStationData({
-        ...stationData,
-        location: {
-          type: 'Point',
-          coordinates: [selectedCoordinates[1], selectedCoordinates[0]]
-        }
-      })
+      // Reload station data to get the updated location
+      await loadStationData()
 
       alert('Location updated successfully!')
       setEditingLocation(false)
@@ -968,6 +962,32 @@ export const StationDashboard: React.FC = () => {
       },
     })
     return selectedCoordinates ? <Marker position={selectedCoordinates} /> : null
+  }
+
+  // Search for location using Nominatim (OpenStreetMap geocoding)
+  const handleSearchLocation = async () => {
+    if (!locationSearch.trim()) return
+    
+    setSearchingLocation(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationSearch + ', Ghana')}&limit=1`
+      )
+      const data = await response.json()
+      
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0]
+        const newCoords: [number, number] = [parseFloat(lat), parseFloat(lon)]
+        setSelectedCoordinates(newCoords)
+      } else {
+        alert('Location not found. Try searching with more details.')
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+      alert('Failed to search location. Please try again.')
+    } finally {
+      setSearchingLocation(false)
+    }
   }
   
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -3122,6 +3142,32 @@ export const StationDashboard: React.FC = () => {
 
                 {editingLocation && (
                   <div>
+                    {/* Search Input */}
+                    <div className="mb-4">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={locationSearch}
+                          onChange={(e) => setLocationSearch(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSearchLocation()}
+                          placeholder="Search location (e.g., Shell Station, Accra Central)"
+                          className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSearchLocation}
+                          disabled={searchingLocation || !locationSearch.trim()}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {searchingLocation ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
                     {selectedCoordinates && (
                       <div className="mb-3 p-3 bg-blue-100 rounded-lg">
                         <p className="text-sm text-blue-900">

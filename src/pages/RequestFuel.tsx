@@ -18,7 +18,8 @@ import {
   StarIcon,
   SmartPhone01Icon,
   WalletAdd01Icon,
-  ArrowDown01Icon
+  ArrowDown01Icon,
+  RefreshCw
 } from 'hugeicons-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles, getUserWallet } from '../lib/supabase'
@@ -139,6 +140,10 @@ export const RequestFuel: React.FC = () => {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('home')
+  const [locationSearch, setLocationSearch] = useState('')
+  const [searchingLocation, setSearchingLocation] = useState(false)
+  const [mapCenter, setMapCenter] = useState<{ lat: number, lng: number }>(userLocation || { lat: 5.6037, lng: -0.187 })
+  const [mapZoom, setMapZoom] = useState(15)
 
   const { coords, isGeolocationAvailable, isGeolocationEnabled } = useGeolocated({
     positionOptions: {
@@ -146,6 +151,13 @@ export const RequestFuel: React.FC = () => {
     },
     userDecisionTimeout: 5000,
   });
+
+  // Update map center when user location is detected
+  useEffect(() => {
+    if (coords && !selectedLocation) {
+      setMapCenter({ lat: coords.latitude, lng: coords.longitude })
+    }
+  }, [coords, selectedLocation])
 
   // Save draft state whenever form changes (debounced)
   useEffect(() => {
@@ -455,6 +467,35 @@ export const RequestFuel: React.FC = () => {
     });
     return null;
   };
+
+  // Search for location using Nominatim (OpenStreetMap geocoding)
+  const handleSearchLocation = async () => {
+    if (!locationSearch.trim()) return
+    
+    setSearchingLocation(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationSearch + ', Ghana')}&limit=1`
+      )
+      const data = await response.json()
+      
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0]
+        const newLocation = { lat: parseFloat(lat), lng: parseFloat(lon) }
+        setSelectedLocation(newLocation)
+        setMapCenter(newLocation)
+        setMapZoom(16)
+        setDeliveryAddress(display_name)
+      } else {
+        alert('Location not found. Try searching with more details (e.g., "Accra Mall", "Osu Oxford Street")')
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+      alert('Failed to search location. Please try again.')
+    } finally {
+      setSearchingLocation(false)
+    }
+  }
 
   const handleConfirmAndSubmit = () => {
     if (selectedLocation) {
@@ -974,11 +1015,39 @@ export const RequestFuel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Delivery Address
               </label>
+              
+              {/* Search Input */}
+              <div className="mb-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearchLocation()}
+                    placeholder="Search location (e.g., Accra Mall, Osu Oxford Street)"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSearchLocation}
+                    disabled={searchingLocation || !locationSearch.trim()}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {searchingLocation ? (
+                      <RefreshCw size={20} className="animate-spin" />
+                    ) : (
+                      <Search01Icon size={20} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
               <div className="relative rounded-lg overflow-hidden border border-gray-300" style={{ height: "400px" }}>
                 <MapContainer
-                  center={userLocation || { lat: 5.6037, lng: -0.187 }}
-                  zoom={15}
+                  center={[mapCenter.lat, mapCenter.lng]}
+                  zoom={mapZoom}
                   style={{ height: "100%", width: "100%" }}
+                  key={`${mapCenter.lat}-${mapCenter.lng}-${mapZoom}`}
                 >
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
