@@ -31,6 +31,80 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// Custom car icon for agent marker
+const carIcon = new L.DivIcon({
+  html: `
+    <div style="position: relative;">
+      <div style="
+        background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+        border: 3px solid white;
+      ">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+        </svg>
+      </div>
+      <div style="
+        position: absolute;
+        bottom: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-top: 8px solid white;
+      "></div>
+    </div>
+  `,
+  className: 'custom-car-icon',
+  iconSize: [48, 48],
+  iconAnchor: [24, 48],
+});
+
+// Custom fuel pump icon for station marker
+const stationIcon = new L.DivIcon({
+  html: `
+    <div style="position: relative;">
+      <div style="
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        border: 3px solid white;
+      ">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33 0 1.38 1.12 2.5 2.5 2.5.36 0 .69-.08 1-.21v7.21c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77zM12 10H6V5h6v5zm6 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
+        </svg>
+      </div>
+      <div style="
+        position: absolute;
+        bottom: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-top: 8px solid white;
+      "></div>
+    </div>
+  `,
+  className: 'custom-station-icon',
+  iconSize: [48, 48],
+  iconAnchor: [24, 48],
+});
+
 interface OrderTracking {
   id: string
   created_at: string
@@ -76,6 +150,8 @@ export const OrderTracking: React.FC = () => {
   const navigate = useNavigate()
   const [mapCenter, setMapCenter] = useState<[number, number]>([5.6037, -0.187]) // Accra, Ghana
   const [agentLocation, setAgentLocation] = useState<[number, number] | null>(null)
+  const [agentToStationRoute, setAgentToStationRoute] = useState<[number, number][]>([])
+  const [stationToDeliveryRoute, setStationToDeliveryRoute] = useState<[number, number][]>([])
 
   const fetchOrder = useCallback(async (): Promise<OrderTracking> => {
     if (!id) throw new Error('No order ID')
@@ -149,13 +225,78 @@ export const OrderTracking: React.FC = () => {
       setMapCenter([order.stations.location.coordinates[1], order.stations.location.coordinates[0]])
     }
   }, [order])
-  
-  // Center map on agent when tracking starts
-  useEffect(() => {
-    if (agentLocation && order?.status === 'in_progress') {
-      setMapCenter(agentLocation)
+
+  // Fetch route from OSRM routing service
+  const fetchRoute = async (start: [number, number], end: [number, number]): Promise<[number, number][]> => {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`
+      const response = await fetch(url)
+      const data = await response.json()
+      
+      if (data.code === 'Ok' && data.routes && data.routes[0]) {
+        // Convert coordinates from [lng, lat] to [lat, lng] for Leaflet
+        return data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]])
+      }
+      return []
+    } catch (error) {
+      console.error('Error fetching route:', error)
+      return []
     }
-  }, [agentLocation, order?.status])
+  }
+
+  // Helper function to parse PostgreSQL point format: "(lng,lat)" or GeoJSON
+  const parseLocation = (location: any): [number, number] | null => {
+    if (!location) return null
+    
+    // If it's a GeoJSON object with coordinates
+    if (location.coordinates && Array.isArray(location.coordinates)) {
+      return [location.coordinates[1], location.coordinates[0]] // [lat, lng]
+    }
+    
+    // If it's a PostgreSQL point string like "(lng,lat)"
+    if (typeof location === 'string') {
+      const match = location.match(/\(([^,]+),([^)]+)\)/)
+      if (match) {
+        const lng = parseFloat(match[1])
+        const lat = parseFloat(match[2])
+        return [lat, lng] // Return as [lat, lng] for Leaflet
+      }
+    }
+    
+    return null
+  }
+
+  // Get coordinates for map
+  const stationCoords: [number, number] | null = parseLocation(order?.stations?.location)
+  const agentCoords: [number, number] | null = agentLocation
+  const deliveryCoords: [number, number] | null = parseLocation(order?.delivery_location)
+
+  // Update routes when coordinates change
+  useEffect(() => {
+    const updateRoutes = async () => {
+      // Agent to Station route
+      if (agentCoords && stationCoords) {
+        const route = await fetchRoute(agentCoords, stationCoords)
+        if (route.length > 0) {
+          setAgentToStationRoute(route)
+        } else {
+          setAgentToStationRoute([agentCoords, stationCoords]) // Fallback to straight line
+        }
+      }
+
+      // Station to Delivery route
+      if (stationCoords && deliveryCoords) {
+        const route = await fetchRoute(stationCoords, deliveryCoords)
+        if (route.length > 0) {
+          setStationToDeliveryRoute(route)
+        } else {
+          setStationToDeliveryRoute([stationCoords, deliveryCoords]) // Fallback to straight line
+        }
+      }
+    }
+
+    updateRoutes()
+  }, [agentCoords, stationCoords, deliveryCoords])
 
   if (loading || !order) {
     return (
@@ -221,28 +362,26 @@ export const OrderTracking: React.FC = () => {
   const statusInfo = getStatusInfo()
   const StatusIcon = statusInfo.icon
 
-  // Get coordinates for map
-  const stationCoords: [number, number] | null = order.stations?.location?.coordinates 
-    ? [order.stations.location.coordinates[1], order.stations.location.coordinates[0]]
-    : null
-
-  // Agent's current GPS location
-  const agentCoords: [number, number] | null = agentLocation
-
-  // Delivery destination from order
-  const deliveryCoords: [number, number] | null = order.delivery_location?.coordinates
-    ? [order.delivery_location.coordinates[1], order.delivery_location.coordinates[0]]
-    : null
+  // Debug logging
+  console.log('OrderTracking Debug:', {
+    stationCoords,
+    agentCoords,
+    deliveryCoords,
+    stationData: order.stations?.location,
+    deliveryData: order.delivery_location,
+    orderStatus: order.status
+  })
 
   // Auto-center map to follow agent when in progress
   const MapAutoCenter = () => {
     const map = useMap()
     
     useEffect(() => {
-      if (order.status === 'in_progress' && agentCoords) {
-        map.setView(agentCoords, 14, { animate: true, duration: 1 })
+      // Only set initial view when order starts, don't keep recentering
+      if (order.status === 'in_progress' && agentCoords && !map.getZoom()) {
+        map.setView(agentCoords, 14, { animate: false })
       }
-    }, [agentCoords, map])
+    }, [map])
     
     return null
   }
@@ -265,10 +404,10 @@ export const OrderTracking: React.FC = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
-            {/* Station Marker (Blue - Pickup Location) */}
+            {/* Station Marker (Blue Fuel Pump - Pickup Location) - Always show if exists */}
             {stationCoords && (
               <>
-                <Marker position={stationCoords} />
+                <Marker position={stationCoords} icon={stationIcon} />
                 <Circle
                   center={stationCoords}
                   radius={500}
@@ -277,7 +416,7 @@ export const OrderTracking: React.FC = () => {
               </>
             )}
             
-            {/* Delivery Address Marker (Green - Destination) */}
+            {/* Delivery Address Marker (Green - Destination) - Always show if exists */}
             {deliveryCoords && (
               <>
                 <Marker position={deliveryCoords} />
@@ -289,28 +428,33 @@ export const OrderTracking: React.FC = () => {
               </>
             )}
             
-            {/* Agent Location Marker (Purple - Real-time GPS) */}
+            {/* Agent Location Marker (Purple Car Icon - Real-time GPS) - Show when in progress */}
             {order.status === 'in_progress' && agentCoords && (
               <>
-                <Marker position={agentCoords} />
+                <Marker position={agentCoords} icon={carIcon} />
                 <Circle
                   center={agentCoords}
                   radius={200}
                   pathOptions={{ color: '#8b5cf6', fillColor: '#8b5cf6', fillOpacity: 0.2 }}
                 />
-                
-                {/* Route Line: Agent → Station (agent driving to pickup) */}
-                {stationCoords && (
+              </>
+            )}
+            
+            {/* Route Lines - Show only when agent location is available */}
+            {agentCoords && (
+              <>
+                {/* Route Line: Agent → Station (if station exists) */}
+                {agentToStationRoute.length > 0 && (
                   <Polyline
-                    positions={[agentCoords, stationCoords]}
+                    positions={agentToStationRoute}
                     pathOptions={{ color: '#8b5cf6', weight: 3, opacity: 0.7, dashArray: '10, 10' }}
                   />
                 )}
                 
-                {/* Route Line: Station → Delivery (final route after pickup) */}
-                {stationCoords && deliveryCoords && (
+                {/* Route Line: Station → Delivery (if both exist) */}
+                {stationToDeliveryRoute.length > 0 && (
                   <Polyline
-                    positions={[stationCoords, deliveryCoords]}
+                    positions={stationToDeliveryRoute}
                     pathOptions={{ color: '#3b82f6', weight: 4, opacity: 0.6, dashArray: '15, 10' }}
                   />
                 )}
