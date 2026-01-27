@@ -108,33 +108,12 @@ CREATE TRIGGER on_agent_application_status_change
 CREATE OR REPLACE FUNCTION notify_admin_of_new_application()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Insert a notification for admins
-  -- This assumes you have a notifications table
-  -- You can customize this based on your notification system
-  INSERT INTO public.notifications (
-    user_id,
-    type,
-    title,
-    message,
-    is_read,
-    created_at,
-    metadata
-  )
-  SELECT 
-    u.id, 
-    'new_agent_application',
-    'New Agent Application',
-    'A new agent ' || NEW.name || ' has applied to join the platform',
-    false,
-    NOW(),
-    jsonb_build_object('application_id', NEW.id)
-  FROM public.users u
-  WHERE u.role = 'admin';
-  
+  -- Notification functionality disabled for now
+  -- TODO: Implement proper notification system
   RETURN NEW;
 EXCEPTION
-  WHEN undefined_table THEN
-    -- If notifications table doesn't exist yet, silently continue
+  WHEN OTHERS THEN
+    -- If any error occurs, silently continue
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

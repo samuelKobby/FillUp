@@ -12,6 +12,7 @@ import { Register } from './pages/auth/Register'
 import { AgentRegister } from './pages/auth/AgentRegister'
 import { StationRegister } from './pages/auth/StationRegister'
 import { EmailVerification } from './pages/auth/EmailVerification'
+import { EmailConfirmation } from './pages/auth/EmailConfirmation'
 import { ApplicationSubmitted } from './pages/auth/ApplicationSubmitted'
 import { AdminLogin } from './pages/auth/AdminLogin'
 import { AgentLogin } from './pages/auth/AgentLogin'
@@ -262,6 +263,7 @@ function App() {
               <Route path="/agent/register" element={<AgentRegister />} />
               <Route path="/station/register" element={<StationRegister />} />
               <Route path="/verify-email" element={<EmailVerification />} />
+              <Route path="/email-confirmation" element={<EmailConfirmation />} />
               <Route path="/application-submitted" element={<ApplicationSubmitted />} />
               <Route path="/debug" element={<DebugPage />} />
             

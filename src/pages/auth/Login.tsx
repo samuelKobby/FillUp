@@ -45,6 +45,23 @@ export const Login: React.FC = () => {
     try {
       const result = await signIn(email, password)
       
+      // If user is an agent, check approval status
+      if (result.userRole === 'agent') {
+        const { supabase } = await import('../../lib/supabase')
+        
+        const { data: agentData, error: agentError } = await supabase
+          .from('agents')
+          .select('id, is_verified')
+          .eq('user_id', result.user.id)
+          .single()
+        
+        if (agentError || !agentData || !agentData.is_verified) {
+          setError('Your agent application is still pending admin approval. You will be notified via email once approved.')
+          setLoading(false)
+          return
+        }
+      }
+      
       // Get the redirect path from session storage or state
       const redirectPath = sessionStorage.getItem('redirectPath') || 
                           (location.state as any)?.from?.pathname || 

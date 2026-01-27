@@ -34,6 +34,39 @@ export const uploadStationImage = async (
   }
 }
 
+export const uploadAgentProfileImage = async (
+  file: File,
+  agentId: string
+): Promise<string> => {
+  try {
+    // Generate unique filename
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${agentId}-${Date.now()}.${fileExt}`
+    const filePath = `agents/${fileName}`
+
+    // Upload file to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('profile-images')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (uploadError) {
+      throw uploadError
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('profile-images')
+      .getPublicUrl(filePath)
+
+    return urlData.publicUrl
+  } catch (error) {
+    throw error
+  }
+}
+
 export const updateStationImage = async (
   stationId: string,
   imageUrl: string

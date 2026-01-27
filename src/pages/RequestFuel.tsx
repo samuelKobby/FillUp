@@ -30,7 +30,7 @@ import { MapContainer, TileLayer, Marker as LeafletMarker, useMapEvents } from '
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useGeolocated } from 'react-geolocated';
-import heroImg from '../assets/hero.png'
+import heroImg from '../assets/cars2.png'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 import { useNetworkStatus } from '../hooks/useNetworkStatus'
 
@@ -769,12 +769,12 @@ export const RequestFuel: React.FC = () => {
               alt={selectedStation.name} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                e.currentTarget.src = '/src/assets/hero.png'
+                e.currentTarget.src = '/src/assets/cars2.png'
               }}
             />
           ) : (
             <img 
-              src="/src/assets/hero.png" 
+              src="/src/assets/cars2.png" 
               alt="Order Details" 
               className="w-full h-full object-cover"
             />

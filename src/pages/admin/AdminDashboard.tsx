@@ -221,11 +221,22 @@ export const AdminDashboard: React.FC = () => {
   }, [resize, stopResizing])
   const [users, setUsers] = useState<User[]>([])
   const [agents, setAgents] = useState<Agent[]>([])
+  const [mechanics, setMechanics] = useState<Agent[]>([])
   const [pendingAgents, setPendingAgents] = useState<PendingAgent[]>([])
   const [stations, setStations] = useState<Station[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showOrderDetails, setShowOrderDetails] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [showUserDetails, setShowUserDetails] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [showAgentDetails, setShowAgentDetails] = useState(false)
+  const [selectedMechanic, setSelectedMechanic] = useState<Agent | null>(null)
+  const [showMechanicDetails, setShowMechanicDetails] = useState(false)
+  const [selectedStation, setSelectedStation] = useState<Station | null>(null)
+  const [showStationDetails, setShowStationDetails] = useState(false)
+  const [selectedPendingAgent, setSelectedPendingAgent] = useState<PendingAgent | null>(null)
+  const [showPendingAgentDetails, setShowPendingAgentDetails] = useState(false)
   const [satisfactionRate, setSatisfactionRate] = useState(0)
   const [referralData, setReferralData] = useState({ invited: 0, bonus: 0, safetyScore: 0 })
 
@@ -342,21 +353,38 @@ export const AdminDashboard: React.FC = () => {
         ordersResult,
         usersResult,
         agentsResult,
+        mechanicsResult,
         stationsResult,
         pendingAgentsResult
       ] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('users').select('*'),
-        supabase.from('agents').select('*, users(*)'),
+        supabase.from('agents').select('*, users(*)').eq('service_type', 'fuel_delivery'), // Fuel delivery agents
+        supabase.from('agents').select('*, users(*)').eq('service_type', 'mechanic'), // Mechanics
         supabase.from('stations').select('*, users(*)'),
-        supabase.from('pending_agents').select('*')
+        supabase.from('pending_agents').select('*').eq('status', 'pending') // Pending applications
       ])
 
       const orders = ordersResult.data as Order[] || []
       const allUsers = usersResult.data as User[] || []
       const allAgents = agentsResult.data as Agent[] || []
+      const allMechanics = mechanicsResult.data as Agent[] || []
       const allStations = stationsResult.data as Station[] || []
-      const allPendingAgents = pendingAgentsResult.data as PendingAgent[] || []
+      // Map pending agents from pending_agents table  
+      const allPendingAgents = (pendingAgentsResult.data as any[] || []).map(agent => ({
+        id: agent.id,
+        auth_id: agent.auth_id,
+        email: agent.email,
+        name: agent.name,
+        phone: agent.phone,
+        service_type: agent.service_type,
+        license_number: agent.license_number,
+        vehicle_info: agent.vehicle_info,
+        status: agent.status,
+        created_at: agent.created_at,
+        updated_at: agent.updated_at,
+        profile_image_url: agent.profile_image_url
+      })) as PendingAgent[]
 
       // Calculate stats
       const today = new Date().toISOString().split('T')[0]
@@ -395,6 +423,7 @@ export const AdminDashboard: React.FC = () => {
       setRecentOrders(orders.slice(0, 10))
       setUsers(allUsers)
       setAgents(allAgents)
+      setMechanics(allMechanics)
       setPendingAgents(allPendingAgents)
       setStations(allStations)
 
@@ -416,6 +445,7 @@ export const AdminDashboard: React.FC = () => {
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'agents', label: 'Agents', icon: UserCheck },
+    { id: 'mechanics', label: 'Mechanics', icon: Wrench },
     { id: 'agent-applications', label: 'Agent Applications', icon: UserPlus },
     { id: 'stations', label: 'Stations', icon: MapPin },
     { id: 'orders', label: 'Orders', icon: ClipboardList },
@@ -698,7 +728,9 @@ export const AdminDashboard: React.FC = () => {
               <div className="lg:col-span-5 backdrop-blur-2xl rounded-3xl p-8 overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)', height: '350px' }}>
                 <div className="relative z-10 h-full flex flex-col justify-between">
                   <div>
-                    <p className="text-gray-300 text-sm mb-2">Welcome back,</p>
+                    <p className="text-gray-300 text-sm mb-2">
+                      {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}, welcome back
+                    </p>
                     <h2 className="text-4xl font-bold text-white mb-4">{userProfile?.name || 'Mark Johnson'}</h2>
                     <p className="text-white text-base mb-2">Glad to see you again!</p>
                     <p className="text-white text-base">Ask me anything.</p>
@@ -987,9 +1019,15 @@ export const AdminDashboard: React.FC = () => {
                 { 
                   key: 'actions', 
                   label: 'Actions', 
-                  render: () => (
+                  render: (_: any, row: User) => (
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors">
+                      <button 
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors"
+                        onClick={() => {
+                          setSelectedUser(row)
+                          setShowUserDetails(true)
+                        }}
+                      >
                         View
                       </button>
                       <button className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs transition-colors">
@@ -1056,16 +1094,86 @@ export const AdminDashboard: React.FC = () => {
                   label: 'Actions', 
                   render: (_: any, row: Agent) => (
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors">
+                      <button 
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors"
+                        onClick={() => {
+                          setSelectedAgent(row)
+                          setShowAgentDetails(true)
+                        }}
+                      >
                         View
                       </button>
                       {!row.is_verified && (
-                        <button className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors">
-                          Approve
+                        <button 
+                          className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors"
+                          disabled={actionLoading === row.id}
+                          onClick={async () => {
+                            console.log('🔵 Approve agent clicked:', row.id)
+                            try {
+                              setActionLoading(row.id)
+                              const { data: userData } = await supabase.auth.getUser()
+                              const adminId = userData.user?.id
+                              
+                              if (!adminId) {
+                                throw new Error('Admin ID not found')
+                              }
+                              
+                              console.log('🔵 Calling approve_agent_application with:', { application_id: row.id, admin_id: adminId })
+                              
+                              const { data, error } = await supabase.rpc('approve_agent_application', {
+                                application_id: row.id,
+                                admin_id: adminId,
+                                admin_notes: 'Approved via agent management'
+                              })
+                              
+                              console.log('🔵 Approval response:', { data, error })
+                              
+                              if (error) throw error
+                              
+                              toast.success('Agent approved successfully')
+                              loadDashboardData()
+                            } catch (err: any) {
+                              console.error('❌ Error approving agent:', err)
+                              toast.error(err.message || 'Failed to approve agent')
+                            } finally {
+                              setActionLoading(null)
+                            }
+                          }}
+                        >
+                          {actionLoading === row.id ? 'Processing...' : 'Approve'}
                         </button>
                       )}
-                      <button className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors">
-                        Suspend
+                      <button 
+                        className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors"
+                        disabled={actionLoading === row.id}
+                        onClick={async () => {
+                          console.log('🔴 Suspend agent clicked:', row.id)
+                          if (!window.confirm('Are you sure you want to suspend this agent?')) return
+                          
+                          try {
+                            setActionLoading(row.id)
+                            const { error } = await supabase
+                              .from('agents')
+                              .update({ 
+                                is_available: false,
+                                is_verified: false,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', row.id)
+                            
+                            if (error) throw error
+                            
+                            toast.success('Agent suspended successfully')
+                            loadDashboardData()
+                          } catch (err: any) {
+                            console.error('❌ Error suspending agent:', err)
+                            toast.error(err.message || 'Failed to suspend agent')
+                          } finally {
+                            setActionLoading(null)
+                          }
+                        }}
+                      >
+                        {actionLoading === row.id ? 'Processing...' : 'Suspend'}
                       </button>
                     </div>
                   )
@@ -1074,6 +1182,147 @@ export const AdminDashboard: React.FC = () => {
               actions={[
                 { icon: Filter, label: 'Filter' },
                 { icon: Plus, label: 'Add Agent' }
+              ]}
+            />
+          </div>
+        )
+
+      case 'mechanics':
+        return (
+          <div className="space-y-6">
+            <DataTable
+              title="Mechanic Management"
+              data={mechanics.slice(0, 10)}
+              columns={[
+                { 
+                  key: 'users', 
+                  label: 'Author', 
+                  render: (user: User & { avatar_url?: string }) => (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        {user?.avatar_url ? (
+                          <img 
+                            src={user.avatar_url} 
+                            alt={user?.name || 'Mechanic'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement!.innerHTML = user?.name?.charAt(0).toUpperCase() || 'M';
+                            }}
+                          />
+                        ) : (
+                          user?.name?.charAt(0).toUpperCase() || 'M'
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-white font-semibold">{user?.name || 'N/A'}</div>
+                        <div className="text-gray-400 text-xs">{user?.phone || 'N/A'}</div>
+                      </div>
+                    </div>
+                  )
+                },
+                { key: 'service_type', label: 'Function', render: (type: string) => (
+                  <div>
+                    <div className="text-white font-semibold capitalize">{type?.replace('_', ' ')}</div>
+                    <div className="text-gray-400 text-xs">Service</div>
+                  </div>
+                ) },
+                { key: 'rating', label: 'Rating', render: (rating: number) => `⭐ ${rating}` },
+                { key: 'is_verified', label: 'Status', render: (verified: boolean) => <StatusBadge status={verified ? 'approved' : 'pending'} /> },
+                { key: 'total_jobs', label: 'Jobs', render: (jobs: number) => jobs || 0 },
+                { 
+                  key: 'actions', 
+                  label: 'Actions', 
+                  render: (_: any, row: Agent) => (
+                    <div className="flex gap-2">
+                      <button 
+                        className="px-3 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg text-xs transition-colors"
+                        onClick={() => {
+                          setSelectedMechanic(row)
+                          setShowMechanicDetails(true)
+                        }}
+                      >
+                        View
+                      </button>
+                      {!row.is_verified && (
+                        <button 
+                          className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors"
+                          disabled={actionLoading === row.id}
+                          onClick={async () => {
+                            console.log('🔧 Approve mechanic clicked:', row.id)
+                            try {
+                              setActionLoading(row.id)
+                              const { data: userData } = await supabase.auth.getUser()
+                              const adminId = userData.user?.id
+                              
+                              if (!adminId) {
+                                throw new Error('Admin ID not found')
+                              }
+                              
+                              console.log('🔧 Calling approve_agent_application with:', { application_id: row.id, admin_id: adminId })
+                              
+                              const { data, error } = await supabase.rpc('approve_agent_application', {
+                                application_id: row.id,
+                                admin_id: adminId,
+                                admin_notes: 'Approved via mechanic management'
+                              })
+                              
+                              console.log('🔧 Approval response:', { data, error })
+                              
+                              if (error) throw error
+                              
+                              toast.success('Mechanic approved successfully')
+                              loadDashboardData()
+                            } catch (err: any) {
+                              console.error('❌ Error approving mechanic:', err)
+                              toast.error(err.message || 'Failed to approve mechanic')
+                            } finally {
+                              setActionLoading(null)
+                            }
+                          }}
+                        >
+                          {actionLoading === row.id ? 'Processing...' : 'Approve'}
+                        </button>
+                      )}
+                      <button 
+                        className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors"
+                        disabled={actionLoading === row.id}
+                        onClick={async () => {
+                          console.log('🔴 Suspend mechanic clicked:', row.id)
+                          if (!window.confirm('Are you sure you want to suspend this mechanic?')) return
+                          
+                          try {
+                            setActionLoading(row.id)
+                            const { error } = await supabase
+                              .from('agents')
+                              .update({ 
+                                is_available: false,
+                                is_verified: false,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', row.id)
+                            
+                            if (error) throw error
+                            
+                            toast.success('Mechanic suspended successfully')
+                            loadDashboardData()
+                          } catch (err: any) {
+                            console.error('❌ Error suspending mechanic:', err)
+                            toast.error(err.message || 'Failed to suspend mechanic')
+                          } finally {
+                            setActionLoading(null)
+                          }
+                        }}
+                      >
+                        {actionLoading === row.id ? 'Processing...' : 'Suspend'}
+                      </button>
+                    </div>
+                  )
+                }
+              ]}
+              actions={[
+                { icon: Filter, label: 'Filter' },
+                { icon: Plus, label: 'Add Mechanic' }
               ]}
             />
           </div>
@@ -1124,13 +1373,79 @@ export const AdminDashboard: React.FC = () => {
                 { 
                   key: 'actions', 
                   label: 'Actions', 
-                  render: () => (
+                  render: (_: any, row: Station) => (
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors">
+                      <button 
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors"
+                        onClick={() => {
+                          setSelectedStation(row)
+                          setShowStationDetails(true)
+                        }}
+                      >
                         View
                       </button>
-                      <button className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors">
-                        Approve
+                      {!row.is_verified && (
+                        <button 
+                          className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors"
+                          disabled={actionLoading === row.id}
+                          onClick={async () => {
+                            console.log('🏪 Approve station clicked:', row.id)
+                            try {
+                              setActionLoading(row.id)
+                              const { error } = await supabase
+                                .from('stations')
+                                .update({ 
+                                  is_verified: true,
+                                  updated_at: new Date().toISOString()
+                                })
+                                .eq('id', row.id)
+                              
+                              if (error) throw error
+                              
+                              toast.success('Station approved successfully')
+                              loadDashboardData()
+                            } catch (err: any) {
+                              console.error('❌ Error approving station:', err)
+                              toast.error(err.message || 'Failed to approve station')
+                            } finally {
+                              setActionLoading(null)
+                            }
+                          }}
+                        >
+                          {actionLoading === row.id ? 'Processing...' : 'Approve'}
+                        </button>
+                      )}
+                      <button 
+                        className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors"
+                        disabled={actionLoading === row.id}
+                        onClick={async () => {
+                          console.log('🔴 Suspend station clicked:', row.id)
+                          if (!window.confirm('Are you sure you want to suspend this station?')) return
+                          
+                          try {
+                            setActionLoading(row.id)
+                            const { error } = await supabase
+                              .from('stations')
+                              .update({ 
+                                is_active: false,
+                                is_verified: false,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', row.id)
+                            
+                            if (error) throw error
+                            
+                            toast.success('Station suspended successfully')
+                            loadDashboardData()
+                          } catch (err: any) {
+                            console.error('❌ Error suspending station:', err)
+                            toast.error(err.message || 'Failed to suspend station')
+                          } finally {
+                            setActionLoading(null)
+                          }
+                        }}
+                      >
+                        {actionLoading === row.id ? 'Processing...' : 'Suspend'}
                       </button>
                     </div>
                   )
@@ -1292,12 +1607,12 @@ export const AdminDashboard: React.FC = () => {
                 { 
                   key: 'name', 
                   label: 'Author', 
-                  render: (_: any, row: PendingAgent & { avatar_url?: string }) => (
+                  render: (_: any, row: PendingAgent & { profile_image_url?: string }) => (
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        {row.avatar_url ? (
+                        {row.profile_image_url ? (
                           <img 
-                            src={row.avatar_url} 
+                            src={row.profile_image_url} 
                             alt={row.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -1359,7 +1674,8 @@ export const AdminDashboard: React.FC = () => {
                       <button 
                         className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors"
                         onClick={() => {
-                          navigate(`/admin/agent-applications/${row.id}`)
+                          setSelectedPendingAgent(row)
+                          setShowPendingAgentDetails(true)
                         }}
                       >
                         View
@@ -1369,27 +1685,41 @@ export const AdminDashboard: React.FC = () => {
                           className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors"
                           disabled={actionLoading === row.id}
                           onClick={async () => {
+                            console.log('🔵 Approve button clicked for agent:', row.id)
                             try {
                               setActionLoading(row.id)
+                              console.log('🔵 Getting admin user...')
                               const { data: userData } = await supabase.auth.getUser()
                               const adminId = userData.user?.id
+                              console.log('🔵 Admin ID:', adminId)
                               
                               if (!adminId) {
                                 throw new Error('Admin ID not found')
                               }
                               
-                              const { error } = await supabase.rpc('approve_agent_application', {
+                              console.log('🔵 Calling approve_agent_application RPC...')
+                              console.log('🔵 Parameters:', {
                                 application_id: row.id,
                                 admin_id: adminId,
                                 admin_notes: 'Approved via admin dashboard'
                               })
                               
+                              const { data, error } = await supabase.rpc('approve_agent_application', {
+                                application_id: row.id,
+                                admin_id: adminId,
+                                admin_notes: 'Approved via admin dashboard'
+                              })
+                              
+                              console.log('🔵 RPC Response:', { data, error })
+                              
                               if (error) throw error
                               
+                              console.log('✅ Approval successful!')
                               toast.success('Agent application approved successfully')
                               loadDashboardData()
                             } catch (err: any) {
-                              console.error('Error approving application:', err)
+                              console.error('❌ Error approving application:', err)
+                              console.error('❌ Error details:', JSON.stringify(err, null, 2))
                               toast.error(err.message || 'Failed to approve application')
                             } finally {
                               setActionLoading(null)
@@ -3080,6 +3410,509 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Details Modal */}
+      {showUserDetails && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-1">User Details</h3>
+                <p className="text-gray-400 text-sm">Complete user information</p>
+              </div>
+              <button
+                onClick={() => setShowUserDetails(false)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-all duration-300 hover:rotate-90"
+              >
+                <X className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Profile Info */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl">
+                      {selectedUser.avatar_url ? (
+                        <img src={selectedUser.avatar_url} alt={selectedUser.name} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        selectedUser.name?.charAt(0) || 'U'
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-xl">{selectedUser.name || 'N/A'}</h4>
+                      <p className="text-gray-400">{selectedUser.email}</p>
+                      <p className="text-gray-400 text-sm">{selectedUser.phone}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-gray-400 text-sm">Role:</span>
+                      <span className="text-white ml-2 capitalize">{selectedUser.role || 'Customer'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Status:</span>
+                      <span className="text-white ml-2">{selectedUser.is_active ? 'Active' : 'Inactive'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Joined:</span>
+                      <span className="text-white ml-2">{new Date(selectedUser.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Additional Stats */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <h5 className="text-white font-semibold mb-4">Account Statistics</h5>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Total Orders:</span>
+                      <span className="text-white">0</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Total Spent:</span>
+                      <span className="text-white">GH₵0</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Last Activity:</span>
+                      <span className="text-white">{selectedUser.updated_at ? new Date(selectedUser.updated_at).toLocaleDateString() : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Agent Details Modal */}
+      {showAgentDetails && selectedAgent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-1">Agent Details</h3>
+                <p className="text-gray-400 text-sm">Complete agent information</p>
+              </div>
+              <button
+                onClick={() => setShowAgentDetails(false)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-all duration-300 hover:rotate-90"
+              >
+                <X className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Profile Info */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl">
+                      {selectedAgent.users?.avatar_url ? (
+                        <img src={selectedAgent.users.avatar_url} alt={selectedAgent.users.name} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        selectedAgent.users?.name?.charAt(0) || 'A'
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-xl">{selectedAgent.users?.name || 'N/A'}</h4>
+                      <p className="text-gray-400">{selectedAgent.users?.email}</p>
+                      <p className="text-gray-400 text-sm">{selectedAgent.users?.phone}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-gray-400 text-sm">Service Type:</span>
+                      <span className="text-white ml-2 capitalize">{selectedAgent.service_type?.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">License:</span>
+                      <span className="text-white ml-2">{selectedAgent.license_number || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Vehicle:</span>
+                      <span className="text-white ml-2">
+                        {selectedAgent.vehicle_info ? 
+                          `${selectedAgent.vehicle_info.make || ''} ${selectedAgent.vehicle_info.model || ''} ${selectedAgent.vehicle_info.year || ''}`.trim() || 
+                          selectedAgent.vehicle_info.plateNumber || 'Vehicle Info Available'
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Agent Stats */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <h5 className="text-white font-semibold mb-4">Performance</h5>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Rating:</span>
+                      <span className="text-white">⭐ {selectedAgent.rating || 5}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Total Jobs:</span>
+                      <span className="text-white">{selectedAgent.total_jobs || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Earnings:</span>
+                      <span className="text-white">GH₵{selectedAgent.earnings || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Status:</span>
+                      <span className="text-white">{selectedAgent.is_verified ? 'Verified' : 'Pending'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mechanic Details Modal */}
+      {showMechanicDetails && selectedMechanic && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-1">Mechanic Details</h3>
+                <p className="text-gray-400 text-sm">Complete mechanic information</p>
+              </div>
+              <button
+                onClick={() => setShowMechanicDetails(false)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-all duration-300 hover:rotate-90"
+              >
+                <X className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Profile Info */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-bold text-xl">
+                      {selectedMechanic.users?.avatar_url ? (
+                        <img src={selectedMechanic.users.avatar_url} alt={selectedMechanic.users.name} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        selectedMechanic.users?.name?.charAt(0) || 'M'
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-xl">{selectedMechanic.users?.name || 'N/A'}</h4>
+                      <p className="text-gray-400">{selectedMechanic.users?.email}</p>
+                      <p className="text-gray-400 text-sm">{selectedMechanic.users?.phone}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-gray-400 text-sm">Service Type:</span>
+                      <span className="text-white ml-2 capitalize">{selectedMechanic.service_type?.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">License:</span>
+                      <span className="text-white ml-2">{selectedMechanic.license_number || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Vehicle:</span>
+                      <span className="text-white ml-2">
+                        {selectedMechanic.vehicle_info ? 
+                          `${selectedMechanic.vehicle_info.make || ''} ${selectedMechanic.vehicle_info.model || ''} ${selectedMechanic.vehicle_info.year || ''}`.trim() || 
+                          selectedMechanic.vehicle_info.plateNumber || 'Vehicle Info Available'
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Mechanic Stats */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <h5 className="text-white font-semibold mb-4">Performance</h5>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Rating:</span>
+                      <span className="text-white">⭐ {selectedMechanic.rating || 5}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Total Jobs:</span>
+                      <span className="text-white">{selectedMechanic.total_jobs || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Earnings:</span>
+                      <span className="text-white">GH₵{selectedMechanic.earnings || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Status:</span>
+                      <span className="text-white">{selectedMechanic.is_verified ? 'Verified' : 'Pending'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Agent Details Modal */}
+      {showPendingAgentDetails && selectedPendingAgent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-1">Agent Application</h3>
+                <p className="text-gray-400 text-sm">Pending agent application details</p>
+              </div>
+              <button
+                onClick={() => setShowPendingAgentDetails(false)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-all duration-300 hover:rotate-90"
+              >
+                <X className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Profile Info */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white font-bold text-xl">
+                      {selectedPendingAgent.profile_image_url ? (
+                        <img src={selectedPendingAgent.profile_image_url} alt={selectedPendingAgent.name} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        selectedPendingAgent.name?.charAt(0) || 'A'
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-xl">{selectedPendingAgent.name || 'N/A'}</h4>
+                      <p className="text-gray-400">{selectedPendingAgent.email}</p>
+                      <p className="text-gray-400 text-sm">{selectedPendingAgent.phone}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-gray-400 text-sm">Service Type:</span>
+                      <span className="text-white ml-2 capitalize">{selectedPendingAgent.service_type?.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">License:</span>
+                      <span className="text-white ml-2">{selectedPendingAgent.license_number || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Vehicle:</span>
+                      <span className="text-white ml-2">
+                        {selectedPendingAgent.vehicle_info ? 
+                          `${selectedPendingAgent.vehicle_info.make || ''} ${selectedPendingAgent.vehicle_info.model || ''} ${selectedPendingAgent.vehicle_info.year || ''}`.trim() || 
+                          selectedPendingAgent.vehicle_info.plateNumber || 'Vehicle Info Available'
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Application Info */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <h5 className="text-white font-semibold mb-4">Application Status</h5>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Status:</span>
+                      <StatusBadge status={selectedPendingAgent.status} />
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Applied:</span>
+                      <span className="text-white">{new Date(selectedPendingAgent.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Last Updated:</span>
+                      <span className="text-white">{selectedPendingAgent.updated_at ? new Date(selectedPendingAgent.updated_at).toLocaleDateString() : 'N/A'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 flex gap-3">
+                    <button 
+                      className="flex-1 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm transition-colors"
+                      onClick={async () => {
+                        try {
+                          const { data: userData } = await supabase.auth.getUser()
+                          const adminId = userData.user?.id
+                          
+                          if (!adminId) throw new Error('Admin ID not found')
+                          
+                          const { error } = await supabase.rpc('approve_agent_application', {
+                            application_id: selectedPendingAgent.id,
+                            admin_id: adminId,
+                            admin_notes: 'Approved via application details'
+                          })
+                          
+                          if (error) throw error
+                          
+                          toast.success('Agent approved successfully')
+                          setShowPendingAgentDetails(false)
+                          loadDashboardData()
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to approve agent')
+                        }
+                      }}
+                    >
+                      Approve
+                    </button>
+                    <button className="flex-1 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors">
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Station Details Modal */}
+      {showStationDetails && selectedStation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-1">Station Details</h3>
+                <p className="text-gray-400 text-sm">Complete station information</p>
+              </div>
+              <button
+                onClick={() => setShowStationDetails(false)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-all duration-300 hover:rotate-90"
+              >
+                <X className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Station Info */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-bold text-xl">
+                      {selectedStation.logo || selectedStation.logo_url || selectedStation.image_url ? (
+                        <img src={selectedStation.logo || selectedStation.logo_url || selectedStation.image_url} alt={selectedStation.name} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        selectedStation.name?.charAt(0) || 'S'
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-xl">{selectedStation.name || 'N/A'}</h4>
+                      <p className="text-gray-400">{selectedStation.address}</p>
+                      <p className="text-gray-400 text-sm">{selectedStation.phone}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-gray-400 text-sm">Location:</span>
+                      <span className="text-white ml-2">{selectedStation.address || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Owner:</span>
+                      <span className="text-white ml-2">{selectedStation.users?.name || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">Contact:</span>
+                      <span className="text-white ml-2">{selectedStation.phone || selectedStation.users?.phone || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Station Stats */}
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+                  <h5 className="text-white font-semibold mb-4">Fuel Prices & Status</h5>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Petrol Price:</span>
+                      <span className="text-white">₵{selectedStation.petrol_price || 0}/L</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Diesel Price:</span>
+                      <span className="text-white">₵{selectedStation.diesel_price || 0}/L</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Verification:</span>
+                      <StatusBadge status={selectedStation.is_verified ? 'approved' : 'pending'} />
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Status:</span>
+                      <StatusBadge status={selectedStation.is_active ? 'active' : 'inactive'} />
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Added:</span>
+                      <span className="text-white">{new Date(selectedStation.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 flex gap-3">
+                    {!selectedStation.is_verified && (
+                      <button 
+                        className="flex-1 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm transition-colors"
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('stations')
+                              .update({ 
+                                is_verified: true,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', selectedStation.id)
+                            
+                            if (error) throw error
+                            
+                            toast.success('Station approved successfully')
+                            setShowStationDetails(false)
+                            loadDashboardData()
+                          } catch (err: any) {
+                            toast.error(err.message || 'Failed to approve station')
+                          }
+                        }}
+                      >
+                        Approve
+                      </button>
+                    )}
+                    <button 
+                      className="flex-1 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-sm transition-colors"
+                      onClick={async () => {
+                        if (!window.confirm('Are you sure you want to suspend this station?')) return
+                        
+                        try {
+                          const { error } = await supabase
+                            .from('stations')
+                            .update({ 
+                              is_active: false,
+                              is_verified: false,
+                              updated_at: new Date().toISOString()
+                            })
+                            .eq('id', selectedStation.id)
+                          
+                          if (error) throw error
+                          
+                          toast.success('Station suspended successfully')
+                          setShowStationDetails(false)
+                          loadDashboardData()
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to suspend station')
+                        }
+                      }}
+                    >
+                      Suspend
+                    </button>
                   </div>
                 </div>
               </div>

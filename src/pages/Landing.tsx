@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { Header } from '../components/layout/Header'
 import { Footer } from '../components/layout/Footer'
 import { useAuth } from '../contexts/AuthContext'
@@ -25,7 +26,12 @@ import {
   Award,
   Zap,
   TrendingUp,
-  ChevronUp
+  ChevronUp,
+  Home,
+  ChevronDown,
+  ExternalLink,
+  Menu,
+  X
 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
@@ -33,6 +39,22 @@ import { Card, CardContent } from '../components/ui/Card'
 export const Landing: React.FC = () => {
   const { user, userRole } = useAuth()
   const [showScrollTop, setShowScrollTop] = useState(false)
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const [scrollY, setScrollY] = useState(0)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
+  const [mouseX, setMouseX] = useState(0)
+  const [mouseY, setMouseY] = useState(0)
+
+  // Handle menu close with animation
+  const handleCloseMenu = () => {
+    setIsClosing(true)
+    setTimeout(() => {
+      setShowMobileMenu(false)
+      setIsClosing(false)
+    }, 300) // Match animation duration
+  }
 
   // Initialize AOS
   useEffect(() => {
@@ -56,10 +78,22 @@ export const Landing: React.FC = () => {
     const handleScroll = () => {
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop
       setShowScrollTop(scrollTop > 300)
+      setScrollY(scrollTop)
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2
+      const y = (e.clientY / window.innerHeight - 0.5) * 2
+      setMouseX(x)
+      setMouseY(y)
     }
 
     window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('mousemove', handleMouseMove)
+    }
   }, [])
 
   const scrollToTop = () => {
@@ -70,17 +104,416 @@ export const Landing: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen ">
-      
+    <>
+      {/* Desktop Floating Navigation Pill - Hidden on Mobile */}
+      {createPortal(
+        <nav 
+          className="hidden md:block fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300"
+          onMouseLeave={() => {
+            setActiveDropdown(null)
+            setHoveredItem(null)
+          }}
+        >
+          <div className={`bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 rounded-3xl shadow-2xl backdrop-blur-sm transition-all duration-300 ${
+            activeDropdown ? 'px-6 py-6' : 'px-6 py-3'
+          }`}>
+            {!activeDropdown ? (
+              /* Collapsed State */
+              <div className="flex items-center gap-6 w-[450px]">
+                {/* Home Icon */}
+                <Link to="/" className="text-white hover:scale-110 transition-transform">
+                  <Home className="h-5 w-5" />
+                </Link>
+
+                {/* For Customers */}
+                <button 
+                  className="text-white font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
+                  onMouseEnter={() => setActiveDropdown('customers')}
+                >
+                  For Customers
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+
+                {/* For Agents */}
+                <button 
+                  className="text-white font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
+                  onMouseEnter={() => setActiveDropdown('agents')}
+                >
+                  For Agents
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+
+                {/* For Stations */}
+                <button 
+                  className="text-white font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
+                  onMouseEnter={() => setActiveDropdown('stations')}
+                >
+                  For Stations
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              /* Expanded State */
+              <div className="flex flex-col w-[450px]">
+                {/* Dropdown content */}
+                <div className="mb-3 flex gap-6">
+                  <div className="flex-1">
+                    {activeDropdown === 'customers' && (
+                      <div className="flex flex-col gap-2">
+                        <Link 
+                          to="/auth/register" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'fuel' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('fuel')}
+                        >
+                          Fuel Delivery
+                        </Link>
+                        <Link 
+                          to="/auth/register" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'mechanic' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('mechanic')}
+                        >
+                          Mechanic Service
+                        </Link>
+                        <a 
+                          href="#how-it-works" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'how-it-works' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('how-it-works')}
+                        >
+                          How It Works
+                        </a>
+                      </div>
+                    )}
+
+                    {activeDropdown === 'agents' && (
+                      <div className="flex flex-col gap-2">
+                        <Link 
+                          to="/auth/agent/register" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'become-agent' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('become-agent')}
+                        >
+                          Become an Agent
+                        </Link>
+                        <a 
+                          href="#features" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'agent-benefits' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('agent-benefits')}
+                        >
+                          Agent Benefits
+                        </a>
+                        <a 
+                          href="#features" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'earnings' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('earnings')}
+                        >
+                          Earnings
+                        </a>
+                      </div>
+                    )}
+
+                    {activeDropdown === 'stations' && (
+                      <div className="flex flex-col gap-2">
+                        <Link 
+                          to="/auth/station/register" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'partner' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('partner')}
+                        >
+                          Partner With Us
+                        </Link>
+                        <a 
+                          href="#features" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'station-benefits' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('station-benefits')}
+                        >
+                          Station Benefits
+                        </a>
+                        <a 
+                          href="#features" 
+                          className={`text-white text-sm transition-opacity py-1 ${
+                            hoveredItem === 'requirements' ? 'opacity-100 font-medium' : 'opacity-60'
+                          }`}
+                          onMouseEnter={() => setHoveredItem('requirements')}
+                        >
+                          Requirements
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right side - Icon preview - Only show when hovering on links */}
+                  {hoveredItem && (
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 w-20 h-20 flex items-center justify-center flex-shrink-0">
+                      {hoveredItem === 'fuel' && <Fuel className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'mechanic' && <Wrench className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'how-it-works' && <CheckCircle className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'become-agent' && <Users className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'agent-benefits' && <Award className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'earnings' && <TrendingUp className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'partner' && <MapPin className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'station-benefits' && <Star className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                      {hoveredItem === 'requirements' && <Shield className="h-10 w-10 text-white animate-[zoomOut_0.3s_ease-out]" />}
+                    </div>
+                  )}
+                </div>
+
+                {/* Main navigation buttons - Always visible at same position */}
+                <div className="flex items-center gap-4 pt-3 border-t border-white/20">
+                  {/* Home Icon */}
+                  <Link to="/" className="text-white hover:scale-110 transition-transform">
+                    <Home className="h-5 w-5" />
+                  </Link>
+
+                  <button 
+                    className={`text-white font-medium flex items-center gap-1 transition-opacity ${
+                      activeDropdown === 'customers' ? 'opacity-100' : 'opacity-60'
+                    }`}
+                    onMouseEnter={() => setActiveDropdown('customers')}
+                  >
+                    For Customers
+                    {activeDropdown === 'customers' && <ChevronUp className="h-4 w-4" />}
+                    {activeDropdown !== 'customers' && <ChevronDown className="h-4 w-4" />}
+                  </button>
+
+                  <button 
+                    className={`text-white font-medium flex items-center gap-1 transition-opacity ${
+                      activeDropdown === 'agents' ? 'opacity-100' : 'opacity-60'
+                    }`}
+                    onMouseEnter={() => setActiveDropdown('agents')}
+                  >
+                    For Agents
+                    {activeDropdown === 'agents' && <ChevronUp className="h-4 w-4" />}
+                    {activeDropdown !== 'agents' && <ChevronDown className="h-4 w-4" />}
+                  </button>
+
+                  <button 
+                    className={`text-white font-medium flex items-center gap-1 transition-opacity ${
+                      activeDropdown === 'stations' ? 'opacity-100' : 'opacity-60'
+                    }`}
+                    onMouseEnter={() => setActiveDropdown('stations')}
+                  >
+                    For Stations
+                    {activeDropdown === 'stations' && <ChevronUp className="h-4 w-4" />}
+                    {activeDropdown !== 'stations' && <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </nav>,
+        document.body
+      )}
+
+      {/* Mobile Bottom Navigation - Visible only on mobile */}
+      {createPortal(
+        <>
+          <button
+            onClick={() => showMobileMenu ? handleCloseMenu() : setShowMobileMenu(true)}
+            className="md:hidden fixed bottom-6 right-6 z-[9999] w-14 h-14 bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-110 transition-transform"
+          >
+            {showMobileMenu ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+
+          {/* Mobile Slide-in Menu */}
+          {showMobileMenu && (
+            <>
+              {/* Overlay */}
+              <div 
+                className="md:hidden fixed inset-0 bg-black/50 z-[9998] backdrop-blur-sm"
+                onClick={handleCloseMenu}
+              />
+              
+              {/* Slide-in Menu */}
+              <div className={`md:hidden fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 z-[9999] shadow-2xl overflow-y-auto ${isClosing ? 'animate-slide-out' : 'animate-slide-in'}`}>
+                {/* Header */}
+                <div className="p-6 border-b border-white/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-white">Menu</h2>
+                    <button
+                      onClick={handleCloseMenu}
+                      className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                    >
+                      <ChevronDown className="h-5 w-5 rotate-90" />
+                    </button>
+                  </div>
+                  <Link 
+                    to="/" 
+                    onClick={handleCloseMenu}
+                    className="flex items-center gap-2 text-white/90 hover:text-white transition-colors"
+                  >
+                    <Home className="h-5 w-5" />
+                    <span className="text-sm font-medium">Home</span>
+                  </Link>
+                </div>
+
+                {/* Menu Items */}
+                <div className="p-6 space-y-6">
+                  {/* For Customers */}
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-white font-bold flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        For Customers
+                      </h3>
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Fuel className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Link
+                        to="/auth/register"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Fuel Delivery</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </Link>
+                      <Link
+                        to="/auth/register"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Mechanic Service</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </Link>
+                      <a
+                        href="#how-it-works"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>How It Works</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* For Agents */}
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-white font-bold flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        For Agents
+                      </h3>
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Award className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Link
+                        to="/auth/agent/register"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Become an Agent</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </Link>
+                      <a
+                        href="#features"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Agent Benefits</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </a>
+                      <a
+                        href="#features"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Earnings</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* For Stations */}
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-white font-bold flex items-center gap-2">
+                        <Fuel className="h-5 w-5" />
+                        For Stations
+                      </h3>
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <MapPin className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Link
+                        to="/auth/station/register"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Partner With Us</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </Link>
+                      <a
+                        href="#features"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Station Benefits</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </a>
+                      <a
+                        href="#features"
+                        onClick={handleCloseMenu}
+                        className="flex items-center justify-between text-white/80 hover:text-white text-sm py-2 px-3 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <span>Requirements</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </>,
+        document.body
+      )}
+
+      <div className="min-h-screen">
       {/* Hero Section */}
       <section id="home" className="relative w-full h-screen text-white overflow-hidden z-10" style={{
           background: 'radial-gradient(ellipse at top right, #f6850a, #9f3b07)'
         }}>
-        <video autoPlay loop muted playsInline className="absolute w-full h-full object-fill z-0">
+        <video 
+          autoPlay 
+          loop 
+          muted 
+          playsInline 
+          className="absolute w-full h-full object-fill z-0"
+          style={{
+            transform: `translateY(${scrollY * 0.5}px)`
+          }}
+        >
           <source src={heroVideo} type="video/mp4" />
         </video>
         {/* Wheel Image - Left Center */}
-        <div className="absolute left-20 top-10 w-48 h-48 transition-all duration-300 hover:scale-110 hover:rotate-12 cursor-pointer z-20">
+        <div 
+          className="absolute left-4 top-20 w-32 h-32 md:left-20 md:top-32 md:w-48 md:h-48 transition-all duration-500 ease-out hover:scale-110 hover:rotate-12 cursor-pointer z-20"
+          style={{
+            transform: `translateY(${scrollY * 0.3}px) translateX(${mouseX * 20}px) translateY(${mouseY * 20}px)`
+          }}
+        >
           <img 
             src={wheelImg} 
             alt="Wheel"
@@ -92,7 +525,12 @@ export const Landing: React.FC = () => {
         </div>
         
         {/* Car Image - Right Bottom */}
-        <div className="absolute right-20 bottom-10 w-68 h-68 transition-all duration-300 hover:scale-110 hover:-rotate-6 cursor-pointer z-20">
+        <div 
+          className="absolute right-4 bottom-28 w-40 h-40 md:right-20 md:bottom-10 md:w-68 md:h-68 transition-all duration-500 ease-out hover:scale-110 hover:-rotate-6 cursor-pointer z-20"
+          style={{
+            transform: `translateY(${scrollY * -0.2}px) translateX(${mouseX * 15}px) translateY(${mouseY * 15}px)`
+          }}
+        >
           <img 
             src={carImg} 
             alt="Car"
@@ -104,18 +542,72 @@ export const Landing: React.FC = () => {
         </div>
         
         {/* Diagonal Slide Animations */}
-        <style>{"\n          @keyframes slideDiagonalLeft {\n            0% {\n              transform: translateY(50%) translateX(0) rotate(0deg);\n            }\n            100% {\n              transform: translateY(calc(50% - 20px)) translateX(-20px) rotate(-5deg);\n            }\n          }\n          @keyframes slideDiagonalRight {\n            0% {\n              transform: translateX(0) translateY(0) rotate(0deg);\n            }\n            100% {\n              transform: translateX(20px) translateY(-20px) rotate(5deg);\n            }\n          }\n        "}</style>
+        <style>{`
+          @keyframes slideDiagonalLeft {
+            0% {
+              transform: translateY(50%) translateX(0) rotate(0deg);
+            }
+            100% {
+              transform: translateY(calc(50% - 20px)) translateX(-20px) rotate(-5deg);
+            }
+          }
+          @keyframes slideDiagonalRight {
+            0% {
+              transform: translateX(0) translateY(0) rotate(0deg);
+            }
+            100% {
+              transform: translateX(20px) translateY(-20px) rotate(5deg);
+            }
+          }
+          @keyframes zoomOut {
+            0% {
+              transform: scale(1.5);
+              opacity: 0;
+            }
+            100% {
+              transform: scale(1);
+              opacity: 1;
+            }
+          }
+          @keyframes slide-in {
+            from {
+              transform: translateX(-100%);
+            }
+            to {
+              transform: translateX(0);
+            }
+          }
+          @keyframes slide-out {
+            from {
+              transform: translateX(0);
+            }
+            to {
+              transform: translateX(-100%);
+            }
+          }
+          .animate-slide-in {
+            animation: slide-in 0.3s ease-out;
+          }
+          .animate-slide-out {
+            animation: slide-out 0.3s ease-out;
+          }
+        `}</style>
         
         <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-16">
-          <div className="flex justify-between items-center h-full min-h-[70vh] relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-16 md:pt-16">
+          <div className="flex flex-col md:flex-row justify-between items-start h-full min-h-[70vh] relative">
             {/* Left side text */}
-            <div className="text-left z-10">
-              <h1 className="text-6xl lg:text-8xl font-bold text-white leading-tight">
+            <div 
+              className="text-left z-10 mt-32 md:mt-0 md:self-start"
+              style={{
+                transform: `translateY(${scrollY * 0.15}px)`
+              }}
+            >
+              <h1 className="text-5xl sm:text-6xl md:text-6xl lg:text-8xl font-bold text-white leading-tight">
                 Fuel delivery<br />
                 makes
               </h1>
-              <div className="mt-4 rotate-90 origin-left">
+              <div className="mt-4 rotate-90 origin-left hidden md:block">
                 <span className="text-sm font-medium text-white/80 tracking-widest uppercase">
                   Scroll Down
                 </span>
@@ -123,12 +615,17 @@ export const Landing: React.FC = () => {
             </div>
             
             {/* Right side text */}
-            <div className="text-right z-10">
-              <h1 className="text-6xl lg:text-8xl font-bold text-white leading-tight">
+            <div 
+              className="text-right self-end z-10 mb-48 md:mb-0"
+              style={{
+                transform: `translateY(${scrollY * 0.15}px)`
+              }}
+            >
+              <h1 className="text-5xl sm:text-6xl md:text-6xl lg:text-8xl font-bold text-white leading-tight">
                 Everything<br />
                 better.
               </h1>
-              <div className="mt-4 -rotate-90 origin-right">
+              <div className="mt-4 -rotate-90 origin-right hidden md:block">
                 <span className="text-sm font-medium text-white/80 tracking-widest uppercase">
                   Scroll Down
                 </span>
@@ -610,6 +1107,7 @@ export const Landing: React.FC = () => {
 
       {/* Footer */}
       <Footer />
-    </div>
+      </div>
+    </>
   )
 }

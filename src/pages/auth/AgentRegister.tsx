@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, User, Phone, Fuel, Wrench, Car, FileText, MapPin } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, Phone, Fuel, Wrench, Car, FileText, MapPin, Camera } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { uploadAgentProfileImage } from '../../lib/imageUpload'
 
 export const AgentRegister: React.FC = () => {
   type ServiceType = 'fuel_delivery' | 'mechanic' | 'both';
@@ -26,6 +27,8 @@ export const AgentRegister: React.FC = () => {
     experience: '',
     location: ''
   })
+  const [profileImage, setProfileImage] = useState<File | null>(null)
+  const [profileImagePreview, setProfileImagePreview] = useState<string>('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -53,6 +56,24 @@ export const AgentRegister: React.FC = () => {
         [name]: value
       })
     }
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setProfileImage(file)
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file)
+      setProfileImagePreview(previewUrl)
+    }
+  }
+
+  const removeImage = () => {
+    setProfileImage(null)
+    if (profileImagePreview) {
+      URL.revokeObjectURL(profileImagePreview)
+    }
+    setProfileImagePreview('')
   }
 
   const validateStep1 = () => {
@@ -129,8 +150,24 @@ export const AgentRegister: React.FC = () => {
       if (error) throw error
       
       console.log('Auth user created successfully:', data.user?.id);
+      console.log('🔍 Debugging service_type - formData.serviceType:', formData.serviceType);
+      
+      let profileImageUrl = ''
+      
+      // Upload profile image if provided
+      if (profileImage && data.user?.id) {
+        try {
+          console.log('Uploading profile image...')
+          profileImageUrl = await uploadAgentProfileImage(profileImage, data.user.id)
+          console.log('Profile image uploaded:', profileImageUrl)
+        } catch (imageError) {
+          console.error('Failed to upload profile image:', imageError)
+          // Continue with registration even if image upload fails
+        }
+      }
       
       // Store the agent specific data in the pending_agents table
+      console.log('🔍 About to insert into pending_agents with service_type:', formData.serviceType);
       const { error: pendingError } = await supabase
         .from('pending_agents')
         .insert({
@@ -143,7 +180,8 @@ export const AgentRegister: React.FC = () => {
           vehicle_info: formData.vehicleInfo,
           experience: formData.experience,
           location: formData.location,
-          status: 'pending'
+          status: 'pending',
+          profile_image_url: profileImageUrl || null
         })
         
       if (pendingError) {
@@ -161,8 +199,8 @@ export const AgentRegister: React.FC = () => {
       // Set loading to false before navigation
       setLoading(false)
       
-      // Redirect to the application submitted confirmation page regardless
-      navigate(`/application-submitted?email=${encodeURIComponent(formData.email)}`)
+      // Redirect to the email confirmation page
+      navigate(`/email-confirmation?email=${encodeURIComponent(formData.email)}`)
     } catch (err: any) {
       console.error('Agent registration error details:', err)
       
@@ -360,6 +398,54 @@ export const AgentRegister: React.FC = () => {
                           <Eye className="h-5 w-5 text-gray-400" />
                         )}
                       </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profile Image Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Profile Picture (Optional)
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    {profileImagePreview ? (
+                      <div className="relative">
+                        <img
+                          src={profileImagePreview}
+                          alt="Profile preview"
+                          className="w-20 h-20 rounded-full object-cover border-2 border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                        <Camera className="h-8 w-8 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                        id="profile-image"
+                      />
+                      <label
+                        htmlFor="profile-image"
+                        className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        {profileImage ? 'Change Photo' : 'Upload Photo'}
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        JPG, PNG or GIF up to 5MB
+                      </p>
                     </div>
                   </div>
                 </div>

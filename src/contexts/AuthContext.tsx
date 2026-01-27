@@ -142,7 +142,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setUser(session?.user ?? null)
         if (session?.user) {
-          await loadUserProfile(session.user.id)
+          const profile = await loadUserProfile(session.user.id)
+          
+          // If user is an agent, check approval status
+          if (profile && profile.role === 'agent') {
+            try {
+              const { data: agentData, error } = await supabase
+                .from('agents')
+                .select('id, is_verified')
+                .eq('user_id', session.user.id)
+                .single()
+              
+              // If agent is not approved, sign them out
+              if (error || !agentData || !agentData.is_verified) {
+                console.log('Agent not approved, signing out...')
+                await supabase.auth.signOut()
+                return
+              }
+            } catch (err) {
+              console.error('Error checking agent approval:', err)
+              await supabase.auth.signOut()
+              return
+            }
+          }
         } else {
           setUserProfile(null)
           setUserRole(null)

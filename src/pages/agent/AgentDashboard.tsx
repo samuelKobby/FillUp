@@ -38,10 +38,13 @@ import {
 import { MapPin, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { useNavigate } from 'react-router-dom'
 import loaderGif from '../../assets/lodaer.gif'
 import { getCache, setCache } from '../../lib/cache'
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription'
 import { useAgentLocationTracking } from '../../hooks/useAgentLocationTracking'
+import { useMechanicLocationTracking } from '../../hooks/useMechanicLocationTracking'
+import { PendingAcceptanceOrders } from '../../components/agent/PendingAcceptanceOrders'
 
 // Fix Leaflet default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -103,12 +106,77 @@ const TimeoutCountdown: React.FC<{ createdAt: string }> = ({ createdAt }) => {
 
 export const AgentDashboard: React.FC = () => {
   const { signOut, userProfile, user, updateProfile } = useAuth()
+  const navigate = useNavigate()
+  
+  // Check if agent is approved before allowing dashboard access
+  useEffect(() => {
+    const checkAgentApproval = async () => {
+      if (!user?.id) return
+      
+      try {
+        // Check if user has an approved agent record
+        const { data: agentData, error } = await supabase
+          .from('agents')
+          .select('id, is_verified')
+          .eq('user_id', user.id)
+          .single()
+        
+        if (error && error.code !== 'PGRST116') {
+          // Error other than "no rows returned"
+          console.error('Error checking agent approval:', error)
+          alert('Error checking approval status. Please contact support.')
+          navigate('/landing')
+          return
+        }
+        
+        if (!agentData || !agentData.is_verified) {
+          // Agent not approved yet
+          alert('Your agent application is still pending admin approval. You will be notified once approved.')
+          navigate('/landing')
+          return
+        }
+        
+        console.log('Agent approved, loading dashboard...')
+      } catch (err) {
+        console.error('Error in approval check:', err)
+        alert('Error checking approval status. Please contact support.')
+        navigate('/landing')
+      }
+    }
+    
+    checkAgentApproval()
+  }, [user, navigate])
+  
+  // Load agent profile image from pending_agents table
+  useEffect(() => {
+    const loadAgentProfileImage = async () => {
+      if (!user?.id) return
+      
+      try {
+        const { data, error } = await supabase
+          .from('pending_agents')
+          .select('profile_image_url')
+          .eq('auth_id', user.id)
+          .single()
+        
+        if (data?.profile_image_url) {
+          setAgentProfileImage(data.profile_image_url)
+        }
+      } catch (err) {
+        console.error('Error loading agent profile image:', err)
+      }
+    }
+    
+    loadAgentProfileImage()
+  }, [user])
+  
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(320) // 80 * 4 = 320px (w-80)
   const [isResizing, setIsResizing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [agentData, setAgentData] = useState<any>(null)
+  const [agentProfileImage, setAgentProfileImage] = useState<string>('')
   const [stats, setStats] = useState({
     totalEarnings: 0,
     todayJobs: 0,
@@ -180,6 +248,17 @@ export const AgentDashboard: React.FC = () => {
   const { isTracking, error: trackingError, lastUpdate } = useAgentLocationTracking({
     enabled: hasActiveOrders && isAvailable,
     updateInterval: 10000 // Update every 10 seconds
+  })
+
+  // Mechanic Location Tracking - for mechanic service type agents
+  const { 
+    location: mechanicLocation, 
+    error: mechanicTrackingError, 
+    isTracking: isMechanicTracking 
+  } = useMechanicLocationTracking({
+    enabled: isAvailable && (agentData?.service_type === 'mechanic' || agentData?.service_type === 'both'),
+    updateInterval: 30000, // Update every 30 seconds
+    highAccuracy: true
   })
 
   useEffect(() => {
@@ -1003,8 +1082,8 @@ export const AgentDashboard: React.FC = () => {
         <div className="bg-gray-900/80 backdrop-blur-md px-6 py-6 flex items-center justify-between sticky top-0 z-10 border-b border-gray-700/50 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 border-2 border-gray-700 shadow-lg">
-              {userProfile?.avatar_url ? (
-                <img src={userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
+              {agentProfileImage || userProfile?.avatar_url ? (
+                <img src={agentProfileImage || userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white text-lg font-bold">
                   {userProfile?.name?.charAt(0) || 'A'}
@@ -1210,8 +1289,8 @@ export const AgentDashboard: React.FC = () => {
         <div className="bg-gray-900 px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-700 border-2 border-gray-700">
-              {userProfile?.avatar_url ? (
-                <img src={userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
+              {agentProfileImage || userProfile?.avatar_url ? (
+                <img src={agentProfileImage || userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-lime-400 to-lime-500 text-gray-900 text-lg font-bold">
                   {userProfile?.name?.charAt(0) || 'A'}
@@ -1230,6 +1309,17 @@ export const AgentDashboard: React.FC = () => {
             <Loading03Icon className={`h-5 w-5 text-white ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
+
+        {/* Pending Acceptance Section (for mechanics only) */}
+        {agentData?.service_type && ['mechanic', 'both'].includes(agentData.service_type) && (
+          <div className="px-4 mb-6">
+            <PendingAcceptanceOrders 
+              agentId={agentData.id}
+              onOrderAccepted={() => refreshData()}
+              onOrderDeclined={() => refreshData()}
+            />
+          </div>
+        )}
 
         {/* Active Jobs Section */}
         <div className="px-4 mb-6">
@@ -1811,8 +1901,8 @@ export const AgentDashboard: React.FC = () => {
             <div className="bg-gray-900 px-6 py-6 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-700 border-2 border-gray-700">
-                  {userProfile?.avatar_url ? (
-                    <img src={userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
+                  {agentProfileImage || userProfile?.avatar_url ? (
+                    <img src={agentProfileImage || userProfile.avatar_url} alt={userProfile.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-lime-400 to-lime-500 text-gray-900 text-lg font-bold">
                       {userProfile?.name?.charAt(0) || 'A'}
@@ -1820,7 +1910,9 @@ export const AgentDashboard: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400">Hi, Good morning</p>
+                  <p className="text-xs text-gray-400">
+                    Hi, {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}
+                  </p>
                   <h3 className="text-base font-semibold text-white">{userProfile?.name || 'Matthew'}</h3>
                 </div>
           </div>
@@ -2081,9 +2173,9 @@ export const AgentDashboard: React.FC = () => {
             {/* Profile Picture */}
             <div className="flex justify-center mt-4">
               <div className="relative">
-                {userProfile?.avatar_url ? (
+                {agentProfileImage || userProfile?.avatar_url ? (
                   <img 
-                    src={userProfile.avatar_url} 
+                    src={agentProfileImage || userProfile.avatar_url} 
                     alt={userProfile.name || 'Agent'} 
                     className="w-24 h-24 rounded-full object-cover border-4 border-blue-500"
                   />
@@ -3084,9 +3176,9 @@ export const AgentDashboard: React.FC = () => {
                       alt="Preview" 
                       className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
                     />
-                  ) : userProfile?.avatar_url ? (
+                  ) : agentProfileImage || userProfile?.avatar_url ? (
                     <img 
-                      src={userProfile.avatar_url} 
+                      src={agentProfileImage || userProfile.avatar_url} 
                       alt={userProfile.name || 'Agent'} 
                       className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
                     />
@@ -3194,14 +3286,14 @@ export const AgentDashboard: React.FC = () => {
                     setSavingProfile(true)
                     
                     // Upload image if changed
-                    let avatarUrl = userProfile?.avatar_url
+                    let avatarUrl = agentProfileImage || userProfile?.avatar_url
                     if (imageFile) {
                       const { uploadAgentImage, deleteAgentImage } = await import('../../lib/imageUpload')
                       
                       // Delete old image if exists
-                      if (userProfile?.avatar_url) {
+                      if (agentProfileImage || userProfile?.avatar_url) {
                         try {
-                          await deleteAgentImage(userProfile.avatar_url)
+                          await deleteAgentImage(agentProfileImage || userProfile.avatar_url)
                         } catch (error) {
                           console.warn('⚠️ Failed to delete old image:', error)
                         }
@@ -3224,6 +3316,24 @@ export const AgentDashboard: React.FC = () => {
                     if (error) {
                       console.error('❌ Database update error:', error)
                       throw error
+                    }
+
+                    // Also update pending_agents table if image was changed
+                    if (imageFile && avatarUrl) {
+                      const { error: pendingAgentError } = await supabase
+                        .from('pending_agents')
+                        .update({
+                          profile_image_url: avatarUrl
+                        })
+                        .eq('auth_id', user.id)
+                      
+                      if (pendingAgentError) {
+                        console.warn('⚠️ Failed to update pending_agents profile image:', pendingAgentError)
+                        // Don't throw error - users table was updated successfully
+                      } else {
+                        // Update local state to reflect the new image
+                        setAgentProfileImage(avatarUrl)
+                      }
                     }
                     
                     // Update the auth context
