@@ -463,7 +463,9 @@ export const AgentDashboard: React.FC = () => {
     try {
       console.log('🔎 Fetching orders for agent:', agentData.id)
       
-      // Try fetching with explicit filter for orders that agents should see
+      // Fetch orders with all relevant statuses
+      // Include 'pending' for fuel orders waiting for station confirmation
+      // Include 'pending_acceptance' for mechanic orders waiting for agent to accept
       const { data: allOrders, error: allOrdersError } = await supabase
         .from('orders')
         .select(`
@@ -472,7 +474,7 @@ export const AgentDashboard: React.FC = () => {
           vehicles(make, model, plate_number, fuel_type, image_url),
           stations(name, address, phone, location, image_url)
         `)
-        .in('status', ['accepted', 'in_progress', 'completed'])
+        .in('status', ['pending', 'pending_acceptance', 'accepted', 'in_progress', 'completed'])
         .order('created_at', { ascending: false })
         .limit(100)
 
@@ -491,30 +493,35 @@ export const AgentDashboard: React.FC = () => {
       })))
 
       // Filter to show only orders that agents can accept:
-      // 1. Status is 'accepted' (confirmed by station, not 'pending')
-      // 2. Not assigned to any agent (agent_id is null)
-      // 3. Has a station assigned (station_id is not null)
-      // 4. Within reasonable time window (not too old)
+      // For FUEL delivery: status='accepted', agent_id=null, station_id set
+      // For MECHANIC: NOT shown here (they go to PendingAcceptanceOrders component)
       const availableForAgents = allOrders?.filter(order => {
-        const isAvailableStatus = order.status === 'accepted' // Only station-confirmed orders
-        const notAssigned = order.agent_id === null
-        const hasStation = order.station_id !== null
         const orderTime = new Date(order.created_at)
         const now = new Date()
         const isRecent = (now.getTime() - orderTime.getTime()) <= (24 * 60 * 60 * 1000) // 24 hours
+        const notAssigned = order.agent_id === null
+        
+        // Fuel delivery orders: need station confirmation
+        const isFuelOrder = order.service_type === 'fuel_delivery'
+        const isAcceptedFuel = isFuelOrder && order.status === 'accepted' && order.station_id !== null
+        
+        // Mechanic orders are handled separately in PendingAcceptanceOrders component
+        // So we don't show them here
+        
+        const passes = notAssigned && isRecent && isAcceptedFuel
         
         console.log(`Order ${order.id.slice(0, 8)}:`, {
+          service_type: order.service_type,
           status: order.status,
-          isAvailableStatus,
           agent_id: order.agent_id,
-          notAssigned,
           station_id: order.station_id,
-          hasStation,
+          notAssigned,
           isRecent,
-          passes: isAvailableStatus && notAssigned && hasStation && isRecent
+          isAcceptedFuel,
+          passes
         })
         
-        return isAvailableStatus && notAssigned && hasStation && isRecent
+        return passes
       }) || []
       
       console.log('✅ Available orders after filter:', availableForAgents.length)
@@ -566,15 +573,21 @@ export const AgentDashboard: React.FC = () => {
       }
       
       // Filter available orders to show only those that agents can accept
+      // For FUEL delivery: status='accepted', agent_id=null, station_id set
+      // For MECHANIC: NOT shown here (they go to PendingAcceptanceOrders component)
       const availableForAgents = available?.filter(order => {
-        const isAvailableStatus = order.status === 'accepted' // Only station-confirmed orders
-        const notAssigned = order.agent_id === null
-        const hasStation = order.station_id !== null
         const orderTime = new Date(order.created_at)
         const now = new Date()
         const isRecent = (now.getTime() - orderTime.getTime()) <= (24 * 60 * 60 * 1000) // 24 hours
+        const notAssigned = order.agent_id === null
         
-        return isAvailableStatus && notAssigned && hasStation && isRecent
+        // Fuel delivery orders: need station confirmation
+        const isFuelOrder = order.service_type === 'fuel_delivery'
+        const isAcceptedFuel = isFuelOrder && order.status === 'accepted' && order.station_id !== null
+        
+        // Mechanic orders are handled separately in PendingAcceptanceOrders component
+        
+        return notAssigned && isRecent && isAcceptedFuel
       }) || []
       
       setAvailableOrders(availableForAgents)
@@ -1107,6 +1120,17 @@ export const AgentDashboard: React.FC = () => {
           </motion.button>
         </div>
 
+        {/* Pending Acceptance Section (for mechanics only) */}
+        {agentData?.service_type && ['mechanic', 'both'].includes(agentData.service_type) && (
+          <div className="px-4 mt-4">
+            <PendingAcceptanceOrders 
+              agentId={agentData.id}
+              onOrderAccepted={() => refreshData()}
+              onOrderDeclined={() => refreshData()}
+            />
+          </div>
+        )}
+
         {/* Order Cards */}
         <div className="px-4 py-4 space-y-4">
           <AnimatePresence mode="popLayout">
@@ -1309,17 +1333,6 @@ export const AgentDashboard: React.FC = () => {
             <Loading03Icon className={`h-5 w-5 text-white ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
-
-        {/* Pending Acceptance Section (for mechanics only) */}
-        {agentData?.service_type && ['mechanic', 'both'].includes(agentData.service_type) && (
-          <div className="px-4 mb-6">
-            <PendingAcceptanceOrders 
-              agentId={agentData.id}
-              onOrderAccepted={() => refreshData()}
-              onOrderDeclined={() => refreshData()}
-            />
-          </div>
-        )}
 
         {/* Active Jobs Section */}
         <div className="px-4 mb-6">
@@ -2040,6 +2053,17 @@ export const AgentDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Pending Acceptance Section (for mechanics only) */}
+            {agentData?.service_type && ['mechanic', 'both'].includes(agentData.service_type) && (
+              <div className="px-4 mb-6">
+                <PendingAcceptanceOrders 
+                  agentId={agentData.id}
+                  onOrderAccepted={() => refreshData()}
+                  onOrderDeclined={() => refreshData()}
+                />
+              </div>
+            )}
 
             {/* Your New Jobs Section */}
             <div className="px-4 mb-6">

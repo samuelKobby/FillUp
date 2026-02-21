@@ -27,7 +27,7 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
       x: 0,
       zIndex: 10,
       transition: {
-        duration: 0.5,
+        duration: 0.3,
         ease: [0.43, 0.13, 0.23, 0.96],
       },
     },
@@ -35,14 +35,14 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
       x: isGoingBack ? '100vw' : '-100vw',
       zIndex: 5,
       transition: {
-        duration: 0.5,
+        duration: 0.3,
         ease: [0.43, 0.13, 0.23, 0.96],
       },
     }),
   }
 
   return (
-    <AnimatePresence initial={false} mode="popLayout">
+    <AnimatePresence initial={false} mode="wait">
       <motion.div
         key={location.pathname}
         custom={isGoingBack}
@@ -51,10 +51,8 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
         animate="animate"
         exit="exit"
         style={{
-          position: 'absolute',
           width: '100%',
-          top: 0,
-          left: 0,
+          minHeight: '100vh',
           overflow: 'auto',
           backgroundColor: '#ffffff',
           willChange: 'transform',

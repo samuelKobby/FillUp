@@ -268,14 +268,18 @@ class RealtimeManagerService {
             clearTimeout(timeoutId)
             channelInfo.isSubscribing = false
             channelInfo.isSubscribed = false
-            this.logger.error(`❌ Subscription error for ${channelName}:`, err)
+            
+            // Create more descriptive error message
+            const errorMsg = err?.message || err?.toString() || 'Unknown subscription error'
+            const errorDetails = err ? ` (Details: ${JSON.stringify(err)})` : ''
+            this.logger.error(`❌ Subscription error for ${channelName}: ${errorMsg}${errorDetails}`)
             
             // Clean up the failed channel
             this.removeChannelSafely(channel).then(() => {
               this.channels.delete(channelName)
             })
             
-            reject(err || new Error(`Subscription failed: ${status}`))
+            reject(err || new Error(`Subscription failed for ${channelName}: ${status}`))
           } else if (status === 'CLOSED') {
             if (!isSettled) {
               isSettled = true

@@ -34,6 +34,7 @@ import { AdminOrders } from './pages/admin/AdminOrders'
 import { AgentApplications } from './pages/admin/AgentApplications'
 import { AgentApplicationDetail } from './pages/admin/AgentApplicationDetail'
 import { AgentDashboard } from './pages/agent/AgentDashboard'
+import { NewOrderScreen } from './pages/agent/NewOrderScreen'
 import { StationDashboard } from './pages/station/StationDashboard'
 import { DebugPage } from './pages/DebugPage'
 import { useState, useEffect } from 'react'
@@ -101,8 +102,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                      location.pathname.includes('/application-submitted')
 
   // Show footer on landing page (no user) and non-customer/non-dashboard pages
-  const showFooter = !isAuthPage && 
+  const showFooter = !isAuthPage &&
                     !location.pathname.includes('/admin') &&
+                    !location.pathname.includes('/agent') &&
+                    !location.pathname.includes('/station') &&
                     (!user || (userRole !== 'customer' && !location.pathname.includes('/dashboard')))
 
   return (
@@ -257,7 +260,7 @@ function App() {
           <PageTransition>
             <Routes>
               {/* Public routes */}
-              <Route path="/" element={<Landing />} />
+              <Route path="/" element={<Landing showSplash={showSplash} />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/agent/register" element={<AgentRegister />} />
@@ -333,6 +336,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="agent">
                   <AgentDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/agent/new-order/:orderId" 
+              element={
+                <ProtectedRoute requiredRole="agent">
+                  <NewOrderScreen />
                 </ProtectedRoute>
               } 
             />

@@ -39,7 +39,7 @@ type Station = Database['public']['Tables']['stations']['Row'] & {
 }
 
 type Agent = Database['public']['Tables']['agents']['Row'] & {
-  users: { name: string } | null
+  users: { name: string; avatar_url?: string | null } | null
 }
 
 export const Dashboard: React.FC = () => {
@@ -88,7 +88,7 @@ export const Dashboard: React.FC = () => {
         .from('agents')
         .select(`
           *,
-          users!agents_user_id_fkey(name)
+          users!agents_user_id_fkey(name, avatar_url)
         `)
         .in('service_type', ['mechanic', 'both'])
         .eq('is_available', true)
@@ -543,7 +543,16 @@ export const Dashboard: React.FC = () => {
                   return (
                     <Link key={mechanic.id} to="/request-mechanic">
                       <div className="relative rounded-2xl overflow-hidden h-64 shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-                        <div className={`absolute inset-0 bg-gradient-to-br ${colors[index % colors.length]}`}></div>
+                        {/* Mechanic Image */}
+                        {mechanic.users?.avatar_url ? (
+                          <img 
+                            src={mechanic.users.avatar_url} 
+                            alt={mechanic.users?.name || 'Mechanic'}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className={`absolute inset-0 bg-gradient-to-br ${colors[index % colors.length]}`}></div>
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <h4 className="font-medium text-white text-body mb-2 truncate">

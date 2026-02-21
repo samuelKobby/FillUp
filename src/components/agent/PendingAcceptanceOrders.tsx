@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Clock01Icon, 
@@ -45,12 +46,15 @@ export const PendingAcceptanceOrders: React.FC<PendingAcceptanceOrdersProps> = (
   onOrderAccepted,
   onOrderDeclined
 }) => {
+  const navigate = useNavigate()
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
 
   const loadPendingOrders = async () => {
     try {
+      console.log('🔍 PendingAcceptanceOrders - Loading for agent:', agentId)
+      
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -63,8 +67,13 @@ export const PendingAcceptanceOrders: React.FC<PendingAcceptanceOrdersProps> = (
         .eq('service_type', 'mechanic')
         .order('assigned_at', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error loading pending orders:', error)
+        throw error
+      }
 
+      console.log('✅ Pending acceptance orders found:', data?.length || 0)
+      console.log('📋 Orders:', data)
       setPendingOrders(data || [])
     } catch (error) {
       console.error('Error loading pending orders:', error)
@@ -207,13 +216,13 @@ export const PendingAcceptanceOrders: React.FC<PendingAcceptanceOrdersProps> = (
 
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <Clock01Icon size={24} className="text-orange-500" />
-          Pending Your Acceptance
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-lime-400 rounded-full"></div>
+          Pending Orders
         </h2>
-        <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
-          {pendingOrders.length} waiting
+        <span className="bg-lime-400/20 text-lime-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-lime-400/30">
+          {pendingOrders.length}
         </span>
       </div>
 
@@ -225,87 +234,76 @@ export const PendingAcceptanceOrders: React.FC<PendingAcceptanceOrdersProps> = (
           return (
             <motion.div
               key={order.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -100 }}
-              className={`bg-gradient-to-r ${isExpiring ? 'from-red-50 to-orange-50 border-red-200' : 'from-orange-50 to-yellow-50 border-orange-200'} border-2 rounded-2xl p-6 mb-4 shadow-lg`}
+              exit={{ opacity: 0, x: -20 }}
+              onClick={() => navigate(`/agent/new-order/${order.id}`)}
+              className={`bg-gray-800 rounded-2xl p-4 mb-3 cursor-pointer hover:bg-gray-750 transition-all border ${
+                isExpiring ? 'border-red-500/50' : 'border-gray-700'
+              }`}
             >
-              {/* Timeout Warning */}
-              <div className={`mb-4 flex items-center justify-between ${isExpiring ? 'text-red-600' : 'text-orange-600'}`}>
+              {/* Timer row */}
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-700/50">
                 <div className="flex items-center gap-2">
-                  <Clock01Icon size={20} className={isExpiring ? 'animate-pulse' : ''} />
-                  <span className="font-bold text-lg">
-                    {timeRemaining.expired ? 'EXPIRED' : `${timeRemaining.minutes}:${timeRemaining.seconds.toString().padStart(2, '0')}`}
-                  </span>
-                  <span className="text-sm">remaining</span>
+                  <div className={`w-8 h-8 rounded-lg ${isExpiring ? 'bg-red-500/20' : 'bg-gray-700'} flex items-center justify-center`}>
+                    <Clock01Icon size={16} className={isExpiring ? 'text-red-400' : 'text-gray-400'} />
+                  </div>
+                  <div>
+                    <div className={`text-xl font-bold tabular-nums ${isExpiring ? 'text-red-400' : 'text-white'}`}>
+                      {timeRemaining.expired ? '0:00' : `${timeRemaining.minutes}:${timeRemaining.seconds.toString().padStart(2, '0')}`}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {isExpiring ? 'Expiring' : 'Remaining'}
+                    </p>
+                  </div>
                 </div>
+
                 {order.assignment_attempts > 1 && (
-                  <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">
-                    Attempt {order.assignment_attempts}/3
-                  </span>
+                  <div className="bg-gray-700 rounded-lg px-2.5 py-1">
+                    <span className="text-xs text-gray-300 font-medium">
+                      Try {order.assignment_attempts}/3
+                    </span>
+                  </div>
                 )}
               </div>
 
               {/* Service Info */}
-              <div className="mb-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl flex items-center justify-center">
-                    <Wrench01Icon size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {order.mechanic_service?.replace('_', ' ').toUpperCase() || 'Mechanic Service'}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {order.vehicles ? `${order.vehicles.make} ${order.vehicles.model}` : 'Customer Vehicle'}
-                    </p>
-                  </div>
-                  <div className="ml-auto text-right">
-                    <p className="text-2xl font-bold text-gray-900">₵{order.total_amount.toFixed(2)}</p>
-                  </div>
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Wrench01Icon size={20} className="text-gray-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-white mb-0.5">
+                    {order.mechanic_service?.replace('_', ' ').toUpperCase() || 'Mechanic Service'}
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    {order.vehicles ? `${order.vehicles.make} ${order.vehicles.model}` : 'Customer Vehicle'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-lime-400">₵{order.total_amount.toFixed(0)}</p>
+                  <p className="text-xs text-gray-500">Fee</p>
                 </div>
               </div>
 
-              {/* Customer Info */}
-              <div className="mb-4 bg-white/50 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <UserIcon size={16} className="text-gray-600" />
-                  <p className="text-sm font-medium text-gray-900">{order.users?.name || 'Customer'}</p>
-                  <span className="text-gray-400">•</span>
-                  <p className="text-sm text-gray-600">{order.users?.phone}</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Location01Icon size={16} className="text-gray-600 mt-1 flex-shrink-0" />
-                  <p className="text-sm text-gray-700">{order.delivery_address}</p>
+              {/* Customer */}
+              <div className="flex items-center gap-2 mb-2 bg-gray-900/50 rounded-lg p-2.5">
+                <UserIcon size={14} className="text-gray-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white">{order.users?.name || 'Customer'}</p>
+                  <p className="text-xs text-gray-500">{order.users?.phone}</p>
                 </div>
               </div>
 
-              {/* Notes */}
-              {order.notes && (
-                <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-900 font-medium mb-1">Problem Description:</p>
-                  <p className="text-sm text-blue-800">{order.notes}</p>
-                </div>
-              )}
+              {/* Location */}
+              <div className="flex items-start gap-2 bg-gray-900/50 rounded-lg p-2.5">
+                <Location01Icon size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-gray-400 flex-1">{order.delivery_address}</p>
+              </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleDecline(order.id)}
-                  disabled={processingOrderId === order.id}
-                  className="flex items-center justify-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-xl font-bold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <Cancel01Icon size={20} />
-                  {processingOrderId === order.id ? 'Declining...' : 'Decline'}
-                </button>
-                <button
-                  onClick={() => handleAccept(order.id)}
-                  disabled={processingOrderId === order.id || timeRemaining.expired}
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-                >
-                  <CheckmarkCircle02Icon size={20} />
-                  {processingOrderId === order.id ? 'Accepting...' : 'Accept Order'}
-                </button>
+              {/* Tap hint */}
+              <div className="mt-3 pt-2 border-t border-gray-700/50 text-center">
+                <p className="text-xs text-gray-500">Tap to view details</p>
               </div>
             </motion.div>
           )

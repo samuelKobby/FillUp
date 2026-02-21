@@ -36,7 +36,11 @@ import {
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
 
-export const Landing: React.FC = () => {
+interface LandingProps {
+  showSplash?: boolean
+}
+
+export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
   const { user, userRole } = useAuth()
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
@@ -106,7 +110,7 @@ export const Landing: React.FC = () => {
   return (
     <>
       {/* Desktop Floating Navigation Pill - Hidden on Mobile */}
-      {createPortal(
+      {!showSplash && createPortal(
         <nav 
           className="hidden md:block fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300"
           onMouseLeave={() => {
@@ -319,7 +323,7 @@ export const Landing: React.FC = () => {
       )}
 
       {/* Mobile Bottom Navigation - Visible only on mobile */}
-      {createPortal(
+      {!showSplash && createPortal(
         <>
           <button
             onClick={() => showMobileMenu ? handleCloseMenu() : setShowMobileMenu(true)}

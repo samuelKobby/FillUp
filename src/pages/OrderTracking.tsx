@@ -313,17 +313,26 @@ export const OrderTracking: React.FC = () => {
     switch (order.status) {
       case 'pending':
         return {
-          text: 'Finding Driver',
-          subtext: 'Searching for available driver nearby',
+          text: order.service_type === 'mechanic' ? 'Finding Mechanic' : 'Finding Driver',
+          subtext: order.service_type === 'mechanic' ? 'Searching for available mechanic nearby' : 'Searching for available driver nearby',
           icon: Loading03Icon,
           color: 'text-yellow-600',
           bgColor: 'bg-yellow-50',
           borderColor: 'border-yellow-200'
         }
+      case 'pending_acceptance':
+        return {
+          text: order.service_type === 'mechanic' ? 'Mechanic Assigned' : 'Driver Assigned',
+          subtext: order.service_type === 'mechanic' ? 'Mechanic is reviewing your request' : 'Driver is reviewing your request',
+          icon: TruckDeliveryIcon,
+          color: 'text-orange-600',
+          bgColor: 'bg-orange-50',
+          borderColor: 'border-orange-200'
+        }
       case 'accepted':
         return {
-          text: 'Driver Assigned',
-          subtext: 'Driver is heading to pickup location',
+          text: order.service_type === 'mechanic' ? 'Mechanic Assigned' : 'Driver Assigned',
+          subtext: order.service_type === 'mechanic' ? 'Mechanic is heading to your location' : 'Driver is heading to pickup location',
           icon: TruckDeliveryIcon,
           color: 'text-blue-600',
           bgColor: 'bg-blue-50',
@@ -331,8 +340,8 @@ export const OrderTracking: React.FC = () => {
         }
       case 'in_progress':
         return {
-          text: 'On The Way',
-          subtext: 'Driver is heading to your location',
+          text: order.service_type === 'mechanic' ? 'Service In Progress' : 'On The Way',
+          subtext: order.service_type === 'mechanic' ? 'Mechanic is working on your vehicle' : 'Driver is heading to your location',
           icon: Navigation01Icon,
           color: 'text-purple-600',
           bgColor: 'bg-purple-50',
@@ -340,8 +349,8 @@ export const OrderTracking: React.FC = () => {
         }
       case 'completed':
         return {
-          text: 'Delivered',
-          subtext: 'Order has been successfully delivered',
+          text: order.service_type === 'mechanic' ? 'Service Complete' : 'Delivered',
+          subtext: order.service_type === 'mechanic' ? 'Service has been successfully completed' : 'Order has been successfully delivered',
           icon: Tick02Icon,
           color: 'text-green-600',
           bgColor: 'bg-green-50',
@@ -493,7 +502,7 @@ export const OrderTracking: React.FC = () => {
         animate={{ y: 0, opacity: 1 }}
         className="bg-white/90 backdrop-blur-xl rounded-t-[3rem] -mt-12 relative z-20 px-6 pt-8 pb-24 shadow-2xl"
       >
-        {/* Driver Info Card */}
+        {/* Agent Info Card */}
         <AnimatePresence>
           {order.agent && (
             <motion.div
@@ -527,7 +536,7 @@ export const OrderTracking: React.FC = () => {
                         <FavouriteIcon size={14} className="text-yellow-500 fill-yellow-500" />
                         <span className="text-sm font-semibold text-gray-700">{order.agent.rating?.toFixed(1) || '5.0'}</span>
                       </div>
-                      <span className="text-xs text-gray-500">• Driver</span>
+                      <span className="text-xs text-gray-500">• {order?.service_type === 'mechanic' ? 'Mechanic' : 'Driver'}</span>
                     </div>
                   </div>
                 </div>
@@ -600,9 +609,10 @@ export const OrderTracking: React.FC = () => {
             {/* Status Steps */}
             {[
               { status: 'pending', label: 'Order Placed', completed: true },
-              { status: 'accepted', label: 'Driver Assigned', completed: ['accepted', 'in_progress', 'completed'].includes(order.status) },
-              { status: 'in_progress', label: 'On The Way', completed: ['in_progress', 'completed'].includes(order.status) },
-              { status: 'completed', label: 'Delivered', completed: order.status === 'completed' }
+              { status: 'pending_acceptance', label: order?.service_type === 'mechanic' ? 'Mechanic Reviewing' : 'Driver Reviewing', completed: ['pending_acceptance', 'accepted', 'in_progress', 'completed'].includes(order.status) },
+              { status: 'accepted', label: order?.service_type === 'mechanic' ? 'Mechanic On The Way' : 'Driver On The Way', completed: ['accepted', 'in_progress', 'completed'].includes(order.status) },
+              { status: 'in_progress', label: order?.service_type === 'mechanic' ? 'Service In Progress' : 'Delivering', completed: ['in_progress', 'completed'].includes(order.status) },
+              { status: 'completed', label: order?.service_type === 'mechanic' ? 'Service Complete' : 'Delivered', completed: order.status === 'completed' }
             ].map((step, index) => (
               <motion.div
                 key={step.status}
