@@ -12,6 +12,7 @@ import {
 } from 'hugeicons-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, getUserVehicles } from '../lib/supabase'
+import toast from '../lib/toast'
 import { uploadVehicleImage, updateVehicleImage, deleteVehicleImage } from '../lib/imageUpload'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 import { getCache, setCache } from '../lib/cache'
@@ -104,13 +105,13 @@ export const Vehicles: React.FC = () => {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file')
+      toast.error('Please select an image file')
       return
     }
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size should be less than 5MB')
+      toast.error('Image size should be less than 5MB')
       return
     }
 

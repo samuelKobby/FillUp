@@ -76,7 +76,7 @@ export const getUserWallet = async (userId: string) => {
     .from('wallets')
     .select('*')
     .eq('user_id', userId)
-    .single()
+    .maybeSingle()
   
   if (error) throw error
   return data

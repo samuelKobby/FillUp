@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, Fuel, AlertTriangle, MapPin } from 'lucide-rea
 import heroImg from '../../assets/hero.png'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
+import toast from '../../lib/toast'
 
 export const StationLogin: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -41,6 +42,7 @@ export const StationLogin: React.FC = () => {
       }
 
       console.log('Station login successful, redirecting to dashboard')
+      toast.success('Welcome back!')
       navigate('/station/dashboard', { replace: true })
       
     } catch (err: any) {
@@ -48,6 +50,7 @@ export const StationLogin: React.FC = () => {
       
       // Handle specific error cases
       if (err.message?.includes('Invalid login credentials')) {
+        toast.error('Invalid station credentials.')
         setError('Invalid station credentials. Please check your email and password.')
       } else if (err.message?.includes('verify your email')) {
         setError('Please verify your email address before accessing the station portal.')

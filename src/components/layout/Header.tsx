@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Fuel, Menu, User, ChevronDown, Bell } from 'lucide-react'
-import { toast } from 'react-toastify'
 import logo1 from '../../assets/logo1.png'
 
 export const Header: React.FC = () => {

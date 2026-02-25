@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, Fuel } from 'lucide-react'
 import heroImg from '../../assets/hero.png'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
+import toast from '../../lib/toast'
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -67,6 +68,7 @@ export const Login: React.FC = () => {
                           (location.state as any)?.from?.pathname || 
                           getDefaultRedirectPath(result.userRole)
       
+      toast.success('Welcome back!')
       navigate(redirectPath, { replace: true })
       
     } catch (err: any) {
@@ -74,6 +76,7 @@ export const Login: React.FC = () => {
       
       // Handle specific error cases
       if (err.message?.includes('Invalid login credentials')) {
+        toast.error('Invalid email or password.')
         setError('Invalid email or password. Please check your credentials and try again.')
       } else if (err.message?.includes('verify your email')) {
         setError(err.message)

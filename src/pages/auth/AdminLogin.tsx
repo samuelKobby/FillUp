@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, Shield, AlertTriangle, Bug } from 'lucide-reac
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { debugUserData } from '../../lib/supabase'
+import toast from '../../lib/toast'
 
 export const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('fueldrop048@gmail.com') // Pre-fill for testing
@@ -52,6 +53,7 @@ export const AdminLogin: React.FC = () => {
       }
 
       console.log('✅ Admin login successful, redirecting to dashboard')
+      toast.success('Welcome, Administrator!')
       
       // Wait a moment for state to update, then navigate
       setTimeout(() => {
@@ -63,6 +65,7 @@ export const AdminLogin: React.FC = () => {
       
       // Handle specific error cases
       if (err.message?.includes('Invalid login credentials')) {
+        toast.error('Invalid administrator credentials.')
         setError('Invalid administrator credentials. Please check your email and password.')
       } else if (err.message?.includes('verify your email')) {
         setError('Please verify your email address before accessing the admin panel.')

@@ -41,6 +41,7 @@ import { useState, useEffect } from 'react'
 import loaderGif from './assets/lodaer.gif'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { OfflineIndicator } from './components/OfflineIndicator'
+import { Toaster } from 'react-hot-toast'
 
 // Component to handle browser refresh - only redirects from root/landing pages
 const RedirectOnRefresh: React.FC = () => {
@@ -238,6 +239,26 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        {/* Toast notifications */}
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1e293b',
+              color: '#f1f5f9',
+              borderRadius: '12px',
+              border: '1px solid rgba(255,255,255,0.1)',
+              fontSize: '14px',
+            },
+            success: {
+              iconTheme: { primary: '#22c55e', secondary: '#fff' },
+            },
+            error: {
+              iconTheme: { primary: '#ef4444', secondary: '#fff' },
+            },
+          }}
+        />
         {/* Offline Indicator */}
         <OfflineIndicator isOffline={isOffline} />
         

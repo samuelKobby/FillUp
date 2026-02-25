@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, Fuel, EyeOff, Wrench, AlertTriangle, Users } from 'luc
 import heroImg from '../../assets/hero.png'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
+import toast from '../../lib/toast'
 
 export const AgentLogin: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -36,6 +37,7 @@ export const AgentLogin: React.FC = () => {
         return
       }
 
+      toast.success('Welcome back, Agent!')
       navigate('/agent/dashboard', { replace: true })
       
     } catch (err: any) {
@@ -43,6 +45,7 @@ export const AgentLogin: React.FC = () => {
       
       // Handle specific error cases
       if (err.message?.includes('Invalid login credentials')) {
+        toast.error('Invalid agent credentials.')
         setError('Invalid agent credentials. Please check your email and password.')
       } else if (err.message?.includes('verify your email')) {
         setError('Please verify your email address before accessing the agent portal.')

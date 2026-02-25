@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { useNavigate, Link } from 'react-router-dom'
-import { toast } from 'react-toastify'
+import toast from 'react-hot-toast'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { 
   UserIcon,
@@ -197,9 +197,9 @@ export const Profile: React.FC = () => {
       setImagePreview(null)
       setEditMode(false)
       
-      alert('Profile updated successfully!')
+      toast.success('Profile updated successfully!')
     } catch (error: any) {
-      alert(`Failed to update profile: ${error.message || 'Please try again.'}`)
+      toast.error(`Failed to update profile: ${error.message || 'Please try again.'}`)
     } finally {
       setLoading(false)
     }
@@ -236,13 +236,13 @@ export const Profile: React.FC = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file')
+        toast.error('Please select an image file')
         return
       }
 
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB')
+        toast.error('Image size should be less than 5MB')
         return
       }
 

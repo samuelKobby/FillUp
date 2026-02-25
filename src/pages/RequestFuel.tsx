@@ -461,7 +461,7 @@ export const RequestFuel: React.FC = () => {
       setIsOrderConfirmed(true);
       handleSubmitOrder();
     } else {
-      alert('Please select a delivery location first');
+      toast.error('Please select a delivery location first');
     }
   };
 

@@ -1,8 +1,10 @@
-import { toast as toastify } from 'react-toastify'
+import { toast } from 'react-hot-toast'
 
 export default {
-  success: (message: string) => toastify.success(message),
-  error: (message: string) => toastify.error(message),
-  info: (message: string) => toastify.info(message),
-  warning: (message: string) => toastify.warning(message)
+  success: (message: string) => toast.success(message),
+  error: (message: string) => toast.error(message),
+  info: (message: string) => toast(message, { icon: 'ℹ️' }),
+  warning: (message: string) => toast(message, { icon: '⚠️' }),
+  loading: (message: string) => toast.loading(message),
+  dismiss: (id?: string) => toast.dismiss(id)
 }

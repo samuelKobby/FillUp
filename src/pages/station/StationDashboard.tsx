@@ -34,13 +34,16 @@ import {
   X,
   User,
   Upload,
-  Camera
+  Camera,
+  CheckCircle
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { uploadStationImage, updateStationImage, deleteStationImage } from '../../lib/imageUpload'
 import loaderGif from '../../assets/lodaer.gif'
 import { getCache, setCache } from '../../lib/cache'
+import toast from '../../lib/toast'
+import { showConfirm } from '../../lib/confirm'
 
 // Type definitions
 interface Order {
@@ -58,6 +61,7 @@ interface Order {
   users?: {
     name: string
     phone: string
+    avatar_url?: string | null
   }
   agents?: {
     id: string
@@ -125,6 +129,32 @@ interface StatusBadgeProps {
   status: string
 }
 
+// CountUp animation component
+function CountUp({ to, prefix = '', suffix = '', decimals = 0, duration = 1200 }: {
+  to: number; prefix?: string; suffix?: string; decimals?: number; duration?: number
+}) {
+  const [display, setDisplay] = React.useState(0)
+  React.useEffect(() => {
+    if (to === 0) { setDisplay(0); return }
+    let startTime: number | null = null
+    let raf: number
+    const animate = (ts: number) => {
+      if (!startTime) startTime = ts
+      const progress = Math.min((ts - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(to * eased)
+      if (progress < 1) { raf = requestAnimationFrame(animate) }
+      else { setDisplay(to) }
+    }
+    raf = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(raf)
+  }, [to, duration])
+  const formatted = decimals > 0
+    ? display.toFixed(decimals)
+    : Math.floor(display).toLocaleString()
+  return <>{prefix}{formatted}{suffix}</>
+}
+
 // Fix Leaflet default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -138,7 +168,13 @@ export const StationDashboard: React.FC = () => {
   const { signOut, user } = useAuth()
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(320) // 80 * 4 = 320px (w-80)
+  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const [darkMode, setDarkMode] = useState(false)
+  const [chartAnimated, setChartAnimated] = useState(false)
+  const [trendPeriod, setTrendPeriod] = useState<'h2' | 'h1'>('h2')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [selectedOrderRows, setSelectedOrderRows] = useState<Set<string>>(new Set())
+  const [activityFilter, setActivityFilter] = useState('All Status') // 80 * 4 = 320px (w-80)
   const [isResizing, setIsResizing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -195,6 +231,18 @@ export const StationDashboard: React.FC = () => {
       window.removeEventListener('mouseup', stopResizing)
     }
   }, [resize, stopResizing])
+
+  // Reset and re-trigger chart animation each time the dashboard page is visited
+  React.useEffect(() => {
+    if (currentPage === 'dashboard') {
+      setChartAnimated(false)
+      const t = setTimeout(() => setChartAnimated(true), 60)
+      return () => clearTimeout(t)
+    } else {
+      setChartAnimated(false)
+    }
+  }, [currentPage])
+
   const [fuelPrices, setFuelPrices] = useState({
     petrol: 0,
     diesel: 0
@@ -315,7 +363,7 @@ export const StationDashboard: React.FC = () => {
                 .from('orders')
                 .select(`
                   *,
-                  users!orders_customer_id_fkey(name, phone),
+                  users!orders_customer_id_fkey(name, phone, avatar_url),
                   agents(id, users!agents_user_id_fkey(name, phone)),
                   stations(name, image_url),
                   vehicles(make, model, year, plate_number)
@@ -361,7 +409,7 @@ export const StationDashboard: React.FC = () => {
                 .from('orders')
                 .select(`
                   *,
-                  users!orders_customer_id_fkey(name, phone),
+                  users!orders_customer_id_fkey(name, phone, avatar_url),
                   agents(id, users!agents_user_id_fkey(name, phone)),
                   stations(name, image_url),
                   vehicles(make, model, year, plate_number)
@@ -537,7 +585,7 @@ export const StationDashboard: React.FC = () => {
       // Don't show error if signing out
       if (!isSigningOut) {
         // Show user-friendly error message
-        alert('Failed to load station data. Please refresh the page and try again.')
+        toast.error('Failed to load station data. Please refresh the page and try again.')
       }
     } finally {
 
@@ -618,8 +666,8 @@ export const StationDashboard: React.FC = () => {
 
 
         if (allOrdersCount && allOrdersCount.length > 0) {
-          console.log('📋 Station IDs in database:', allOrdersCount.map(o => o.station_id))
-          console.log('🔍 Does our station ID match any?', allOrdersCount.some(o => o.station_id === stationId))
+          console.log('?? Station IDs in database:', allOrdersCount.map(o => o.station_id))
+          console.log('?? Does our station ID match any?', allOrdersCount.some(o => o.station_id === stationId))
         }
       }
       
@@ -630,7 +678,7 @@ export const StationDashboard: React.FC = () => {
         .from('orders')
         .select(`
           *,
-          users!orders_customer_id_fkey(name, phone),
+          users!orders_customer_id_fkey(name, phone, avatar_url),
           agents(id, users!agents_user_id_fkey(name, phone), is_available, rating),
           vehicles(make, model, plate_number)
         `)
@@ -660,10 +708,10 @@ export const StationDashboard: React.FC = () => {
       }
 
 
-      console.log('📋 First 3 orders:', orders?.slice(0, 3))
-      console.log('🆔 All order IDs:', orders?.map(o => o.id) || [])
-      console.log('📍 Order statuses:', orders?.map(o => `${o.id}: ${o.status}`) || [])
-      console.log('🏢 Station IDs in orders:', orders?.map(o => o.station_id) || [])
+      console.log('?? First 3 orders:', orders?.slice(0, 3))
+      console.log('?? All order IDs:', orders?.map(o => o.id) || [])
+      console.log('?? Order statuses:', orders?.map(o => `${o.id}: ${o.status}`) || [])
+      console.log('?? Station IDs in orders:', orders?.map(o => o.station_id) || [])
       
       setRecentOrders(orders || [])
 
@@ -838,7 +886,7 @@ export const StationDashboard: React.FC = () => {
       await loadStationData() // Refresh data
     } catch (error) {
 
-      alert('Failed to update fuel prices. Please try again.')
+      toast.error('Failed to update fuel prices. Please try again.')
     }
   }
 
@@ -847,12 +895,12 @@ export const StationDashboard: React.FC = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file')
+        toast.error('Please select an image file')
         return
       }
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size must be less than 5MB')
+        toast.error('Image size must be less than 5MB')
         return
       }
       setImageFile(file)
@@ -874,12 +922,12 @@ export const StationDashboard: React.FC = () => {
 
 
     if (!imageFile) {
-      alert('Please select an image first')
+      toast.error('Please select an image first')
       return
     }
 
     if (!stationData || !stationData.id) {
-      alert('Station data not loaded. Please refresh the page and try again.')
+      toast.error('Station data not loaded. Please refresh the page and try again.')
       return
     }
 
@@ -914,10 +962,10 @@ export const StationDashboard: React.FC = () => {
       setImagePreview(null)
       setShowEditProfile(false)
       
-      alert('Profile image updated successfully!')
+      toast.success('Profile image updated successfully!')
     } catch (error: any) {
 
-      alert(`Failed to update profile image: ${error.message || 'Please try again.'}`)
+      toast.error(`Failed to update profile image: ${error.message || 'Please try again.'}`)
     } finally {
       setUploadingImage(false)
     }
@@ -941,12 +989,12 @@ export const StationDashboard: React.FC = () => {
       // Reload station data to get the updated location
       await loadStationData()
 
-      alert('Location updated successfully!')
+      toast.success('Location updated successfully!')
       setEditingLocation(false)
       setSelectedCoordinates(null)
     } catch (error: any) {
       console.error('Error updating location:', error)
-      alert('Failed to update location: ' + error.message)
+      toast.error('Failed to update location: ' + error.message)
     } finally {
       setSavingLocation(false)
     }
@@ -971,13 +1019,13 @@ export const StationDashboard: React.FC = () => {
     
     try {
       if (!orderId) {
-        alert('Error: No order ID provided')
+        toast.error('Error: No order ID provided')
         setUpdatingOrderId(null)
         return
       }
       
       if (!stationData?.id) {
-        alert('Error: Station data not loaded')
+        toast.error('Error: Station data not loaded')
         setUpdatingOrderId(null)
         return
       }
@@ -990,19 +1038,19 @@ export const StationDashboard: React.FC = () => {
         .single()
       
       if (fetchError) {
-        alert(`Error fetching order: ${fetchError.message}`)
+        toast.error(`Error fetching order: ${fetchError.message}`)
         setUpdatingOrderId(null)
         return
       }
       
       if (!existingOrder) {
-        alert('Error: Order not found')
+        toast.error('Error: Order not found')
         setUpdatingOrderId(null)
         return
       }
       
       if (existingOrder.station_id !== stationData.id && existingOrder.service_type !== 'mechanic') {
-        alert('Error: Order does not belong to this station')
+        toast.error('Error: Order does not belong to this station')
         setUpdatingOrderId(null)
         return
       }
@@ -1028,16 +1076,16 @@ export const StationDashboard: React.FC = () => {
 
       if (error) {
         if (error.message.includes('permission') || error.message.includes('policy') || error.code === '42501') {
-          alert('Permission denied: Station cannot update orders. Please contact support.')
+          toast.error('Permission denied: Station cannot update orders. Please contact support.')
         } else {
-          alert(`Failed to update order status: ${error.message}`)
+          toast.error(`Failed to update order status: ${error.message}`)
         }
         setUpdatingOrderId(null)
         return
       }
       
       if (!updatedOrder || updatedOrder.length === 0) {
-        alert('Failed to update order. This may be a permission issue.')
+        toast.error('Failed to update order. This may be a permission issue.')
         setUpdatingOrderId(null)
         return
       }
@@ -1052,16 +1100,16 @@ export const StationDashboard: React.FC = () => {
       )
       
       if (newStatus === 'accepted') {
-        alert('Order accepted! It is now available to all agents on their platform.')
+        toast.success('Order accepted! It is now available to all agents on their platform.')
       } else {
-        alert('Order status updated successfully!')
+        toast.success('Order status updated successfully!')
       }
       
       // Refresh orders to get complete data
       await refreshOrders()
       
     } catch (error) {
-      alert('Failed to update order status. Please try again.')
+      toast.error('Failed to update order status. Please try again.')
     } finally {
       setUpdatingOrderId(null)
     }
@@ -1117,7 +1165,7 @@ export const StationDashboard: React.FC = () => {
       setIsSigningOut(false)
       
       // Show user-friendly error message
-      alert('Sign out failed. Redirecting to login page...')
+      toast.error('Sign out failed. Redirecting to login page...')
       
       // Force redirect even on error (better UX than staying logged in with errors)
       setTimeout(() => {
@@ -1140,7 +1188,7 @@ export const StationDashboard: React.FC = () => {
   const statsData = [
     {
       title: 'Today Revenue',
-      value: `₵${stats.todayRevenue.toLocaleString()}`,
+      value: `?${stats.todayRevenue.toLocaleString()}`,
       change: '+12.5%',
       trend: 'up' as const,
       icon: CreditCard,
@@ -1164,7 +1212,7 @@ export const StationDashboard: React.FC = () => {
     },
     {
       title: 'Avg Order Value',
-      value: `₵${stats.avgOrderValue.toFixed(0)}`,
+      value: `?${stats.avgOrderValue.toFixed(0)}`,
       change: '+5.2%',
       trend: 'up' as const,
       icon: DollarSign,
@@ -1174,14 +1222,14 @@ export const StationDashboard: React.FC = () => {
 
   const StatCard: React.FC<StatCardProps> = ({ stat, index }) => (
     <div 
-      className="group relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 hover:transform hover:-translate-y-2 transition-all duration-500 overflow-hidden"
+      className="group relative bg-white/10 backdrop-blur-xl rounded-2xl p-6 hover:transform hover:-translate-y-2 transition-all duration-500 overflow-hidden"
       style={{
         animationDelay: `${index * 100}ms`,
         animation: 'slideInUp 0.6s ease-out forwards'
       }}
     >
       <div className={`absolute inset-0 bg-gradient-to-r ${stat.color} opacity-5 group-hover:opacity-10 transition-opacity duration-300`}></div>
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-purple-600"></div>
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-orange-600"></div>
       
       <div className="relative flex items-start justify-between">
         <div className="flex-1">
@@ -1206,15 +1254,14 @@ export const StationDashboard: React.FC = () => {
   const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     const getStatusStyle = (status: string) => {
       switch (status) {
-        case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
-        case 'accepted': return 'bg-blue-100 text-blue-700 border-blue-200'
-        case 'in_progress': return 'bg-purple-100 text-purple-700 border-purple-200'
-        case 'completed': return 'bg-green-100 text-green-700 border-green-200'
-        case 'cancelled': return 'bg-red-100 text-red-700 border-red-200'
-        default: return 'bg-gray-100 text-gray-700 border-gray-200'
+        case 'pending': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+        case 'accepted': return 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+        case 'in_progress': return 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+        case 'completed': return 'bg-green-500/20 text-green-300 border-green-500/30'
+        case 'cancelled': return 'bg-red-500/20 text-red-300 border-red-500/30'
+        default: return 'bg-white/10 text-gray-300 border-white/20'
       }
     }
-
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusStyle(status)} capitalize`}>
         {status.replace('_', ' ')}
@@ -1275,97 +1322,61 @@ export const StationDashboard: React.FC = () => {
     })
 
 
+    const totalOrders = recentOrders.length
+    const pendingOrders = recentOrders.filter(o => o.status === 'pending').length
+    const completedOrders = recentOrders.filter(o => o.status === 'completed').length
+    const inProgressOrders = recentOrders.filter(o => o.status === 'in_progress').length
+    const totalRevenue = recentOrders.filter(o => o.status === 'completed').reduce((s, o) => s + (o.total_amount || 0), 0)
+
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
-          <div className="flex items-center gap-3">
-            <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">
-              {recentOrders.length} total orders loaded
-            </span>
-            <button 
-              onClick={refreshOrders}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-blue-600 transition-all duration-300"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh Orders
-            </button>
-            <button 
-              onClick={() => {
-
-
-
-
-
-
-                if (stationData?.id) {
-
-                  loadOrders(stationData.id)
-                } else {
-
-                }
-                
-                // Also try a simple query without joins
-                if (stationData?.id) {
-
-                  supabase
-                    .from('orders')
-                    .select('*')
-                    .or(`station_id.eq.${stationData.id},service_type.eq.mechanic`)
-                    .then(({ data, error }) => {
-                      if (error) {
-
-                      } else {
-
-
-                      }
-                    })
-                    
-                  // Also check for ALL orders to see if there's any data
-
-                  supabase
-                    .from('orders')
-                    .select('id, station_id, status, created_at')
-                    .limit(5)
-                    .then(({ data, error }) => {
-                      if (error) {
-
-                      } else {
-
-                        if (data && data.length > 0) {
-                          console.log('🏢 Available station IDs:', [...new Set(data.map(o => o.station_id))])
-
-                          console.log('🔍 Station ID match found:', data.some(o => o.station_id === stationData.id))
-                        }
-                      }
-                    })
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-red-600 transition-all duration-300"
-            >
-              Debug
-            </button>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-2xl font-bold ${primaryText}`}>Order Management</h2>
+            <p className={`${secondaryText} text-sm mt-0.5`}>{recentOrders.length} total orders</p>
           </div>
         </div>
-        
-        {/* Filters */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6 shadow-sm">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search orders by ID, customer, or address..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
+
+        {/* Stat Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Orders',  num: totalOrders,     pfx: '',  icon: Package,    iconBg: 'bg-orange-500/15', iconColor: 'text-orange-400', badge: null },
+            { label: 'Pending',       num: pendingOrders,   pfx: '',  icon: Clock,      iconBg: 'bg-yellow-500/15', iconColor: 'text-yellow-400', badge: pendingOrders > 0 ? 'Needs action' : null },
+            { label: 'In Progress',   num: inProgressOrders, pfx: '', icon: TrendingUp, iconBg: 'bg-purple-500/15', iconColor: 'text-purple-400', badge: null },
+            { label: 'Completed',     num: totalRevenue,    pfx: '₵', icon: CheckCircle, iconBg: 'bg-green-500/15', iconColor: 'text-green-400', badge: `${completedOrders} orders` },
+          ].map(card => {
+            const Icon = card.icon
+            return (
+              <div key={card.label} className="backdrop-blur-xl rounded-3xl p-5" style={cardStyleObj}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`w-10 h-10 rounded-2xl ${card.iconBg} flex items-center justify-center`}>
+                    <Icon className={`h-5 w-5 ${card.iconColor}`} />
+                  </div>
+                  {card.badge && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${card.iconBg} ${card.iconColor} font-medium`}>{card.badge}</span>
+                  )}
+                </div>
+                <p className={`text-2xl font-bold ${primaryText}`}><CountUp to={card.num} prefix={card.pfx} /></p>
+                <p className={`text-xs mt-1 ${secondaryText}`}>{card.label}</p>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Orders Table */}
+        <div className="rounded-3xl overflow-hidden" style={cardStyleObj}>
+          {/* Table header row */}
+          <div className="flex items-center justify-between px-6 py-4 gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 bg-orange-500 rounded-sm" />
+              <h3 className={`text-base font-bold ${primaryText}`}>All Orders</h3>
+              <span className={`text-xs ${mutedText}`}>{filteredOrders.length} results</span>
             </div>
-            <div className="flex gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-blue-500"
+                className={`px-3 py-1.5 rounded-xl focus:outline-none text-xs ${selectCls}`}
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
@@ -1377,217 +1388,158 @@ export const StationDashboard: React.FC = () => {
               <select
                 value={timeFilter}
                 onChange={(e) => setTimeFilter(e.target.value)}
-                className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-blue-500"
+                className={`px-3 py-1.5 rounded-xl focus:outline-none text-xs ${selectCls}`}
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
                 <option value="week">This Week</option>
                 <option value="month">This Month</option>
               </select>
+              {(searchQuery || statusFilter !== 'all' || timeFilter !== 'all') && (
+                <button
+                  onClick={() => { setSearchQuery(''); setStatusFilter('all'); setTimeFilter('all') }}
+                  className={`px-3 py-1.5 rounded-xl transition-all text-xs ${innerBgHover} ${secondaryText}`}
+                >
+                  Clear
+                </button>
+              )}
               <button
-                onClick={() => {
-                  setSearchQuery('')
-                  setStatusFilter('all')
-                  setTimeFilter('all')
-
-                }}
-                className="px-4 py-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl text-orange-600 transition-all duration-300 font-medium"
+                onClick={refreshOrders}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all text-xs ${innerBgHover} ${secondaryText}`}
               >
-                Clear Filters
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
               </button>
             </div>
           </div>
-        </div>
-        
-        {/* Orders Table */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <div className="overflow-x-auto">
+
+          {/* Inset dark table */}
+          <div className="mx-4 mb-4 rounded-2xl overflow-x-auto" style={{ background: tableBg }}>
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Order</th>
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Customer</th>
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Details</th>
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Amount</th>
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Status</th>
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Date</th>
-                  <th className="text-left py-4 px-2 text-gray-600 font-semibold text-sm">Actions</th>
+                <tr>
+                  {['Order','Customer','Details','Amount','Status','Date','Actions'].map(h => (
+                    <th key={h} className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${mutedText}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-gray-500">
-                      <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <td colSpan={7} className="py-16 text-center">
+                      <Package className="h-12 w-12 mx-auto mb-4 text-gray-600" />
                       {recentOrders.length === 0 ? (
                         <>
-                          <p>No orders available</p>
-                          <p className="text-sm mt-2">Orders will appear here when customers place orders at your station</p>
+                          <p className={`font-medium ${secondaryText}`}>No orders available</p>
+                          <p className={`text-sm mt-1 ${mutedText}`}>Orders will appear here when customers place orders at your station</p>
                         </>
                       ) : (
                         <>
-                          <p>No orders match current filters</p>
-                          <p className="text-sm mt-2">Try adjusting your search or filter criteria</p>
-                          <p className="text-xs mt-1 text-gray-500">
-                            Total orders loaded: {recentOrders.length} | Current filters: Status={statusFilter}, Time={timeFilter}
-                          </p>
+                          <p className={`font-medium ${secondaryText}`}>No orders match current filters</p>
+                          <p className={`text-sm mt-1 ${mutedText}`}>Try adjusting your search or filter criteria</p>
                         </>
                       )}
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order, index) => (
-                    <tr 
-                      key={order.id} 
-                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200 cursor-pointer"
-                      style={{
-                        animationDelay: `${index * 50}ms`,
-                        animation: 'fadeInUp 0.4s ease-out forwards'
-                      }}
-                      onClick={() => {
-                        setSelectedOrder(order)
-                        setShowOrderDetails(true)
-                      }}
-                    >
-                      <td className="py-4 px-2">
-                        <div>
-                          <p className="font-semibold text-gray-900">#{order.id.slice(0, 8)}</p>
-                          <div className="flex items-center space-x-2 text-sm text-gray-500 mt-1">
-                            <MapPin className="h-3 w-3" />
-                            <span className="truncate max-w-xs">{order.delivery_address}</span>
+                  filteredOrders.map((order, index) => {
+                    const avatarColors = ['from-orange-500 to-pink-500','from-blue-500 to-purple-500','from-green-500 to-teal-500','from-yellow-500 to-orange-500','from-purple-500 to-indigo-500','from-red-500 to-orange-500']
+                    const initials = (order.users?.name || 'U').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                    const avatarUrl = order.users?.avatar_url
+                    const statusCfg: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+                      pending:     { label: 'Pending',     bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
+                      accepted:    { label: 'Accepted',    bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400'   },
+                      in_progress: { label: 'In Progress', bg: 'bg-purple-500/15', text: 'text-purple-400', dot: 'bg-purple-400' },
+                      completed:   { label: 'Completed',   bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400'  },
+                      cancelled:   { label: 'Cancelled',   bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400'    },
+                    }
+                    const cfg = statusCfg[order.status] ?? statusCfg['pending']
+                    return (
+                      <tr
+                        key={order.id}
+                        className={`transition-colors duration-200 cursor-pointer ${darkMode ? 'hover:bg-white/5' : 'hover:bg-orange-50/50'}`}
+                        onClick={() => { setSelectedOrder(order); setShowOrderDetails(true) }}
+                      >
+                        <td className="px-4 py-4">
+                          <p className={`font-semibold font-mono text-sm ${primaryText}`}>#{order.id.slice(0, 8)}</p>
+                          <div className={`flex items-center gap-1 text-xs mt-1 ${mutedText}`}>
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[120px]">{order.delivery_address}</span>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div>
-                          <p className="font-medium text-gray-900">{order.users?.name || 'No name'}</p>
-                          <p className="text-sm text-gray-500">{order.users?.phone || 'No phone'}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div>
-                          <p className="text-gray-900 capitalize font-medium">{order.service_type.replace('_', ' ')}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            {avatarUrl ? (
+                              <img src={avatarUrl} alt={initials} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display='none'; (e.currentTarget.nextElementSibling as HTMLElement).style.display='flex' }} />
+                            ) : null}
+                            <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColors[index % avatarColors.length]} items-center justify-center text-white text-xs font-bold flex-shrink-0 ${avatarUrl ? 'hidden' : 'flex'}`}>
+                              {initials}
+                            </div>
+                            <div>
+                              <p className={`text-sm font-medium leading-tight ${primaryText}`}>{order.users?.name || 'Unknown'}</p>
+                              <p className={`text-xs ${mutedText}`}>{order.users?.phone || '—'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className={`capitalize text-sm font-medium ${primaryText}`}>{order.service_type.replace('_', ' ')}</p>
                           {order.service_type === 'fuel_delivery' && (
-                            <p className="text-sm text-gray-500">
-                              {order.fuel_quantity}L {order.fuel_type}
-                            </p>
-                          )}
-                          {order.vehicles && (
-                            <p className="text-xs text-gray-500">
-                              {order.vehicles.make} {order.vehicles.model}
-                            </p>
+                            <p className={`text-xs mt-0.5 ${mutedText}`}>{order.fuel_quantity}L {order.fuel_type}</p>
                           )}
                           {order.agents?.users?.name && (
-                            <div className="flex items-center space-x-1 mt-1">
-                              <Users className="h-3 w-3 text-blue-600" />
-                              <span className="text-xs text-blue-600">
-                                Agent: {order.agents.users.name}
-                              </span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Users className="h-3 w-3 text-blue-400" />
+                              <span className="text-xs text-blue-400">{order.agents.users.name}</span>
                             </div>
                           )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div className="flex items-center space-x-2">
-                          <DollarSign className="h-3 w-3 text-green-600" />
-                          <span className="font-semibold text-gray-900">₵{order.total_amount.toFixed(2)}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-2">
-                        <StatusBadge status={order.status} />
-                      </td>
-                      <td className="py-4 px-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2 text-sm text-gray-700">
-                            <Calendar className="h-3 w-3" />
-                            <span>{new Date(order.created_at).toLocaleDateString()}</span>
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(order.created_at).toLocaleTimeString()}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div className="flex items-center space-x-2">
-                          {order.status === 'pending' && (
-                            <button
-                              onClick={async (e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-
-
-
-
-                                try {
-                                  await updateOrderStatus(order.id, 'accepted')
-
-                                } catch (error) {
-
-                                }
-                              }}
-                              disabled={updatingOrderId === order.id}
-                              className={`px-3 py-1 rounded-lg text-xs transition-colors flex items-center gap-1 font-medium ${
-                                updatingOrderId === order.id
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-600'
-                              }`}
-                            >
-                              {updatingOrderId === order.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-                                  Updating...
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="h-3 w-3" />
-                                  Accept Order
-                                </>
-                              )}
-                            </button>
-                          )}
-                          {order.status === 'accepted' && !order.agent_id && (
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1 text-yellow-600">
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`text-sm font-semibold ${primaryText}`}>₵{order.total_amount.toFixed(2)}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className={`text-sm ${secondaryText}`}>{new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          <p className={`text-xs mt-0.5 ${mutedText}`}>{new Date(order.created_at).toLocaleTimeString()}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={async (e) => { e.preventDefault(); e.stopPropagation(); try { await updateOrderStatus(order.id, 'accepted') } catch (error) {} }}
+                                disabled={updatingOrderId === order.id}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1 ${updatingOrderId === order.id ? 'bg-white/5 text-gray-500 cursor-not-allowed' : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300'}`}
+                              >
+                                {updatingOrderId === order.id ? <><div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400" />Updating...</> : <><Check className="h-3 w-3" />Accept</>}
+                              </button>
+                            )}
+                            {order.status === 'accepted' && !order.agent_id && (
+                              <div className="flex items-center gap-1 text-yellow-400">
                                 <Clock className="h-3 w-3 animate-pulse" />
-                                <span className="text-xs font-medium">Waiting for agent...</span>
+                                <span className="text-xs">Waiting...</span>
                               </div>
-                            </div>
-                          )}
-                          {order.status === 'accepted' && order.agent_id && (
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">
-                                Agent assigned
-                              </span>
-                            </div>
-                          )}
-                          {order.status === 'in_progress' && (
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs font-medium">
-                                In progress
-                              </span>
-                            </div>
-                          )}
-                          {order.status === 'completed' && (
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">
-                                Completed
-                              </span>
-                            </div>
-                          )}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedOrder(order)
-                              setShowOrderDetails(true)
-                            }}
-                            className="px-3 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-xs transition-colors"
-                          >
-                            <Eye className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            )}
+                            {order.status === 'accepted' && order.agent_id && (
+                              <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded-lg text-xs">Assigned</span>
+                            )}
+                            {order.status === 'in_progress' && (
+                              <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-xs">In progress</span>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelectedOrder(order); setShowOrderDetails(true) }}
+                              className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-gray-400" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
@@ -1600,65 +1552,57 @@ export const StationDashboard: React.FC = () => {
   const renderInventoryPage = () => {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
-          <button className="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl text-green-600 font-medium transition-all duration-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-2xl font-bold ${primaryText}`}>Inventory Management</h2>
+            <p className={`${secondaryText} text-sm mt-0.5`}>Monitor your fuel and supplies</p>
+          </div>
+          <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', boxShadow: '0 4px 15px rgba(102,126,234,0.4)' }}>
             <Plus className="h-4 w-4" />
             Add Item
           </button>
         </div>
-        
-        {/* Fuel Inventory */}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Fuel Inventory</h3>
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Fuel className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium text-gray-900">Petrol</span>
+          {/* Fuel Inventory */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <h3 className={`text-lg font-bold ${primaryText} mb-5`}>Fuel Inventory</h3>
+            <div className="space-y-5">
+              {[
+                { name: 'Petrol', pct: 85, used: '15,000L', total: '17,500L', color: 'bg-blue-500', textColor: 'text-blue-400', icon: 'text-blue-400' },
+                { name: 'Diesel', pct: 62, used: '9,300L', total: '15,000L', color: 'bg-orange-500', textColor: 'text-orange-400', icon: 'text-orange-400' },
+              ].map(fuel => (
+                <div key={fuel.name} className={`${innerBg} rounded-2xl p-4`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Fuel className={`h-5 w-5 ${fuel.icon}`} />
+                      <span className={`font-semibold ${primaryText}`}>{fuel.name}</span>
+                    </div>
+                    <span className={`text-lg font-bold ${fuel.textColor}`}>{fuel.pct}%</span>
                   </div>
-                  <span className="text-lg font-bold text-blue-600">85%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: '85%' }}></div>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">15,000L / 17,500L</p>
-              </div>
-              
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Fuel className="h-5 w-5 text-orange-600" />
-                    <span className="font-medium text-gray-900">Diesel</span>
+                  <div className={`w-full ${progressTrack} rounded-full h-2 mb-2`}>
+                    <div className={`${fuel.color} h-2 rounded-full transition-all duration-700`} style={{ width: `${fuel.pct}%` }} />
                   </div>
-                  <span className="text-lg font-bold text-orange-600">62%</span>
+                  <p className={`text-xs ${mutedText}`}>{fuel.used} / {fuel.total}</p>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-orange-500 h-2 rounded-full" style={{ width: '62%' }}></div>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">9,300L / 15,000L</p>
-              </div>
+              ))}
             </div>
           </div>
-          
+
           {/* Other Inventory */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Other Items</h3>
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <h3 className={`text-lg font-bold ${primaryText} mb-5`}>Other Supplies</h3>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-900 font-medium">Engine Oil</span>
-                <span className="text-green-600 font-semibold">45 bottles</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-900 font-medium">Brake Fluid</span>
-                <span className="text-yellow-600 font-semibold">12 bottles</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-900 font-medium">Coolant</span>
-                <span className="text-red-600 font-semibold">3 bottles</span>
-              </div>
+              {[
+                { name: 'Engine Oil', qty: '45 bottles', color: 'text-green-400', bg: 'bg-green-500/20 border-green-500/30' },
+                { name: 'Brake Fluid', qty: '12 bottles', color: 'text-yellow-400', bg: 'bg-yellow-500/20 border-yellow-500/30' },
+                { name: 'Coolant', qty: '3 bottles', color: 'text-red-400', bg: 'bg-red-500/20 border-red-500/30' },
+              ].map(item => (
+                <div key={item.name} className={`flex items-center justify-between p-4 ${innerBgHover} rounded-2xl transition-colors`}>
+                  <span className={`font-medium ${secondaryText}`}>{item.name}</span>
+                  <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${item.bg} ${item.color}`}>{item.qty}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1669,72 +1613,91 @@ export const StationDashboard: React.FC = () => {
   const renderPricingPage = () => {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Fuel Pricing Management</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-2xl font-bold ${primaryText}`}>Fuel Pricing</h2>
+            <p className={`${secondaryText} text-sm mt-0.5`}>Update and track fuel prices</p>
+          </div>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Prices</h3>
+          {/* Current Prices */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <h3 className={`text-lg font-bold ${primaryText} mb-5`}>Update Prices</h3>
             <div className="space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Fuel className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium text-gray-900">Petrol Price</span>
+              {[
+                { key: 'petrol' as const, label: 'Petrol Price', icon: 'text-blue-400', iconBg: 'bg-blue-500/20', border: 'focus:border-orange-500' },
+                { key: 'diesel' as const, label: 'Diesel Price', icon: 'text-orange-400', iconBg: 'bg-orange-500/20', border: 'focus:border-orange-500' },
+              ].map(f => (
+                <div key={f.key} className={`${innerBg} rounded-2xl p-4`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-8 h-8 ${f.iconBg} rounded-xl flex items-center justify-center`}>
+                      <Fuel className={`h-4 w-4 ${f.icon}`} />
+                    </div>
+                    <span className={`font-semibold text-sm ${primaryText}`}>{f.label}</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">?</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={fuelPrices[f.key]}
+                      onChange={(e) => setFuelPrices({...fuelPrices, [f.key]: parseFloat(e.target.value)})}
+                      className={`w-full pl-8 pr-4 py-2.5 rounded-xl focus:outline-none transition-colors text-sm ${inputCls}`}
+                    />
                   </div>
                 </div>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={fuelPrices.petrol}
-                  onChange={(e) => setFuelPrices({...fuelPrices, petrol: parseFloat(e.target.value)})}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Fuel className="h-5 w-5 text-orange-600" />
-                    <span className="font-medium text-gray-900">Diesel Price</span>
-                  </div>
-                </div>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={fuelPrices.diesel}
-                  onChange={(e) => setFuelPrices({...fuelPrices, diesel: parseFloat(e.target.value)})}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              
+              ))}
               <button
                 onClick={updateFuelPrices}
-                className="w-full bg-green-50 hover:bg-green-100 text-green-600 font-medium py-3 px-4 rounded-lg transition-colors border border-green-200"
+                className="w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:scale-105"
+                style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', boxShadow: '0 4px 20px rgba(102,126,234,0.4)' }}
               >
                 Update Prices
               </button>
             </div>
           </div>
-          
+
           {/* Price History */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Price History</h3>
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <h3 className={`text-lg font-bold ${primaryText} mb-5`}>Current Prices</h3>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-gray-900 font-medium">Petrol</p>
-                  <p className="text-xs text-gray-500">Updated 2 hours ago</p>
+              {[
+                { label: 'Petrol', val: fuelPrices.petrol, note: 'Updated 2 hours ago', color: 'text-blue-400', bg: 'bg-blue-500/20', border: 'border-blue-500/30' },
+                { label: 'Diesel', val: fuelPrices.diesel, note: 'Updated 2 hours ago', color: 'text-orange-400', bg: 'bg-orange-500/20', border: 'border-orange-500/30' },
+              ].map(p => (
+                <div key={p.label} className={`flex items-center justify-between p-4 ${innerBg} rounded-2xl`}>
+                  <div>
+                    <p className={`font-semibold ${primaryText}`}>{p.label}</p>
+                    <p className={`text-xs mt-0.5 ${mutedText}`}>{p.note}</p>
+                  </div>
+                  <span className={`px-4 py-1.5 rounded-xl text-sm font-bold border ${p.bg} ${p.border} ${p.color}`}>?{p.val}/L</span>
                 </div>
-                <span className="text-blue-600 font-semibold">₵{fuelPrices.petrol}/L</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-gray-900 font-medium">Diesel</p>
-                  <p className="text-xs text-gray-500">Updated 2 hours ago</p>
+              ))}
+
+              {/* Price comparison visual */}
+              <div className={`mt-4 p-4 ${innerBg} rounded-2xl`}>
+                <p className={`text-xs mb-3 font-medium uppercase tracking-wider ${secondaryText}`}>Price Ratio</p>
+                <div className="space-y-2">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-blue-400">Petrol</span>
+                      <span className={mutedText}>{fuelPrices.petrol > 0 ? Math.round(fuelPrices.petrol / (fuelPrices.petrol + fuelPrices.diesel) * 100) : 50}%</span>
+                    </div>
+                    <div className={`w-full ${progressTrack} rounded-full h-1.5`}>
+                      <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${fuelPrices.petrol > 0 ? Math.round(fuelPrices.petrol / (fuelPrices.petrol + fuelPrices.diesel) * 100) : 50}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-orange-400">Diesel</span>
+                      <span className={mutedText}>{fuelPrices.diesel > 0 ? Math.round(fuelPrices.diesel / (fuelPrices.petrol + fuelPrices.diesel) * 100) : 50}%</span>
+                    </div>
+                    <div className={`w-full ${progressTrack} rounded-full h-1.5`}>
+                      <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${fuelPrices.diesel > 0 ? Math.round(fuelPrices.diesel / (fuelPrices.petrol + fuelPrices.diesel) * 100) : 50}%` }} />
+                    </div>
+                  </div>
                 </div>
-                <span className="text-orange-600 font-semibold">₵{fuelPrices.diesel}/L</span>
               </div>
             </div>
           </div>
@@ -1746,171 +1709,157 @@ export const StationDashboard: React.FC = () => {
   const renderAgentsPage = () => {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Agent Management</h2>
-          <div className="flex items-center gap-4">
-            <button 
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-2xl font-bold ${primaryText}`}>Agent Management</h2>
+            <p className={`${secondaryText} text-sm mt-0.5`}>Monitor and manage your delivery agents</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
               onClick={loadAgents}
-              className="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl text-green-600 font-medium transition-all duration-300"
+              className={`flex items-center gap-2 px-4 py-2 ${innerBgHover} rounded-xl ${secondaryText} transition-all text-sm`}
             >
               <RefreshCw className={`h-4 w-4 ${loadingAgents ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-            <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">
-              {agents.length} agents available
+            <span className="px-3 py-1.5 rounded-xl text-xs font-semibold border bg-blue-500/20 border-blue-500/30 text-blue-300">
+              {agents.length} agents
             </span>
           </div>
         </div>
-        
+
         {/* Agent Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Total Agents</p>
-                <p className="text-2xl font-bold text-gray-900">{agents.length}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Agents', value: agents.length, icon: Users, color: 'from-orange-500 to-orange-600', glow: 'shadow-orange-500/30' },
+            { label: 'Available', value: agents.filter(a => a.is_available).length, icon: () => <div className="w-3.5 h-3.5 bg-green-400 rounded-full animate-pulse" />, color: 'from-green-500 to-green-600', glow: 'shadow-green-500/30' },
+            { label: 'Avg Rating', value: agents.length > 0 ? (agents.reduce((s,a) => s + a.rating, 0) / agents.length).toFixed(1) : '0.0', icon: () => <span className="text-base">?</span>, color: 'from-yellow-500 to-yellow-600', glow: 'shadow-yellow-500/30' },
+            { label: 'Total Jobs', value: agents.reduce((s, a) => s + a.total_jobs, 0), icon: Truck, color: 'from-purple-500 to-purple-600', glow: 'shadow-purple-500/30' },
+          ].map((card) => (
+            <div key={card.label} className="backdrop-blur-xl rounded-2xl p-4" style={{ background: cardBg }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-xs mb-1 ${secondaryText}`}>{card.label}</p>
+                  <p className={`text-2xl font-bold ${primaryText}`}>{card.value}</p>
+                </div>
+                <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-lg ${card.glow}`}>
+                  <card.icon className="h-5 w-5 text-white" />
+                </div>
               </div>
-              <Users className="h-8 w-8 text-blue-600" />
             </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Available</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {agents.filter(agent => agent.is_available).length}
-                </p>
-              </div>
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-            </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Avg Rating</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {agents.length > 0 
-                    ? (agents.reduce((sum, agent) => sum + agent.rating, 0) / agents.length).toFixed(1)
-                    : '0.0'
-                  }
-                </p>
-              </div>
-              <div className="text-yellow-500 text-2xl">⭐</div>
-            </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm">Total Jobs</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {agents.reduce((sum, agent) => sum + agent.total_jobs, 0)}
-                </p>
-              </div>
-              <Truck className="h-8 w-8 text-purple-600" />
-            </div>
-          </div>
+          ))}
         </div>
-        
+
         {/* Agents List */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Available Agents</h3>
-          
-          {loadingAgents ? (
-            <div className="text-center py-12">
-              <img 
-                src={loaderGif} 
-                alt="Loading..." 
-                className="w-24 h-24 mx-auto mb-6 rounded-lg object-contain"
-              />
-              <p className="text-gray-500 text-lg">Loading agents...</p>
+        <div className="rounded-3xl overflow-hidden" style={cardStyleObj}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 bg-orange-500 rounded-sm" />
+              <h3 className={`text-base font-bold ${primaryText}`}>Available Agents</h3>
+              <span className={`text-xs ${mutedText}`}>{agents.length} agents</span>
             </div>
-          ) : agents.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">No agents available</p>
-              <p className="text-sm mt-2">Agents will appear here once they register for fuel delivery services</p>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2.5 py-1 rounded-full bg-green-500/15 text-green-400 font-medium`}>
+                {agents.filter(a => a.is_available).length} online
+              </span>
+              <span className={`text-xs px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 font-medium`}>
+                {agents.filter(a => !a.is_available).length} busy
+              </span>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {agents.map((agent, index) => (
-                <div 
-                  key={agent.id}
-                  className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors duration-300"
-                  style={{
-                    animationDelay: `${index * 100}ms`,
-                    animation: 'fadeInUp 0.4s ease-out forwards'
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="relative">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-white">
-                          {agent.users.name?.charAt(0) || 'A'}
-                        </div>
-                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                          agent.is_available ? 'bg-green-500' : 'bg-red-500'
-                        }`} />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{agent.users.name}</h4>
-                        <p className="text-sm text-gray-600">{agent.users.phone}</p>
-                        <div className="flex items-center space-x-4 mt-1">
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            agent.service_type === 'fuel_delivery' 
-                              ? 'bg-blue-100 text-blue-700'
-                              : agent.service_type === 'mechanic'
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-purple-100 text-purple-700'
-                          }`}>
+          </div>
+
+          {/* Inset table */}
+          <div className="mx-4 mb-4 rounded-2xl overflow-x-auto" style={{ background: tableBg }}>
+            {loadingAgents ? (
+              <div className="text-center py-12">
+                <img src={loaderGif} alt="Loading..." className="w-16 h-16 mx-auto mb-3 rounded-lg object-contain opacity-80" />
+                <p className={`text-sm ${mutedText}`}>Loading agents...</p>
+              </div>
+            ) : agents.length === 0 ? (
+              <div className="text-center py-14">
+                <div className={`w-14 h-14 ${innerBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+                  <Users className="h-7 w-7 text-gray-500" />
+                </div>
+                <p className={`font-medium ${secondaryText}`}>No agents registered</p>
+                <p className={`text-sm mt-1 ${mutedText}`}>Agents will appear once they register for fuel delivery services</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    {['Agent', 'Contact', 'Service', 'Vehicle', 'Rating', 'Jobs', 'Status'].map(h => (
+                      <th key={h} className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${mutedText}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((agent, index) => {
+                    const avatarColors = ['from-orange-500 to-pink-500','from-blue-500 to-purple-500','from-green-500 to-teal-500','from-yellow-500 to-orange-500','from-purple-500 to-indigo-500','from-red-500 to-orange-500']
+                    const initials = (agent.users.name || 'A').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                    const avatarUrl = agent.users.avatar_url
+                    const serviceColor =
+                      agent.service_type === 'fuel_delivery' ? 'bg-orange-500/15 text-orange-400' :
+                      agent.service_type === 'mechanic'       ? 'bg-purple-500/15 text-purple-400' :
+                                                                'bg-blue-500/15 text-blue-400'
+                    return (
+                      <tr key={agent.id} className={`transition-colors duration-200 ${darkMode ? 'hover:bg-white/5' : 'hover:bg-orange-50/50'}`}>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="relative flex-shrink-0">
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={initials} className="w-9 h-9 rounded-full object-cover"
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display='none'; (e.currentTarget.nextElementSibling as HTMLElement).style.display='flex' }} />
+                              ) : null}
+                              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColors[index % avatarColors.length]} items-center justify-center text-white text-xs font-bold ${avatarUrl ? 'hidden' : 'flex'}`}>
+                                {initials}
+                              </div>
+                              <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${darkMode ? 'border-[#111111]' : 'border-[#f8f9fa]'} ${agent.is_available ? 'bg-green-500' : 'bg-red-400'}`} />
+                            </div>
+                            <p className={`text-sm font-semibold ${primaryText}`}>{agent.users.name}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className={`text-sm ${secondaryText}`}>{agent.users.phone || '—'}</p>
+                          <p className={`text-xs ${mutedText}`}>{agent.users.email || ''}</p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${serviceColor}`}>
                             {agent.service_type.replace('_', ' ')}
                           </span>
-                          {agent.license_number && (
-                            <span className="text-xs text-gray-500">
-                              License: {agent.license_number}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <div className="flex items-center space-x-1">
-                          {[...Array(5)].map((_, i) => (
-                            <div
-                              key={i}
-                              className={`w-3 h-3 ${
-                                i < Math.floor(agent.rating) ? 'text-yellow-500' : 'text-gray-300'
-                              }`}
-                            >
-                              ⭐
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {agent.vehicle_info ? (
+                            <div>
+                              <p className={`text-sm ${secondaryText}`}>{agent.vehicle_info.make} {agent.vehicle_info.model}</p>
+                              {agent.vehicle_info.plate_number && <p className={`text-xs ${mutedText}`}>{agent.vehicle_info.plate_number}</p>}
                             </div>
-                          ))}
-                          <span className="text-sm text-yellow-600 ml-1 font-semibold">
-                            {agent.rating.toFixed(1)}
+                          ) : (
+                            <span className={`text-xs ${mutedText}`}>—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1">
+                            <span className="text-yellow-400 text-sm">★</span>
+                            <span className={`text-sm font-semibold ${primaryText}`}>{agent.rating.toFixed(1)}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`text-sm font-medium ${primaryText}`}>{agent.total_jobs}</span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${agent.is_available ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${agent.is_available ? 'bg-green-400' : 'bg-red-400'}`} />
+                            {agent.is_available ? 'Available' : 'Busy'}
                           </span>
-                        </div>
-                      </div>
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <p className="font-medium">{agent.total_jobs} total jobs</p>
-                        <p className={`font-semibold ${agent.is_available ? 'text-green-600' : 'text-red-600'}`}>
-                          {agent.is_available ? 'Available' : 'Busy'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {agent.vehicle_info && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-sm text-gray-700 font-medium">
-                        Vehicle: {agent.vehicle_info?.make} {agent.vehicle_info?.model} - {agent.vehicle_info?.plate_number}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -1919,63 +1868,85 @@ export const StationDashboard: React.FC = () => {
   const renderAnalyticsPage = () => {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Analytics & Reports</h2>
-          <button className="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl text-green-600 font-medium transition-all duration-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-2xl font-bold ${primaryText}`}>Analytics &amp; Reports</h2>
+            <p className={`${secondaryText} text-sm mt-0.5`}>Overview of your station performance</p>
+          </div>
+          <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', boxShadow: '0 4px 15px rgba(102,126,234,0.4)' }}>
             <Download className="h-4 w-4" />
             Export Report
           </button>
         </div>
-        
-        {/* Stats Overview */}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trends</h3>
+          {/* Revenue Trends */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-9 h-9 bg-green-500/20 rounded-2xl flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-green-400" />
+              </div>
+              <h3 className={`text-base font-bold ${primaryText}`}>Revenue Trends</h3>
+            </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">This Week</span>
-                <span className="text-green-600 font-semibold">₵{(stats.todayRevenue * 7).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">This Month</span>
-                <span className="text-green-600 font-semibold">₵{(stats.todayRevenue * 30).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">This Year</span>
-                <span className="text-green-600 font-semibold">₵{(stats.todayRevenue * 365).toLocaleString()}</span>
-              </div>
+              {[
+                { period: 'This Week', value: `?${(stats.todayRevenue * 7).toLocaleString()}` },
+                { period: 'This Month', value: `?${(stats.todayRevenue * 30).toLocaleString()}` },
+                { period: 'This Year', value: `?${(stats.todayRevenue * 365).toLocaleString()}` },
+              ].map(row => (
+                <div key={row.period} className={`flex items-center justify-between p-3 ${innerBg} rounded-xl`}>
+                  <span className={`text-sm ${secondaryText}`}>{row.period}</span>
+                  <span className="text-green-400 font-semibold text-sm">{row.value}</span>
+                </div>
+              ))}
             </div>
           </div>
-          
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Analytics</h3>
+
+          {/* Order Analytics */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-9 h-9 bg-blue-500/20 rounded-2xl flex items-center justify-center">
+                <BarChart3 className="h-4 w-4 text-blue-400" />
+              </div>
+              <h3 className={`text-base font-bold ${primaryText}`}>Order Analytics</h3>
+            </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Completion Rate</span>
-                <span className="text-blue-600 font-semibold">92%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Avg Response Time</span>
-                <span className="text-blue-600 font-semibold">5 mins</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Customer Rating</span>
-                <span className="text-yellow-600 font-semibold">4.8 ⭐</span>
-              </div>
+              {[
+                { label: 'Completion Rate', value: '92%', color: 'text-blue-400' },
+                { label: 'Avg Response Time', value: '5 mins', color: 'text-blue-400' },
+                { label: 'Customer Rating', value: '4.8 ?', color: 'text-yellow-400' },
+              ].map(row => (
+                <div key={row.label} className={`flex items-center justify-between p-3 ${innerBg} rounded-xl`}>
+                  <span className={`text-sm ${secondaryText}`}>{row.label}</span>
+                  <span className={`font-semibold text-sm ${row.color}`}>{row.value}</span>
+                </div>
+              ))}
             </div>
           </div>
-          
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Fuel Sales</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Petrol</span>
-                <span className="text-blue-600 font-semibold">68%</span>
+
+          {/* Fuel Sales */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-9 h-9 bg-orange-500/20 rounded-2xl flex items-center justify-center">
+                <Fuel className="h-4 w-4 text-orange-400" />
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Diesel</span>
-                <span className="text-orange-600 font-semibold">32%</span>
-              </div>
+              <h3 className={`text-base font-bold ${primaryText}`}>Fuel Sales Mix</h3>
+            </div>
+            <div className="space-y-4">
+              {[
+                { label: 'Petrol', pct: 68, color: 'bg-blue-500', textColor: 'text-blue-400' },
+                { label: 'Diesel', pct: 32, color: 'bg-orange-500', textColor: 'text-orange-400' },
+              ].map(fuel => (
+                <div key={fuel.label}>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className={secondaryText}>{fuel.label}</span>
+                    <span className={`font-semibold ${fuel.textColor}`}>{fuel.pct}%</span>
+                  </div>
+                  <div className={`w-full ${progressTrack} rounded-full h-2`}>
+                    <div className={`${fuel.color} h-2 rounded-full transition-all duration-700`} style={{ width: `${fuel.pct}%` }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1986,95 +1957,96 @@ export const StationDashboard: React.FC = () => {
   const renderProfilePage = () => {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Station Profile</h2>
-          <button 
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-2xl font-bold ${primaryText}`}>Station Profile</h2>
+            <p className={`${secondaryText} text-sm mt-0.5`}>Your station information and metrics</p>
+          </div>
+          <button
             onClick={() => {
               if (!stationData) {
-                alert('Please wait for station data to load')
+                toast.error('Please wait for station data to load')
                 return
               }
               setShowEditProfile(true)
             }}
             disabled={!stationData}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-blue-600 font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', boxShadow: '0 4px 15px rgba(102,126,234,0.4)' }}
           >
             <Edit className="h-4 w-4" />
             Edit Profile
           </button>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Station Information</h3>
-            
+          {/* Station Info */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <h3 className={`text-lg font-bold ${primaryText} mb-5`}>Station Information</h3>
+
             {/* Station Image */}
-            <div className="mb-6">
-              <label className="block text-gray-600 text-sm mb-2 font-medium">Station Image</label>
-              <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center">
+            <div className="mb-5">
+              <label className={`block text-xs mb-2 font-medium uppercase tracking-wider ${secondaryText}`}>Station Image</label>
+              <div className="relative w-full h-44 rounded-2xl overflow-hidden">
                 {stationData?.image_url ? (
-                  <img 
-                    src={stationData.image_url} 
+                  <img
+                    src={stationData.image_url}
                     alt={stationData.name}
-                    className="max-w-full max-h-full object-contain"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-700">
-                    <Camera className="h-12 w-12 text-white opacity-50" />
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-500/30 to-orange-600/30">
+                    <Camera className="h-10 w-10 text-white/30" />
                   </div>
                 )}
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-600 text-sm mb-1 font-medium">Station Name</label>
+                <label className={`block text-xs mb-1.5 font-medium uppercase tracking-wider ${secondaryText}`}>Station Name</label>
                 <input
                   type="text"
                   value={stationData?.name || ''}
                   readOnly
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900"
+                  className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none cursor-default ${inputCls}`}
                 />
               </div>
               <div>
-                <label className="block text-gray-600 text-sm mb-1 font-medium">Address</label>
+                <label className={`block text-xs mb-1.5 font-medium uppercase tracking-wider ${secondaryText}`}>Address</label>
                 <textarea
                   value={stationData?.address || ''}
                   readOnly
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 h-20"
+                  className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none cursor-default h-20 resize-none ${inputCls}`}
                 />
               </div>
               <div>
-                <label className="block text-gray-600 text-sm mb-1 font-medium">Status</label>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-3 h-3 rounded-full ${stationData?.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="text-gray-900 font-medium">
+                <label className={`block text-xs mb-1.5 font-medium uppercase tracking-wider ${secondaryText}`}>Status</label>
+                <div className={`flex items-center gap-2 px-4 py-2.5 ${innerBg} rounded-xl`}>
+                  <div className={`w-2.5 h-2.5 rounded-full ${stationData?.is_active ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                  <span className={`text-sm font-medium ${stationData?.is_active ? 'text-green-400' : 'text-red-400'}`}>
                     {stationData?.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
               </div>
             </div>
           </div>
-          
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600 font-medium">Total Orders Served</span>
-                <span className="text-gray-900 font-semibold">{stats.totalOrders}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600 font-medium">Total Revenue</span>
-                <span className="text-green-600 font-semibold">₵{(stats.todayRevenue * 30).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600 font-medium">Average Order Value</span>
-                <span className="text-blue-600 font-semibold">₵{stats.avgOrderValue.toFixed(0)}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600 font-medium">Customer Rating</span>
-                <span className="text-yellow-600 font-semibold">4.8 ⭐</span>
-              </div>
+
+          {/* Performance Metrics */}
+          <div className="backdrop-blur-xl rounded-3xl p-6" style={{ background: cardBg }}>
+            <h3 className={`text-lg font-bold ${primaryText} mb-5`}>Performance Metrics</h3>
+            <div className="space-y-3">
+              {[
+                { label: 'Total Orders Served', value: stats.totalOrders, color: 'text-white' },
+                { label: 'Total Revenue', value: `?${(stats.todayRevenue * 30).toLocaleString()}`, color: 'text-green-400' },
+                { label: 'Average Order Value', value: `?${stats.avgOrderValue.toFixed(0)}`, color: 'text-blue-400' },
+                { label: 'Customer Rating', value: '4.8 ?', color: 'text-yellow-400' },
+              ].map(metric => (
+                <div key={metric.label} className={`flex items-center justify-between p-4 ${innerBgHover} rounded-2xl transition-colors`}>
+                  <span className={`text-sm ${secondaryText}`}>{metric.label}</span>
+                  <span className={`font-semibold text-sm ${metric.color}`}>{metric.value}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -2087,289 +2059,411 @@ export const StationDashboard: React.FC = () => {
     switch (currentPage) {
       case 'dashboard':
         return (
-          <div className="space-y-6">
-            {/* Top Section: Date Filter */}
-            <div className="flex items-center justify-between">
-              <select className="px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
-                <option>01 Jan - 30 Jun</option>
-                <option>Last 7 days</option>
-                <option>Last 30 days</option>
-                <option>Last 90 days</option>
-              </select>
-            </div>
+          <div className="space-y-5">
 
-            {/* Stats Grid - 4 Cards in a Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Total Users Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <Users className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-                <h3 className="text-gray-600 text-sm mb-1">Total Users</h3>
-                <div className="flex items-baseline gap-2 mb-3">
-                  <p className="text-4xl font-bold text-gray-900">{stats.todayOrders.toLocaleString()}</p>
-                </div>
-                {/* Mini Chart Placeholder */}
-                <div className="h-12 flex items-end gap-1">
-                  {[30, 50, 40, 60, 45, 70, 65].map((height, i) => (
-                    <div key={i} className="flex-1 bg-blue-200 rounded-t" style={{ height: `${height}%` }}></div>
-                  ))}
-                </div>
-              </div>
+            {/* ── ROW 1: 2×2 stat cards + Banner ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-              {/* Total Orders Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                    <Package className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-                <h3 className="text-gray-600 text-sm mb-1">Total Orders</h3>
-                <div className="flex items-baseline gap-2 mb-3">
-                  <p className="text-4xl font-bold text-gray-900">{stats.totalOrders.toLocaleString()}</p>
-                </div>
-                {/* Mini Bar Chart */}
-                <div className="h-12 flex items-end gap-1">
-                  {[40, 30, 50, 35, 45, 70, 90].map((height, i) => (
-                    <div key={i} className="flex-1 bg-orange-200 rounded-t" style={{ height: `${height}%` }}></div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Total Sales Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <BarChart3 className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-                <h3 className="text-gray-600 text-sm mb-1">Total Sales</h3>
-                <div className="flex items-baseline gap-2 mb-3">
-                  <p className="text-4xl font-bold text-gray-900">{(stats.todayRevenue * 10).toLocaleString()}</p>
-                </div>
-                {/* Mini Bar Chart */}
-                <div className="h-12 flex items-end gap-1">
-                  {[50, 60, 45, 70, 55, 65, 50].map((height, i) => (
-                    <div key={i} className="flex-1 bg-blue-200 rounded-t" style={{ height: `${height}%` }}></div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Total Pending Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-                <h3 className="text-gray-600 text-sm mb-1">Total Pending</h3>
-                <div className="flex items-baseline gap-2 mb-3">
-                  <p className="text-4xl font-bold text-gray-900">
-                    {recentOrders.filter(o => o.status === 'pending').length.toLocaleString()}
-                  </p>
-                </div>
-                {/* Mini Line Chart */}
-                <div className="h-12 flex items-end gap-1">
-                  {[60, 55, 65, 50, 70, 75, 65].map((height, i) => (
-                    <div key={i} className="flex-1 bg-green-200 rounded-t" style={{ height: `${height}%` }}></div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Section: Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Product Summary (Bar Chart) */}
-              <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900">Product Summary</h3>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Gas</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Oil</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Diesel</span>
-                    </div>
-                  </div>
-                </div>
-                {/* Bar Chart Visualization */}
-                <div className="h-64 flex items-end justify-between gap-4">
-                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((month, i) => (
-                    <div key={month} className="flex-1 flex flex-col items-center gap-2">
-                      <div className="w-full flex flex-col items-center gap-1">
-                        {/* Diesel (Gray) */}
-                        <div className="w-full bg-gray-300 rounded-t" style={{ height: `${[30, 35, 25, 40, 30, 25, 35][i]}px` }}></div>
-                        {/* Oil (Green) */}
-                        <div className="w-full bg-green-500 rounded-t" style={{ height: `${[60, 70, 80, 90, 75, 85, 80][i]}px` }}></div>
-                        {/* Gas (Blue) */}
-                        <div className="w-full bg-blue-500 rounded-t" style={{ height: `${[80, 90, 100, 110, 95, 130, 120][i]}px` }}></div>
+              {/* 2×2 stat cards */}
+              <div className="lg:col-span-2 grid grid-cols-2 gap-5">
+                {[
+                  { label: 'Today Revenue',   num: stats.todayRevenue,          pfx: '₵', badge: '+12.5%', up: true,  icon: CreditCard,    iconBg: 'bg-white/20',      iconColor: 'text-white',       cardStyle: { background: 'linear-gradient(135deg,#f97316 0%,#ea580c 60%,#c2410c 100%)', boxShadow: darkMode ? '0 8px 32px rgba(249,115,22,0.18)' : '0 8px 32px rgba(249,115,22,0.45)' }, colored: true  },
+                  { label: 'Total Revenue',   num: stats.todayRevenue * 30,     pfx: '₵', badge: '+9.47%',  up: true,  icon: TrendingUp,    iconBg: 'bg-blue-500/10',   iconColor: 'text-blue-500',    cardStyle: undefined, colored: false },
+                  { label: 'Total Orders',    num: stats.totalOrders,           pfx: '',  badge: '-3.51%',  up: false, icon: Package,       iconBg: 'bg-purple-500/10', iconColor: 'text-purple-500',  cardStyle: undefined, colored: false },
+                  { label: 'Avg Order Value', num: stats.avgOrderValue,         pfx: '₵', badge: '+9.51%',  up: true,  icon: ClipboardList, iconBg: 'bg-green-500/10',  iconColor: 'text-green-500',   cardStyle: undefined, colored: false },
+                ].map((card) => (
+                  <div key={card.label} className="rounded-2xl p-5 transition-all duration-300 hover:-translate-y-0.5"
+                    style={card.cardStyle ?? cardStyleObj}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className={`w-9 h-9 ${card.iconBg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
+                        <card.icon size={16} className={card.colored ? 'text-white' : (card.iconColor || 'text-gray-500')} />
                       </div>
-                      <span className="text-xs text-gray-500 mt-2">{month}</span>
+                      <svg className={`w-4 h-4 cursor-pointer transition-colors ${card.colored ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-orange-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
                     </div>
-                  ))}
-                </div>
+                    <p className={`text-xs font-medium mb-1 ${card.colored ? 'text-white/70' : secondaryText}`}>{card.label}</p>
+                    <p className={`text-3xl font-bold mb-2 ${card.colored ? 'text-white' : primaryText}`}><CountUp to={card.num} prefix={card.pfx} /></p>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                        card.colored
+                          ? 'bg-white/20 text-white'
+                          : card.up ? 'bg-green-500/15 text-green-600' : 'bg-red-500/15 text-red-500'
+                      }`}>
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={card.up ? 'M5 10l7-7m0 0l7 7m-7-7v18' : 'M19 14l-7 7m0 0l-7-7m7 7V3'} />
+                        </svg>
+                        {card.badge}
+                      </span>
+                      <span className={`text-xs ${card.colored ? 'text-white/60' : mutedText}`}>vs last month</span>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {/* Orders Donut Chart */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h3 className="text-xl font-bold text-gray-900 mb-6">Orders</h3>
-                {/* Donut Chart */}
-                <div className="relative w-48 h-48 mx-auto mb-6">
-                  <svg className="w-full h-full transform -rotate-90">
-                    {/* Background circle */}
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="#e5e7eb"
-                      strokeWidth="24"
-                    />
-                    {/* Completed (Blue) - 53% */}
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="24"
-                      strokeDasharray="265 502"
-                      strokeDashoffset="0"
-                    />
-                    {/* Pending (Light Blue) - 19% */}
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="#60a5fa"
-                      strokeWidth="24"
-                      strokeDasharray="95 502"
-                      strokeDashoffset="-265"
-                    />
-                    {/* In Progress (Orange) - 15% */}
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="#f97316"
-                      strokeWidth="24"
-                      strokeDasharray="75 502"
-                      strokeDashoffset="-360"
-                    />
-                    {/* Cancelled (Purple) - 13% */}
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="80"
-                      fill="none"
-                      stroke="#8b5cf6"
-                      strokeWidth="24"
-                      strokeDasharray="67 502"
-                      strokeDashoffset="-435"
-                    />
+              {/* Banner card */}
+              <div className="rounded-2xl p-5 flex flex-col justify-between overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%)', boxShadow: darkMode ? '0 12px 40px rgba(249,115,22,0.18)' : '0 12px 40px rgba(249,115,22,0.5)' }}>
+                {/* Decorative bubbles */}
+                <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-white/10 rounded-full pointer-events-none" />
+                <div className="absolute -right-4 bottom-8 w-24 h-24 bg-white/10 rounded-full pointer-events-none" />
+                <div className="absolute right-5 top-5 w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center">
+                  <svg className="w-7 h-7 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <p className="text-4xl font-bold text-gray-900">{stats.totalOrders}</p>
-                    <p className="text-sm text-gray-500">Total</p>
+                </div>
+                <div className="relative z-10">
+                  <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-1.5">Station Insights</p>
+                  <h2 className="text-white text-xl font-black leading-tight mb-1.5">Maximize Your<br />Station Revenue<br />with Smart Data</h2>
+                  <p className="text-white/65 text-xs mb-3">Track sales, agents & orders in real time.</p>
+                  <div className="flex items-center gap-2 bg-white/15 backdrop-blur rounded-xl px-3 py-1.5">
+                    <svg className="w-4 h-4 text-white/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                    </svg>
+                    <span className="text-white/50 text-xs flex-1">Search orders or analytics...</span>
+                    <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
-                {/* Legend */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Completed</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {recentOrders.filter(o => o.status === 'completed').length}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-300 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Pending</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {recentOrders.filter(o => o.status === 'pending').length}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                      <span className="text-sm text-gray-600">In Progress</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {recentOrders.filter(o => o.status === 'in_progress').length}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Cancelled</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {recentOrders.filter(o => o.status === 'cancelled').length}
-                    </span>
-                  </div>
+                <div className="flex gap-2 mt-3 relative z-10">
+                  <button onClick={() => setCurrentPage('analytics')} className="flex-1 bg-white text-orange-600 text-xs font-bold px-3 py-2 rounded-xl hover:bg-orange-50 transition-colors">Analyse Data</button>
+                  <button onClick={() => setCurrentPage('orders')} className="flex-1 bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-white/30 transition-colors">Manage Orders</button>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Section: Sales Summary Line Chart */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Sales Summary</h3>
-                <select className="px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:border-blue-500">
-                  <option>Monthly</option>
-                  <option>Weekly</option>
-                  <option>Daily</option>
-                </select>
-              </div>
-              {/* Line Chart */}
-              <div className="h-64 relative">
-                {/* Y-axis labels */}
-                <div className="absolute left-0 top-0 bottom-6 w-12 flex flex-col justify-between text-xs text-gray-400">
-                  <span>₵80</span>
-                  <span>₵60</span>
-                  <span>₵40</span>
-                  <span>₵20</span>
-                  <span>0</span>
+            {/* ── ROW 2: Sales Trends chart + Growth callout + 3 mini cards ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+              {/* Sales Trends bar chart — 3 cols */}
+              <div className="lg:col-span-3 rounded-2xl p-6" style={cardStyleObj}>
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className={`text-base font-bold ${primaryText}`}>Sales Trends</h3>
+                    <p className={`text-xs mt-0.5 ${secondaryText}`}>{trendPeriod === 'h2' ? 'July – December' : 'January – June'}</p>
+                  </div>
+                  <select
+                    value={trendPeriod}
+                    onChange={e => {
+                      setTrendPeriod(e.target.value as 'h2' | 'h1')
+                      setChartAnimated(false)
+                      setTimeout(() => setChartAnimated(true), 60)
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs focus:outline-none cursor-pointer ${
+                      darkMode ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                    <option value="h2">July – December</option>
+                    <option value="h1">Jan – June</option>
+                  </select>
                 </div>
-                {/* Chart area */}
-                <div className="ml-12 h-full flex items-end justify-between gap-8 border-b border-l border-gray-200">
-                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map((month, i) => {
-                    const heights = [40, 35, 50, 30, 85, 45];
-                    return (
-                      <div key={month} className="flex-1 flex flex-col items-center relative group">
-                        <div 
-                          className="absolute bottom-0 w-2 bg-gradient-to-t from-orange-500 to-orange-300 rounded-t-full cursor-pointer hover:from-orange-600 hover:to-orange-400 transition-all"
-                          style={{ height: `${heights[i]}%` }}
-                        >
-                          {/* Tooltip */}
-                          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-3 py-1 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            ₵{(stats.todayRevenue * (heights[i] / 10)).toFixed(0)}
+                <div className="flex gap-3">
+                  <div className={`flex flex-col justify-between text-right w-10 flex-shrink-0 pb-7 text-xs ${mutedText}`}>
+                    {['$50K','$40K','$30K','$20K','$10K','$0'].map(l => <span key={l} className="leading-none">{l}</span>)}
+                  </div>
+                  <div className="min-w-0 flex-[0_1_52%] flex flex-col">
+                    <div className="flex items-end gap-2 h-48 relative">
+                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-7">
+                        {[0,1,2,3,4,5].map(i => <div key={i} className={`w-full border-t ${darkMode ? 'border-white/5' : 'border-gray-100'}`} />)}
+                      </div>
+                      {(trendPeriod === 'h2' ? [
+                        { month: 'July',      pct: 52, delay: 0,   value: '₵21,320',  active: false },
+                        { month: 'August',    pct: 35, delay: 80,  value: '₵14,350',  active: false },
+                        { month: 'September', pct: 78, delay: 160, value: `₵${(stats.todayRevenue * 78 / 10).toLocaleString()}`, active: true  },
+                        { month: 'October',   pct: 48, delay: 240, value: '₵19,680',  active: false },
+                        { month: 'November',  pct: 62, delay: 320, value: '₵25,420',  active: false },
+                        { month: 'December',  pct: 70, delay: 400, value: '₵28,700',  active: false },
+                      ] : [
+                        { month: 'January',   pct: 45, delay: 0,   value: '₵18,450',  active: false },
+                        { month: 'February',  pct: 60, delay: 80,  value: '₵24,600',  active: false },
+                        { month: 'March',     pct: 55, delay: 160, value: '₵22,550',  active: false },
+                        { month: 'April',     pct: 40, delay: 240, value: '₵16,400',  active: false },
+                        { month: 'May',       pct: 68, delay: 320, value: '₵27,880',  active: false },
+                        { month: 'June',      pct: 58, delay: 400, value: '₵23,780',  active: true  },
+                      ]).map((bar) => (
+                        <div key={bar.month} className="flex-1 flex flex-col items-center justify-end h-full pb-7">
+                          <div className="relative flex items-end justify-center w-full h-full group">
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2.5 py-1.5 rounded-xl whitespace-nowrap pointer-events-none z-10 font-semibold shadow-lg text-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                              {bar.month}<br /><span className="text-orange-400">{bar.value}</span>
+                            </div>
+                            {/* Bar — fixed narrow width, fully rounded top */}
+                            <div className="w-7 rounded-t-2xl cursor-pointer group-hover:brightness-110" style={{
+                              height: chartAnimated ? `${bar.pct}%` : '0%',
+                              transition: `height 700ms cubic-bezier(0.34,1.2,0.64,1) ${bar.delay}ms`,
+                              background: bar.active
+                                ? 'linear-gradient(to top, #c2410c, #f97316)'
+                                : darkMode ? 'rgba(249,115,22,0.25)' : 'rgba(249,115,22,0.18)',
+                              boxShadow: bar.active ? '0 -4px 20px rgba(249,115,22,0.3)' : 'none',
+                            }} />
                           </div>
                         </div>
-                        <span className="absolute -bottom-6 text-xs text-gray-500">{month}</span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 mt-1">
+                      {(trendPeriod === 'h2'
+                        ? ['July','August','September','October','November','December']
+                        : ['January','February','March','April','May','June']
+                      ).map(m => (
+                        <div key={m} className="flex-1 text-center">
+                          <span className={`text-xs ${mutedText}`}>{m.slice(0,3)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className={`w-px self-stretch mx-1 ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`} />
+
+                  {/* Donut chart — fuel sales breakdown */}
+                  <div className="w-48 flex-shrink-0 flex flex-col items-center justify-center gap-3">
+                    <div className="relative">
+                      {/* SVG donut — r=50, circumference=314.16 */}
+                      <svg width="148" height="148" viewBox="0 0 148 148">
+                        {/* Track */}
+                        <circle cx="74" cy="74" r="50" fill="none"
+                          stroke={darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}
+                          strokeWidth="16" />
+                        {/* Petrol — 45% → 141.37 of 314.16 */}
+                        <circle cx="74" cy="74" r="50" fill="none"
+                          stroke="url(#donutOrange)" strokeWidth="16"
+                          strokeLinecap="round"
+                          transform="rotate(-90 74 74)"
+                          className="cursor-pointer hover:stroke-[20]"
+                          style={{ strokeDasharray: chartAnimated ? '141.37 314.16' : '0 314.16', strokeDashoffset: 0, transition: 'stroke-dasharray 900ms cubic-bezier(0.4,0,0.2,1) 200ms' }}
+                        />
+                        {/* Diesel — 35% → 109.96 */}
+                        <circle cx="74" cy="74" r="50" fill="none"
+                          stroke="#f59e0b" strokeWidth="16"
+                          strokeLinecap="round"
+                          strokeDashoffset="-141.37"
+                          transform="rotate(-90 74 74)"
+                          className="cursor-pointer hover:stroke-[20]"
+                          style={{ strokeDasharray: chartAnimated ? '109.96 314.16' : '0 314.16', transition: 'stroke-dasharray 900ms cubic-bezier(0.4,0,0.2,1) 450ms' }}
+                        />
+                        {/* LPG — 20% → 62.83 */}
+                        <circle cx="74" cy="74" r="50" fill="none"
+                          stroke={darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)'} strokeWidth="16"
+                          strokeLinecap="round"
+                          strokeDashoffset="-251.33"
+                          transform="rotate(-90 74 74)"
+                          className="cursor-pointer hover:stroke-[20]"
+                          style={{ strokeDasharray: chartAnimated ? '62.83 314.16' : '0 314.16', transition: 'stroke-dasharray 900ms cubic-bezier(0.4,0,0.2,1) 700ms' }}
+                        />
+                        <defs>
+                          <linearGradient id="donutOrange" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#c2410c" />
+                            <stop offset="100%" stopColor="#f97316" />
+                          </linearGradient>
+                        </defs>
+                        {/* Center label */}
+                        <text x="74" y="69" textAnchor="middle" fontSize="15" fontWeight="700"
+                          fill={darkMode ? '#ffffff' : '#111111'}>Fuel</text>
+                        <text x="74" y="85" textAnchor="middle" fontSize="11"
+                          fill={darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}>Mix</text>
+                      </svg>
+                    </div>
+                    {/* Legend */}
+                    <div className="space-y-1.5 w-full">
+                      {[
+                        { label: 'Petrol', pct: '45%', color: 'bg-orange-500' },
+                        { label: 'Diesel', pct: '35%', color: 'bg-amber-400' },
+                        { label: 'LPG',    pct: '20%', color: darkMode ? 'bg-white/20' : 'bg-gray-300' },
+                      ].map(seg => (
+                        <div key={seg.label} className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${seg.color}`} />
+                            <span className={`text-xs ${secondaryText}`}>{seg.label}</span>
+                          </div>
+                          <span className={`text-xs font-semibold ${primaryText}`}>{seg.pct}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sales Growth callout — 1 col */}
+              <div className="rounded-2xl p-6 flex flex-col justify-center" style={cardStyleObj}>
+                <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${secondaryText}`}>Sales Growth</p>
+                <p className="text-5xl font-black text-orange-500 leading-none mb-1">+<CountUp to={10} suffix="%" /></p>
+                <p className={`text-sm mb-5 ${secondaryText}`}>from previous semester</p>
+                <div className="flex items-end gap-1 h-10">
+                  {[40,65,45,80,55,90,70].map((h, i) => (
+                    <div key={i} className="flex-1 rounded-t-sm" style={{
+                      height: `${h}%`,
+                      background: i === 5 ? 'linear-gradient(to top,#c2410c,#f97316)' : darkMode ? 'rgba(249,115,22,0.25)' : 'rgba(249,115,22,0.18)',
+                    }} />
+                  ))}
+                </div>
+                <button onClick={() => setCurrentPage('analytics')} className="mt-4 text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors text-left">
+                  View Full Report →
+                </button>
+              </div>
+
+              {/* 3 mini metric cards — 1 col */}
+              <div className="flex flex-col gap-5">
+                {/* Revenue Potential */}
+                <div className="flex-1 rounded-2xl p-4" style={cardStyleObj}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className={`text-xs ${secondaryText} mb-0.5`}>Revenue Potential</p>
+                      <p className={`text-xl font-bold ${primaryText}`}><CountUp to={stats.todayRevenue * 30} prefix="₵" /></p>
+                      <p className={`text-xs ${mutedText}`}>in this month</p>
+                    </div>
+                    <div className="flex items-end gap-0.5 h-10">
+                      {[50,70,45,85,60].map((h, i) => (
+                        <div key={i} className="w-2 rounded-t-sm" style={{ height: `${h}%`, background: i === 3 ? '#f97316' : darkMode ? 'rgba(249,115,22,0.3)' : 'rgba(249,115,22,0.18)' }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Order Completion */}
+                <div className="flex-1 rounded-2xl p-4" style={cardStyleObj}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="w-3 h-3 bg-orange-500 rounded-full" />
+                        <p className={`text-xs ${secondaryText}`}>Order Completion</p>
                       </div>
-                    );
-                  })}
+                      <p className={`text-xl font-bold ${primaryText}`}><CountUp to={recentOrders.filter(o => o.status === 'completed').length} /></p>
+                      <p className={`text-xs ${mutedText}`}>orders completed</p>
+                    </div>
+                    <div className="flex items-end gap-0.5 h-10">
+                      {[60,40,80,55,90].map((h, i) => (
+                        <div key={i} className="w-2 rounded-t-sm" style={{ height: `${h}%`, background: i === 4 ? '#f97316' : darkMode ? 'rgba(249,115,22,0.3)' : 'rgba(249,115,22,0.18)' }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Pending Revenue */}
+                <div className="flex-1 rounded-2xl p-4" style={cardStyleObj}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="w-3 h-3 bg-orange-500 rounded-full" />
+                        <p className={`text-xs ${secondaryText}`}>Pending Revenue</p>
+                      </div>
+                      <p className={`text-xl font-bold ${primaryText}`}><CountUp to={recentOrders.filter(o => o.status === 'pending').length * stats.avgOrderValue} prefix="₵" /></p>
+                      <p className={`text-xs ${mutedText}`}>awaiting completion</p>
+                    </div>
+                    <svg className="w-12 h-10" viewBox="0 0 48 32" fill="none">
+                      <polyline points="0,28 8,20 16,24 24,12 32,18 40,8 48,14" stroke="#f97316" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="40" cy="8" r="3" fill="#f97316" />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* ── ROW 3: Recent Order Activities ── */}
+            {(() => {
+              const displayed = recentOrders.slice(0, 6).filter(o =>
+                activityFilter === 'All Status' ? true : o.status === activityFilter.toLowerCase().replace(' ', '_')
+              )
+              const toggleRow = (id: string) => setSelectedOrderRows(prev => {
+                const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next
+              })
+              const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+                pending:     { label: 'Pending',     bg: 'bg-yellow-500/15', text: 'text-yellow-500', dot: 'bg-yellow-500' },
+                in_progress: { label: 'In Progress', bg: 'bg-blue-500/15',   text: 'text-blue-500',   dot: 'bg-blue-500'   },
+                completed:   { label: 'Completed',   bg: 'bg-green-500/15',  text: 'text-green-600',  dot: 'bg-green-500'  },
+                cancelled:   { label: 'Cancelled',   bg: 'bg-red-500/15',    text: 'text-red-500',    dot: 'bg-red-500'    },
+              }
+              return (
+                <div className="rounded-2xl overflow-hidden" style={cardStyleObj}>
+                  <div className="flex items-center justify-between px-6 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 bg-orange-500 rounded-sm" />
+                      <h3 className={`text-base font-bold ${primaryText}`}>Recent Order Activities</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={activityFilter}
+                        onChange={e => setActivityFilter(e.target.value)}
+                        className={`px-3 py-1.5 rounded-xl text-xs focus:outline-none cursor-pointer ${
+                          darkMode ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {['All Status','Pending','In Progress','Completed','Cancelled'].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                      <button onClick={() => setCurrentPage('orders')} className={`p-1.5 rounded-xl transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}>
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mx-4 mb-4 rounded-2xl overflow-x-auto" style={{ background: tableBg }}>
+                    <table className="w-full">
+                      <thead>
+                        <tr>
+                          <th className="px-5 py-3 w-10"><div className={`w-4 h-4 rounded border ${darkMode ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-white'}`} /></th>
+                          {['Customer','Fuel Type','Amount','Status','Date'].map(h => (
+                            <th key={h} className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${mutedText}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayed.length === 0 ? (
+                          <tr><td colSpan={6} className={`px-6 py-10 text-center text-sm ${mutedText}`}>No recent orders</td></tr>
+                        ) : displayed.map((order, i) => {
+                          const cfg = statusConfig[order.status] ?? statusConfig['pending']
+                          const initials = (order.users?.name || 'U').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                          const avatarColors = ['from-orange-500 to-pink-500','from-blue-500 to-purple-500','from-green-500 to-teal-500','from-yellow-500 to-orange-500','from-purple-500 to-indigo-500','from-red-500 to-orange-500']
+                          const avatarUrl = order.users?.avatar_url
+                          const date = new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                          const isSelected = selectedOrderRows.has(order.id)
+                          return (
+                            <tr key={order.id} onClick={() => toggleRow(order.id)}
+                              className={`transition-colors cursor-pointer ${
+                                isSelected
+                                  ? 'bg-orange-500/10'
+                                  : darkMode ? 'hover:bg-white/5' : 'hover:bg-orange-50/50'
+                              }`}
+                            >
+                              <td className="px-5 py-3.5">
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-all ${
+                                  isSelected ? 'bg-orange-500 border-orange-500' : darkMode ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-white'
+                                }`}>
+                                  {isSelected && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  {avatarUrl ? (
+                                    <img src={avatarUrl} alt={initials} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display='none'; (e.currentTarget.nextElementSibling as HTMLElement).style.display='flex' }} />
+                                  ) : null}
+                                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColors[i % avatarColors.length]} items-center justify-center text-white text-xs font-bold flex-shrink-0 ${avatarUrl ? 'hidden' : 'flex'}`}>{initials}</div>
+                                  <div>
+                                    <p className={`text-sm font-medium leading-tight ${primaryText}`}>{order.users?.name || 'Unknown'}</p>
+                                    <p className={`text-xs ${mutedText}`}>{order.users?.phone || '—'}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3.5"><span className={`text-sm capitalize ${secondaryText}`}>{order.fuel_type || order.service_type?.replace('_',' ') || '—'}</span></td>
+                              <td className="px-4 py-3.5"><span className={`text-sm font-semibold ${primaryText}`}>₵{order.total_amount?.toFixed(2) || '0.00'}</span></td>
+                              <td className="px-4 py-3.5">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />{cfg.label}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5"><span className={`text-sm ${secondaryText}`}>{date}</span></td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })()}
+
           </div>
         )
-        
+
       case 'orders':
         return renderOrdersPage()
         
@@ -2390,11 +2484,11 @@ export const StationDashboard: React.FC = () => {
         
       default:
         return (
-          <div className="flex items-center justify-center h-64 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl">
-            <div className="text-center text-white">
+          <div className="flex items-center justify-center h-64 backdrop-blur-xl rounded-2xl" style={cardStyleObj}>
+            <div className={`text-center ${primaryText}`}>
               <div className="text-4xl mb-4">🚧</div>
-              <h3 className="text-xl font-semibold mb-2">Page Under Construction</h3>
-              <p className="text-gray-300">This page is being built with amazing features!</p>
+              <h3 className={`text-xl font-semibold mb-2 ${primaryText}`}>Page Under Construction</h3>
+              <p className={secondaryText}>This page is being built with amazing features!</p>
             </div>
           </div>
         )
@@ -2474,8 +2568,32 @@ export const StationDashboard: React.FC = () => {
     )
   }
 
+  const cardBg = darkMode ? '#1f1f1f' : '#ffffff'
+  const rootBg = darkMode ? '#111111' : '#f0f2f5'
+  const sidebarBg = darkMode ? '#161616' : '#ffffff'
+  const headerBg = darkMode ? 'rgba(31,31,31,0.95)' : 'rgba(255,255,255,0.95)'
+  const primaryText = darkMode ? 'text-white' : 'text-gray-900'
+  const secondaryText = darkMode ? 'text-gray-400' : 'text-gray-500'
+  const mutedText = darkMode ? 'text-gray-500' : 'text-gray-400'
+  const cardStyleObj: React.CSSProperties = darkMode ? { background: cardBg } : { background: '#ffffff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }
+  const tableBg = darkMode ? '#111111' : '#f8f9fa'
+  const navItemActive = darkMode ? 'bg-white/10 backdrop-blur-xl' : 'bg-orange-50'
+  const navItemInactive = darkMode ? 'hover:bg-white/5 text-gray-400 hover:text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+  const navIconInactiveBg = darkMode ? 'bg-white/5' : 'bg-gray-100'
+  const navIconInactiveColor = darkMode ? 'text-white' : 'text-gray-500'
+  const navLabelActive = darkMode ? 'text-white' : 'text-gray-900'
+  const hoverBg = darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'
+  const bottomBtnBg = darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-100 hover:bg-gray-200'
+  const bottomBtnIconBg = darkMode ? 'bg-white/10' : 'bg-gray-200'
+  const toggleLabelColor = darkMode ? 'text-gray-300 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900'
+  const innerBg = darkMode ? 'bg-white/5' : 'bg-gray-100'
+  const innerBgHover = darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100'
+  const inputCls = darkMode ? 'bg-white/5 text-white placeholder-gray-500 focus:bg-white/10' : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:bg-gray-200'
+  const selectCls = darkMode ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-700'
+  const progressTrack = darkMode ? 'bg-white/10' : 'bg-gray-200'
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen text-white" style={{ background: rootBg, userSelect: isResizing ? 'none' : 'auto' }}>
       <style>{`
         @keyframes slideInUp {
           from {
@@ -2516,221 +2634,378 @@ export const StationDashboard: React.FC = () => {
         
         @keyframes pulse-glow {
           0%, 100% {
-            box-shadow: 0 0 5px rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 5px rgba(249, 115, 22, 0.5);
           }
           50% {
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.8), 0 0 30px rgba(99, 102, 241, 0.6);
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 30px rgba(249, 115, 22, 0.6);
           }
         }
       `}</style>
 
-      <div className="flex">
-        {/* Sidebar */}
+      <div className="flex h-screen overflow-hidden">
+        {/* Vision UI Sidebar - Fixed */}
         <div 
-          className="bg-gray-900 min-h-screen flex flex-col relative"
+          className="hidden md:flex flex-col h-[calc(100vh-2rem)] relative rounded-3xl m-4 flex-shrink-0 overflow-hidden"
           style={{ 
             width: sidebarCollapsed ? '80px' : `${sidebarWidth}px`,
-            transition: isResizing ? 'none' : 'width 300ms'
+            transition: isResizing ? 'none' : 'width 300ms',
+            background: sidebarBg
           }}
         >
           {/* Resize Handle */}
           {!sidebarCollapsed && (
             <div
               onMouseDown={startResizing}
-              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/50 transition-colors group"
+              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-orange-500/50 transition-colors group z-50"
             >
-              <div className="absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-1 h-12 bg-blue-500/0 group-hover:bg-blue-500 rounded-full transition-all" />
+              <div className="absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-1 h-12 bg-purple-500/0 group-hover:bg-orange-500 rounded-full transition-all" />
             </div>
           )}
-          {/* Logo */}
-          <div className="p-6 border-b border-gray-800">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
-                {stationData?.image_url ? (
-                  <img 
-                    src={stationData.image_url} 
-                    alt={stationData.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
-                )}
+
+          {/* Logo with gradient line - Fixed at top */}
+          <div className={`${sidebarCollapsed ? 'px-3' : 'px-6'} py-6 pb-4 flex-shrink-0`}>
+            <div className={`flex items-center mb-4 ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+              <div className={`${sidebarCollapsed ? 'w-10 h-10' : 'w-10 h-10'} flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300`}>
+                <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
               </div>
               {!sidebarCollapsed && (
                 <div>
-                  <h1 className="text-xl font-bold text-white">{stationData?.name || 'FillUp'}</h1>
-                  <p className="text-gray-400 text-xs">Station</p>
+                  <h1 className={`text-sm font-semibold ${primaryText} tracking-wider`}>
+                    FILL UP
+                  </h1>
+                  <p className={`${secondaryText} text-xs`}>Station</p>
                 </div>
               )}
             </div>
+            {/* Gradient separator line */}
+            <div 
+              className="h-px w-full"
+              style={{
+                background: 'linear-gradient(90deg, rgba(224, 225, 226, 0) 0%, rgb(224, 225, 226) 49.52%, rgba(224, 225, 226, 0) 100%)'
+              }}
+            />
           </div>
 
-          {/* Main Menu Label */}
-          {!sidebarCollapsed && (
-            <div className="px-6 py-4">
-              <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold">Main Menu</p>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <nav className="flex-1 px-3">
+          {/* Navigation - Scrollable */}
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2 pb-4">
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.id}>
                   <button
                     onClick={() => setCurrentPage(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                    className={`w-full flex items-center p-3 rounded-2xl transition-all duration-200 ${sidebarCollapsed ? 'justify-center' : 'gap-3'} ${
                       currentPage === item.id
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                        ? navItemActive
+                        : navItemInactive
                     }`}
                   >
-                    <item.icon size={20} />
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      currentPage === item.id
+                        ? 'bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/50'
+                        : navIconInactiveBg
+                    }`}>
+                      <item.icon size={18} className={currentPage === item.id ? 'text-white' : navIconInactiveColor} />
+                    </div>
                     {!sidebarCollapsed && (
-                      <span className="font-medium text-sm">{item.label}</span>
+                      <span className={`font-medium text-sm ${
+                        currentPage === item.id ? navLabelActive : 'text-gray-400'
+                      }`}>
+                        {item.label}
+                      </span>
                     )}
                   </button>
                 </li>
               ))}
             </ul>
+
+            {/* Help Card */}
+            {!sidebarCollapsed && (
+              <div className="mt-4 mb-6">
+                <div 
+                  className="rounded-3xl p-5 relative overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
+                  }}
+                >
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-3">
+                      <Settings size={24} className="text-white" />
+                    </div>
+                    <h3 className="text-white font-bold text-sm mb-1">Need help?</h3>
+                    <p className="text-white/80 text-xs mb-4">Please check our docs</p>
+                    <button className="w-full bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white text-xs font-semibold py-2 px-4 rounded-xl transition-all">
+                      DOCUMENTATION
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </nav>
 
-          {/* Preference Section */}
-          {!sidebarCollapsed && (
-            <div className="px-6 py-4 border-t border-gray-800">
-              <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-4">Preference</p>
-              <ul className="space-y-1">
-                <li>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-800 hover:text-white transition-all duration-300">
-                    <Settings size={20} />
-                    <span className="font-medium text-sm">Settings</span>
-                  </button>
-                </li>
-                <li>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-800 hover:text-white transition-all duration-300">
-                    <Activity size={20} />
-                    <span className="font-medium text-sm">Help</span>
-                  </button>
-                </li>
-              </ul>
+          {/* Dark Mode Toggle + Logout - Fixed at bottom */}
+          {!sidebarCollapsed ? (
+            <div className="px-4 pb-6 flex-shrink-0 space-y-3">
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                title={darkMode ? 'Switch to blue theme' : 'Switch to dark mode'}
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-transparent ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-all group`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-xl ${bottomBtnIconBg} flex items-center justify-center flex-shrink-0`}>
+                    {darkMode ? (
+                      <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.166 17.834a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.166 6.166a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591z" />
+                      </svg>
+                    ) : (
+                      <svg className={`w-4 h-4 ${navIconInactiveColor}`} fill="currentColor" viewBox="0 0 24 24">
+                        <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`text-sm font-medium ${toggleLabelColor} transition-colors`}>
+                    {darkMode ? 'Light Mode' : 'Dark Mode'}
+                  </span>
+                </div>
+                {/* Toggle pill */}
+                <div className={`w-10 h-5 rounded-full transition-all duration-300 relative flex-shrink-0 ${
+                  darkMode ? 'bg-orange-500' : 'bg-white/20'
+                }`}>
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${
+                    darkMode ? 'left-5' : 'left-0.5'
+                  }`} />
+                </div>
+              </button>
+              <button
+                onClick={async () => {
+                  if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) {
+                    handleSignOut()
+                  }
+                }}
+                disabled={isSigningOut}
+                className={`w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:transform hover:scale-105 flex items-center justify-center gap-2 ${
+                  isSigningOut ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                style={{
+                  background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  boxShadow: '0 4px 20px rgba(249, 115, 22, 0.4)'
+                }}
+              >
+                {isSigningOut ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Signing Out...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut size={18} />
+                    <span>Log Out</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 flex-shrink-0 space-y-2">
+              {/* Dark Mode icon-only */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                title={darkMode ? 'Switch to blue theme' : 'Switch to dark mode'}
+                className={`w-full p-3 bg-transparent ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'} rounded-xl transition-all flex items-center justify-center`}
+              >
+                {darkMode ? (
+                  <svg className="w-5 h-5 text-yellow-300" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.166 17.834a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.166 6.166a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591z" />
+                  </svg>
+                ) : (
+                  <svg className={`w-5 h-5 ${navIconInactiveColor}`} fill="currentColor" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={async () => {
+                  if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) {
+                    handleSignOut()
+                  }
+                }}
+                className={`w-full p-3 ${bottomBtnBg} rounded-xl transition-all`}
+                title="Log Out"
+              >
+                <LogOut size={20} className="text-gray-400 mx-auto" />
+              </button>
             </div>
           )}
+        </div>
 
-          {/* User Profile */}
-          <div className="p-4 border-t border-gray-800">
+        {/* Mobile Sidebar — backdrop */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+        )}
+        {/* Mobile Sidebar — drawer */}
+        <div
+          className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 flex flex-col overflow-hidden transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          style={{ background: sidebarBg }}
+        >
+          <div className="px-5 py-5 pb-4 flex-shrink-0">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
+                </div>
+                <div>
+                  <h1 className={`text-sm font-semibold ${primaryText} tracking-wider`}>FILL UP</h1>
+                  <p className={`${secondaryText} text-xs`}>Station</p>
+                </div>
+              </div>
+              <button onClick={() => setMobileMenuOpen(false)} className={`p-2 ${hoverBg} rounded-xl transition-colors`}>
+                <X size={18} className="text-gray-400" />
+              </button>
+            </div>
+            <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, rgba(224,225,226,0) 0%, rgb(224,225,226) 49.52%, rgba(224,225,226,0) 100%)' }} />
+          </div>
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2">
+            <ul className="space-y-1">
+              {menuItems.map((item) => (
+                <li key={item.id}>
+                  <button
+                    onClick={() => { setCurrentPage(item.id); setMobileMenuOpen(false) }}
+                    className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 ${currentPage === item.id ? navItemActive : navItemInactive}`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${currentPage === item.id ? 'bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/50' : navIconInactiveBg}`}>
+                      <item.icon size={18} className={currentPage === item.id ? 'text-white' : navIconInactiveColor} />
+                    </div>
+                    <span className={`font-medium text-sm ${currentPage === item.id ? navLabelActive : 'text-gray-400'}`}>{item.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="px-4 pb-6 flex-shrink-0 space-y-3">
             <button
-              onClick={() => {
-
-                if (window.confirm('Are you sure you want to sign out?')) {
-
-                  handleSignOut()
-                }
-              }}
-              disabled={isSigningOut}
-              className={`w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 hover:text-white text-sm font-medium transition-all duration-300 ${
-                isSigningOut ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              onClick={() => setDarkMode(!darkMode)}
+              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-transparent ${darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'} transition-all`}
             >
-              {isSigningOut ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                  <span>Signing Out...</span>
-                </>
-              ) : (
-                <>
-                  <LogOut className="h-4 w-4" />
-                  {!sidebarCollapsed && <span>Log Out</span>}
-                </>
-              )}
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-xl ${bottomBtnIconBg} flex items-center justify-center flex-shrink-0`}>
+                  {darkMode
+                    ? <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.166 17.834a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.166 6.166a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591z" /></svg>
+                    : <svg className={`w-4 h-4 ${navIconInactiveColor}`} fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" /></svg>
+                  }
+                </div>
+                <span className={`text-sm font-medium ${toggleLabelColor}`}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              </div>
+              <div className={`w-10 h-5 rounded-full transition-all duration-300 relative flex-shrink-0 ${darkMode ? 'bg-orange-500' : 'bg-white/20'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${darkMode ? 'left-5' : 'left-0.5'}`} />
+              </div>
+            </button>
+            <button
+              onClick={async () => { if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) { handleSignOut() } }}
+              disabled={isSigningOut}
+              className="w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:scale-105 flex items-center justify-center gap-2"
+              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', boxShadow: '0 4px 20px rgba(249,115,22,0.4)' }}
+            >
+              <LogOut size={18} />
+              <span>{isSigningOut ? 'Signing Out...' : 'Log Out'}</span>
             </button>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <header className="bg-white border-b border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-                >
-                  <Menu size={20} />
-                </button>
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search orders, transaction etc..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  />
+        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide">
+          {/* Header - Vision UI Style */}
+          <header className="sticky top-0 z-40 p-4">
+            <div
+              className="px-6 py-4 backdrop-blur-2xl rounded-3xl"
+              style={{ background: headerBg }}
+            >
+              <div className="flex items-center justify-between">
+                {/* Left - Toggle + Breadcrumb */}
+                <div className="flex items-center gap-3">
+                  {/* Mobile hamburger */}
+                  <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    className={`md:hidden p-2 ${hoverBg} rounded-xl transition-colors`}
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                  {/* Desktop collapse toggle */}
+                  <button
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    className={`hidden md:flex p-2 ${hoverBg} rounded-xl transition-colors`}
+                    title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    <ChevronRight size={18} className={`text-gray-400 transition-transform duration-300 ${sidebarCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
+                  <div>
+                    <div className={`flex items-center gap-2 ${secondaryText} text-xs mb-1`}>
+                      <Home size={12} />
+                      <span>/</span>
+                      <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
+                    </div>
+                    <h2 className={`text-lg font-bold ${primaryText}`}>
+                      {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
+                    </h2>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-4">
-                {/* New Order Button */}
-                <button className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-orange-500/30">
-                  <Plus size={20} />
-                  New Order
-                </button>
-
-                {/* Notifications */}
-                <div className="relative">
-                  <button className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                    <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
-                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* Right - Search + Actions */}
+                <div className="flex items-center gap-3">
+                  <div className="relative hidden md:block">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
+                    <input
+                      type="text"
+                      placeholder={currentPage === 'orders' ? 'Search by ID, customer, address...' : currentPage === 'agents' ? 'Search agents...' : currentPage === 'inventory' ? 'Search inventory...' : 'Search...'}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`w-56 pl-9 pr-3 py-2 text-sm rounded-lg focus:outline-none transition-colors ${darkMode ? 'bg-white/5 text-white placeholder-gray-500 focus:bg-white/10' : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:bg-gray-200'}`}
+                    />
+                  </div>
+                  <button className={`relative p-2 ${hoverBg} rounded-xl transition-colors`}>
+                    <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                   </button>
-                </div>
-
-                {/* Profile Dropdown */}
-                <div className="relative group">
-                  <button className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                    <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center font-semibold text-white">
-                      {stationData?.name?.charAt(0) || 'S'}
-                    </div>
-                    <ChevronDown size={16} className="text-gray-400" />
-                  </button>
-                  
-                  {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <div className="p-4 border-b border-gray-100">
-                      <p className="font-semibold text-gray-900">{stationData?.name || 'Station'}</p>
-                      <p className="text-sm text-gray-500">{user?.email || 'Station Partner'}</p>
-                    </div>
-                    <div className="p-2">
-                      <button 
-                        onClick={() => setCurrentPage('profile')}
-                        className="w-full flex items-center gap-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                      >
-                        <User size={16} />
-                        <span className="text-sm">Profile</span>
-                      </button>
-                      <button 
-                        onClick={() => setCurrentPage('profile')}
-                        className="w-full flex items-center gap-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                      >
-                        <Settings size={16} />
-                        <span className="text-sm">Settings</span>
-                      </button>
-                    </div>
-                    <div className="p-2 border-t border-gray-100">
-                      <button
-                        onClick={() => {
-                          if (window.confirm('Are you sure you want to sign out?')) {
-                            handleSignOut()
-                          }
-                        }}
-                        disabled={isSigningOut}
-                        className="w-full flex items-center gap-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <LogOut size={16} />
-                        <span className="text-sm">{isSigningOut ? 'Signing out...' : 'Sign Out'}</span>
-                      </button>
+                  <div className="relative group">
+                    <button className={`flex items-center gap-2.5 px-2 py-1.5 ${hoverBg} rounded-2xl transition-colors`}>
+                      {/* Avatar */}
+                      <div className="relative flex-shrink-0">
+                        {stationData?.image_url ? (
+                          <img src={stationData.image_url} alt={stationData.name} className="w-9 h-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center font-bold text-white text-sm">
+                            {stationData?.name?.charAt(0) || 'S'}
+                          </div>
+                        )}
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2" style={{ borderColor: headerBg }} />
+                      </div>
+                      {/* Name + role */}
+                      <div className="text-left hidden sm:block">
+                        <p className={`text-sm font-semibold leading-tight ${primaryText}`}>{stationData?.name || 'Station'}</p>
+                        <p className={`text-xs ${secondaryText}`}>Admin Store</p>
+                      </div>
+                      <ChevronDown size={14} className={`${secondaryText} hidden sm:block`} />
+                    </button>
+                    <div className="absolute right-0 mt-2 w-56 backdrop-blur-2xl rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden shadow-xl" style={{ background: darkMode ? 'rgba(22,22,22,0.97)' : 'rgba(255,255,255,0.97)', boxShadow: darkMode ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.12)' }}>
+                      <div className={`p-4 border-b ${darkMode ? 'border-white/10' : 'border-gray-100'}`}>
+                        <p className={`font-semibold text-sm ${primaryText}`}>{stationData?.name || 'Station'}</p>
+                        <p className={`text-xs mt-0.5 ${secondaryText}`}>{user?.email || 'Station Partner'}</p>
+                      </div>
+                      <div className="p-2">
+                        <button onClick={() => setCurrentPage('profile')} className={`w-full flex items-center gap-3 px-3 py-2 text-left ${secondaryText} ${hoverBg} rounded-xl transition-colors text-sm`}>
+                          <User size={14} /><span>Profile</span>
+                        </button>
+                        <button onClick={() => setCurrentPage('profile')} className={`w-full flex items-center gap-3 px-3 py-2 text-left ${secondaryText} ${hoverBg} rounded-xl transition-colors text-sm`}>
+                          <Settings size={14} /><span>Settings</span>
+                        </button>
+                      </div>
+                      <div className={`p-2 border-t ${darkMode ? 'border-white/10' : 'border-gray-100'}`}>
+                        <button onClick={async () => { if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) { handleSignOut() } }} disabled={isSigningOut} className="w-full flex items-center gap-3 px-3 py-2 text-left text-red-400 hover:bg-red-500/10 rounded-xl transition-colors text-sm">
+                          <LogOut size={14} /><span>{isSigningOut ? 'Signing out...' : 'Sign Out'}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2739,24 +3014,43 @@ export const StationDashboard: React.FC = () => {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-6 overflow-y-auto">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
-              </h2>
-              <p className="text-gray-500 text-sm mt-1">
-                Sort by: <button className="text-blue-600 hover:underline">01 Jan - 30 Jun</button>
-              </p>
-            </div>
+          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6 overflow-y-auto">
             {renderPage()}
           </main>
         </div>
       </div>
 
+      {/* Mobile Bottom Navigation */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30"
+        style={{ background: sidebarBg, borderTop: darkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.07)' }}
+      >
+        <div className="flex items-center justify-around px-2 py-1">
+          {menuItems.slice(0, 5).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setCurrentPage(item.id)}
+              className="flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all"
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                currentPage === item.id
+                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/30'
+                  : navIconInactiveBg
+              }`}>
+                <item.icon size={17} className={currentPage === item.id ? 'text-white' : navIconInactiveColor} />
+              </div>
+              <span className={`text-[10px] font-medium leading-none ${
+                currentPage === item.id ? 'text-orange-500' : 'text-gray-400'
+              }`}>{item.label.split(' ')[0]}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {/* Order Details Modal */}
       {showOrderDetails && selectedOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-3xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl animate-slideUp scrollbar-hide">
+          <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-3xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl animate-slideUp scrollbar-hide">
             <style dangerouslySetInnerHTML={{
               __html: `.scrollbar-hide::-webkit-scrollbar { display: none; }
                        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`
@@ -2780,7 +3074,7 @@ export const StationDashboard: React.FC = () => {
               {/* Left Column */}
               <div className="space-y-6">
                 {/* Order ID & Status */}
-                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 transition-all duration-300">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-gray-400 text-sm mb-1">Order ID</p>
@@ -2791,9 +3085,9 @@ export const StationDashboard: React.FC = () => {
                 </div>
 
                 {/* Customer Information */}
-                <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-blue-500/30 transition-all duration-300">
+                <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 backdrop-blur-lg rounded-2xl p-6 hover:border-orange-500/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
                       <User className="h-6 w-6 text-white" />
                     </div>
                     <h4 className="text-white font-semibold text-lg">Customer Information</h4>
@@ -2811,7 +3105,7 @@ export const StationDashboard: React.FC = () => {
                 </div>
 
                 {/* Service Details */}
-                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-green-500/30 transition-all duration-300">
+                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-lg rounded-2xl p-6 hover:border-green-500/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
                       <Fuel className="h-6 w-6 text-white" />
@@ -2845,7 +3139,7 @@ export const StationDashboard: React.FC = () => {
                 </div>
 
                 {/* Delivery Information */}
-                <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-orange-500/30 transition-all duration-300">
+                <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-lg rounded-2xl p-6 hover:border-orange-500/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
                       <MapPin className="h-6 w-6 text-white" />
@@ -2871,7 +3165,7 @@ export const StationDashboard: React.FC = () => {
               <div className="space-y-6">
                 {/* Agent Information */}
                 {selectedOrder.agents?.users && (
-                  <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300">
+                  <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-lg rounded-2xl p-6 hover:border-purple-500/30 transition-all duration-300">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
                         <Users className="h-6 w-6 text-white" />
@@ -2892,7 +3186,7 @@ export const StationDashboard: React.FC = () => {
                 )}
 
                 {/* Payment Information */}
-                <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-emerald-500/30 transition-all duration-300">
+                <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 backdrop-blur-lg rounded-2xl p-6 hover:border-emerald-500/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
                       <DollarSign className="h-6 w-6 text-white" />
@@ -2902,21 +3196,21 @@ export const StationDashboard: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
                       <span className="text-gray-400 text-sm">Platform Fee</span>
-                      <span className="text-white font-medium">₵{selectedOrder.platform_fee?.toFixed(2) || '0.00'}</span>
+                      <span className="text-white font-medium">?{selectedOrder.platform_fee?.toFixed(2) || '0.00'}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
                       <span className="text-gray-400 text-sm">Agent Fee</span>
-                      <span className="text-white font-medium">₵{selectedOrder.agent_fee?.toFixed(2) || '0.00'}</span>
+                      <span className="text-white font-medium">?{selectedOrder.agent_fee?.toFixed(2) || '0.00'}</span>
                     </div>
                     <div className="flex justify-between items-center p-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-lg border border-emerald-500/30">
                       <span className="text-emerald-400 font-semibold">Total Amount</span>
-                      <span className="text-white font-bold text-2xl">₵{selectedOrder.total_amount.toFixed(2)}</span>
+                      <span className="text-white font-bold text-2xl">?{selectedOrder.total_amount.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Timeline */}
-                <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-indigo-500/30 transition-all duration-300">
+                <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 backdrop-blur-lg rounded-2xl p-6 hover:border-indigo-500/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center">
                       <Clock className="h-6 w-6 text-white" />
@@ -2997,7 +3291,7 @@ export const StationDashboard: React.FC = () => {
                       className="max-w-full max-h-full object-contain"
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-500 to-blue-700">
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-orange-500 to-orange-700">
                       <Camera className="h-12 w-12 text-white opacity-50 mb-2" />
                       <p className="text-white text-sm">No image uploaded</p>
                     </div>
@@ -3107,7 +3401,7 @@ export const StationDashboard: React.FC = () => {
                 {!stationData?.location?.coordinates && !editingLocation && (
                   <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-800">
-                      ⚠️ No GPS location set. Click "Set Location" to add your station's coordinates.
+                      ?? No GPS location set. Click "Set Location" to add your station's coordinates.
                     </p>
                   </div>
                 )}
@@ -3208,3 +3502,4 @@ export const StationDashboard: React.FC = () => {
     </div>
   )
 }
+

@@ -38,6 +38,8 @@ import {
 import { MapPin, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import toast from '../../lib/toast'
+import { showConfirm } from '../../lib/confirm'
 import { useNavigate } from 'react-router-dom'
 import loaderGif from '../../assets/lodaer.gif'
 import { getCache, setCache } from '../../lib/cache'
@@ -124,14 +126,14 @@ export const AgentDashboard: React.FC = () => {
         if (error && error.code !== 'PGRST116') {
           // Error other than "no rows returned"
           console.error('Error checking agent approval:', error)
-          alert('Error checking approval status. Please contact support.')
+          toast.error('Error checking approval status. Please contact support.')
           navigate('/landing')
           return
         }
         
         if (!agentData || !agentData.is_verified) {
           // Agent not approved yet
-          alert('Your agent application is still pending admin approval. You will be notified once approved.')
+          toast.warning('Your agent application is still pending admin approval. You will be notified once approved.')
           navigate('/landing')
           return
         }
@@ -139,7 +141,7 @@ export const AgentDashboard: React.FC = () => {
         console.log('Agent approved, loading dashboard...')
       } catch (err) {
         console.error('Error in approval check:', err)
-        alert('Error checking approval status. Please contact support.')
+        toast.error('Error checking approval status. Please contact support.')
         navigate('/landing')
       }
     }
@@ -655,7 +657,7 @@ export const AgentDashboard: React.FC = () => {
       setIsSigningOut(false)
       
       // Show user-friendly error message
-      alert('Sign out failed. Redirecting to login page...')
+      toast.error('Sign out failed. Redirecting to login page...')
       
       // Force redirect even on error (better UX than staying logged in with errors)
       setTimeout(() => {
@@ -671,10 +673,10 @@ export const AgentDashboard: React.FC = () => {
     try {
       // In a real app, this would submit to your support system
       await new Promise(resolve => setTimeout(resolve, 1000))
-      alert('Support request submitted successfully! We\'ll get back to you within 24 hours.')
+      toast.success('Support request submitted! We\'ll get back to you within 24 hours.')
       setSupportForm({ subject: '', message: '', priority: 'medium' })
     } catch (error) {
-      alert('Failed to submit support request. Please try again.')
+      toast.error('Failed to submit support request. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -697,14 +699,14 @@ export const AgentDashboard: React.FC = () => {
       setIsAvailable(newStatus)
     } catch (error) {
       console.error('Error updating availability:', error)
-      alert('Failed to update availability. Please try again.')
+      toast.error('Failed to update availability. Please try again.')
     }
   }
 
   const acceptOrder = async (orderId: string) => {
     if (!agentData) {
       console.error('❌ No agent data available')
-      alert('Agent data not loaded. Please refresh the page.')
+      toast.error('Agent data not loaded. Please refresh the page.')
       return
     }
 
@@ -718,18 +720,18 @@ export const AgentDashboard: React.FC = () => {
         
       if (checkError) {
         console.error('❌ Error checking order:', checkError)
-        alert('Failed to check order status. Please try again.')
+        toast.error('Failed to check order status. Please try again.')
         return
       }
         
       if (!currentOrder) {
         console.error('❌ Order not found')
-        alert('This order is no longer available')
+        toast.error('This order is no longer available')
         return
       }
       
       if (currentOrder.agent_id !== null) {
-        alert('This order has already been assigned to another agent')
+        toast.error('This order has already been assigned to another agent')
         refreshData() // Refresh to get updated data
         return
       }
@@ -743,13 +745,13 @@ export const AgentDashboard: React.FC = () => {
       
       if (verifyError || !verifyOrder) {
         console.error('❌ Order not found during verification:', verifyError)
-        alert('Order not found. It may have been removed or assigned to another agent.')
+        toast.error('Order not found. It may have been removed or assigned to another agent.')
         refreshData()
         return
       }
       
       if (verifyOrder.agent_id !== null) {
-        alert('This order has already been assigned to another agent during verification')
+        toast.error('This order has already been assigned to another agent during verification')
         refreshData()
         return
       }
@@ -777,7 +779,7 @@ export const AgentDashboard: React.FC = () => {
           .single()
         
         if (postUpdateCheck && postUpdateCheck.agent_id !== null) {
-          alert('This order was just assigned to another agent. Please try a different order.')
+          toast.error('This order was just assigned to another agent. Please try a different order.')
           refreshData()
           return
         } else {
@@ -789,11 +791,11 @@ export const AgentDashboard: React.FC = () => {
             .select()
           
           if (testError) {
-            alert(`Database permission error: ${testError.message}`)
+            toast.error(`Database permission error: ${testError.message}`)
             return
           } else if (!testUpdate || testUpdate.length === 0) {
             const { data: currentUser } = await supabase.auth.getUser()
-            alert('Database update blocked - this might be a Row Level Security policy issue. Check your database permissions.')
+            toast.error('Database update blocked - this might be a Row Level Security policy issue. Check your database permissions.')
             return
           }
         }
@@ -802,18 +804,18 @@ export const AgentDashboard: React.FC = () => {
       if (error) {
         console.error('❌ Error accepting order:', error)
         console.error('❌ Error details:', JSON.stringify(error, null, 2))
-        alert(`Failed to accept order: ${error.message}`)
+        toast.error(`Failed to accept order: ${error.message}`)
         return
       }
 
       if (!updateResult || updateResult.length === 0) {
         console.error('❌ No rows were updated')
-        alert('Failed to accept order - no changes made')
+        toast.error('Failed to accept order - no changes made')
         return
       }
       
       // Show success message
-      alert('Order accepted successfully! You can view it in "My Jobs".')
+      toast.success('Order accepted! You can view it in "My Jobs".')
       
       // Close modal if open
       setShowOrderModal(false)
@@ -843,7 +845,7 @@ export const AgentDashboard: React.FC = () => {
       }, 2000)
     } catch (error) {
       console.error('Error accepting order:', error)
-      alert('Failed to accept order. Please try again.')
+      toast.error('Failed to accept order. Please try again.')
     }
   }
 
@@ -874,7 +876,7 @@ export const AgentDashboard: React.FC = () => {
       
       // Show success message
       if (status === 'completed') {
-        alert('🎉 Job completed successfully! Payment will be processed.')
+        toast.success('Job completed successfully! Payment will be processed.')
       }
       
       // Light refresh after 2 seconds for consistency
@@ -883,7 +885,7 @@ export const AgentDashboard: React.FC = () => {
       }, 2000)
     } catch (error) {
       console.error('❌ Error updating order status:', error)
-      alert('Failed to update order status. Please try again.')
+      toast.error('Failed to update order status. Please try again.')
     }
   }
 
@@ -911,10 +913,10 @@ export const AgentDashboard: React.FC = () => {
           : order
       ))
 
-      alert('Delivery started! Navigate to the customer location.')
+      toast.success('Delivery started! Navigate to the customer location.')
     } catch (error) {
       console.error('Error starting delivery:', error)
-      alert('Failed to start delivery. Please try again.')
+      toast.error('Failed to start delivery. Please try again.')
     }
   }
 
@@ -937,12 +939,12 @@ export const AgentDashboard: React.FC = () => {
           : order
       ))
 
-      alert('Delivery completed successfully! Payment will be processed.')
+      toast.success('Delivery completed! Payment will be processed.')
       setShowOrderModal(false)
       setSelectedOrderDetails(null)
     } catch (error) {
       console.error('Error completing delivery:', error)
-      alert('Failed to complete delivery. Please try again.')
+      toast.error('Failed to complete delivery. Please try again.')
     }
   }
 
@@ -950,7 +952,7 @@ export const AgentDashboard: React.FC = () => {
     if (phoneNumber) {
       window.location.href = `tel:${phoneNumber}`
     } else {
-      alert('Customer phone number not available')
+      toast.error('Customer phone number not available')
     }
   }
 
@@ -1021,7 +1023,7 @@ export const AgentDashboard: React.FC = () => {
         window.location.href = selectedOption.url
       }
     } else {
-      alert('Delivery address not available')
+      toast.error('Delivery address not available')
     }
   }
 
@@ -2330,8 +2332,8 @@ export const AgentDashboard: React.FC = () => {
 
               {/* Sign Out Button */}
               <button
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to sign out?')) {
+                onClick={async () => {
+                  if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) {
                     handleSignOut()
                   }
                 }}
@@ -2769,7 +2771,7 @@ export const AgentDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen text-white" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+    <div className="min-h-screen text-white" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)', userSelect: isResizing ? 'none' : 'auto' }}>
       <style>{`
         @keyframes slideInUp {
           from {
@@ -2859,23 +2861,35 @@ export const AgentDashboard: React.FC = () => {
       <div className="hidden md:flex h-screen overflow-hidden">
         {/* Vision UI Sidebar - Fixed */}
         <div 
-          className="h-screen flex flex-col relative rounded-3xl m-4 flex-shrink-0 overflow-hidden w-80"
+          className="h-screen flex flex-col relative rounded-3xl m-4 flex-shrink-0 overflow-hidden"
           style={{ 
-            transition: 'width 300ms',
+            width: sidebarCollapsed ? '80px' : `${sidebarWidth}px`,
+            transition: isResizing ? 'none' : 'width 300ms',
             background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
           }}
         >
+          {/* Resize Handle */}
+          {!sidebarCollapsed && (
+            <div
+              onMouseDown={startResizing}
+              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-purple-500/50 transition-colors group z-50"
+            >
+              <div className="absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-1 h-12 bg-purple-500/0 group-hover:bg-purple-500 rounded-full transition-all" />
+            </div>
+          )}
           {/* Logo with gradient line - Fixed at top */}
-          <div className="p-6 pb-4 flex-shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-16 h-16 flex items-center justify-center">
+          <div className={`${sidebarCollapsed ? 'px-3' : 'px-6'} py-6 pb-4 flex-shrink-0`}>
+            <div className={`flex items-center mb-4 ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+              <div className={`${sidebarCollapsed ? 'w-10 h-10' : 'w-16 h-16'} flex items-center justify-center flex-shrink-0 transition-all duration-300`}>
                 <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
               </div>
-              <div>
-                <h1 className="text-sm font-semibold text-white tracking-wider">
-                  FILLUP AGENT
-                </h1>
-              </div>
+              {!sidebarCollapsed && (
+                <div>
+                  <h1 className="text-sm font-semibold text-white tracking-wider">
+                    FILLUP AGENT
+                  </h1>
+                </div>
+              )}
             </div>
             {/* Gradient separator line */}
             <div 
@@ -2899,7 +2913,7 @@ export const AgentDashboard: React.FC = () => {
                         setHasNewOrders(false)
                       }
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 ${
+                    className={`w-full flex items-center p-3 rounded-2xl transition-all duration-200 ${sidebarCollapsed ? 'justify-center' : 'gap-3'} ${
                       currentPage === item.id
                         ? 'bg-white/10 backdrop-blur-xl'
                         : 'hover:bg-white/5 text-gray-400 hover:text-white'
@@ -2912,14 +2926,16 @@ export const AgentDashboard: React.FC = () => {
                     }`}>
                       <item.icon size={18} className="text-white" />
                     </div>
-                    <span className={`font-medium text-sm relative ${
-                      currentPage === item.id ? 'text-white' : 'text-gray-400'
-                    }`}>
-                      {item.label}
-                      {item.id === 'available' && hasNewOrders && currentPage !== 'available' && (
-                        <span className="absolute -top-1 -right-4 w-2 h-2 bg-green-500 rounded-full"></span>
-                      )}
-                    </span>
+                    {!sidebarCollapsed && (
+                      <span className={`font-medium text-sm relative ${
+                        currentPage === item.id ? 'text-white' : 'text-gray-400'
+                      }`}>
+                        {item.label}
+                        {item.id === 'available' && hasNewOrders && currentPage !== 'available' && (
+                          <span className="absolute -top-1 -right-4 w-2 h-2 bg-green-500 rounded-full"></span>
+                        )}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -2928,33 +2944,47 @@ export const AgentDashboard: React.FC = () => {
 
           {/* Logout Button - Fixed at bottom */}
           <div className="px-4 pb-6 flex-shrink-0">
-            <button
-              onClick={() => {
-                if (window.confirm('Are you sure you want to sign out?')) {
-                  handleSignOut()
-                }
-              }}
-              disabled={isSigningOut}
-              className={`w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:transform hover:scale-105 flex items-center justify-center gap-2 ${
-                isSigningOut ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)'
-              }}
-            >
-              {isSigningOut ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Signing Out...</span>
-                </>
-              ) : (
-                <>
-                  <ArrowRight02Icon size={18} />
-                  <span>Logout</span>
-                </>
-              )}
-            </button>
+            {!sidebarCollapsed ? (
+              <button
+                onClick={async () => {
+                  if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) {
+                    handleSignOut()
+                  }
+                }}
+                disabled={isSigningOut}
+                className={`w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:transform hover:scale-105 flex items-center justify-center gap-2 ${
+                  isSigningOut ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)'
+                }}
+              >
+                {isSigningOut ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Signing Out...</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight02Icon size={18} />
+                    <span>Logout</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  if (await showConfirm('Are you sure you want to sign out?', 'Sign Out')) {
+                    handleSignOut()
+                  }
+                }}
+                className="w-full p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+                title="Logout"
+              >
+                <ArrowRight02Icon size={20} className="text-gray-400 mx-auto" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -2967,16 +2997,25 @@ export const AgentDashboard: React.FC = () => {
               style={{ background: 'rgba(6, 11, 40, 0.7)' }}
             >
               <div className="flex items-center justify-between">
-                {/* Left Side - Breadcrumb */}
-                <div>
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <Home01Icon size={12} />
-                    <span>/</span>
-                    <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
+                {/* Left Side - Toggle + Breadcrumb */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                    title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    <ArrowRight01Icon size={18} className={`text-gray-400 transition-transform duration-300 ${sidebarCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
+                  <div>
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Home01Icon size={12} />
+                      <span>/</span>
+                      <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
+                    </div>
+                    <h2 className="text-lg font-bold text-white">
+                      {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
+                    </h2>
                   </div>
-                  <h2 className="text-lg font-bold text-white">
-                    {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
-                  </h2>
                 </div>
 
                 {/* Right Side - Actions */}
@@ -3375,11 +3414,11 @@ export const AgentDashboard: React.FC = () => {
                     setImageFile(null)
                     setImagePreview(null)
                     
-                    alert('Profile updated successfully!')
+                    toast.success('Profile updated successfully!')
                   } catch (error) {
                     console.error('❌ Error updating profile:', error)
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-                    alert('Failed to update profile: ' + errorMessage)
+                    toast.error('Failed to update profile: ' + errorMessage)
                   } finally {
                     setSavingProfile(false)
                   }
@@ -3399,9 +3438,9 @@ export const AgentDashboard: React.FC = () => {
 
               {/* Delete Account Button */}
               <button
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-                    alert('Account deletion is not yet implemented')
+                onClick={async () => {
+                  if (await showConfirm('Are you sure you want to delete your account? This action cannot be undone.', 'Delete')) {
+                    toast.info('Account deletion is not yet implemented')
                   }
                 }}
                 className="w-full py-4 mt-4 bg-transparent border border-red-500/30 text-red-400 font-semibold rounded-xl hover:bg-red-500/10 transition-colors"

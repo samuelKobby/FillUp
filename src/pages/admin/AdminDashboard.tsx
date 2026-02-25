@@ -47,6 +47,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import toast from '../../lib/toast'
+import { showConfirm } from '../../lib/confirm'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar'
 import 'react-circular-progressbar/dist/styles.css'
@@ -145,6 +146,28 @@ interface Station {
   users: User
 }
 
+// Promo definition matching database schema (see column list provided by user)
+interface Promo {
+  id: string
+  code: string
+  title?: string
+  description?: string
+  discount_type: string
+  discount_value: number
+  min_order_amount?: number
+  max_discount_amount?: number
+  usage_limit?: number
+  usage_count?: number
+  user_limit?: number
+  applicable_services?: string[]
+  active: boolean
+  valid_from?: string
+  valid_until?: string
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
 interface Activity {
   icon: LucideIcon
   text: string
@@ -224,6 +247,7 @@ export const AdminDashboard: React.FC = () => {
   const [mechanics, setMechanics] = useState<Agent[]>([])
   const [pendingAgents, setPendingAgents] = useState<PendingAgent[]>([])
   const [stations, setStations] = useState<Station[]>([])
+  const [promos, setPromos] = useState<Promo[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showOrderDetails, setShowOrderDetails] = useState(false)
@@ -337,12 +361,29 @@ export const AdminDashboard: React.FC = () => {
       })
       .subscribe()
 
+    // subscribe to promotions changes
+    const promosSubscription = supabase
+      .channel('admin-promos')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'promotions'
+      }, (payload) => {
+        if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
+        dashboardRefreshTimer.current = window.setTimeout(() => {
+          loadDashboardData()
+          dashboardRefreshTimer.current = null
+        }, 800)
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(ordersSubscription)
       supabase.removeChannel(agentsSubscription)
       supabase.removeChannel(stationsSubscription)
       supabase.removeChannel(usersSubscription)
       supabase.removeChannel(transactionsSubscription)
+      supabase.removeChannel(promosSubscription)
       if (dashboardRefreshTimer.current) window.clearTimeout(dashboardRefreshTimer.current)
     }
   }, [])
@@ -355,14 +396,16 @@ export const AdminDashboard: React.FC = () => {
         agentsResult,
         mechanicsResult,
         stationsResult,
-        pendingAgentsResult
+        pendingAgentsResult,
+        promosResult
       ] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('users').select('*'),
         supabase.from('agents').select('*, users(*)').eq('service_type', 'fuel_delivery'), // Fuel delivery agents
         supabase.from('agents').select('*, users(*)').eq('service_type', 'mechanic'), // Mechanics
         supabase.from('stations').select('*, users(*)'),
-        supabase.from('pending_agents').select('*').eq('status', 'pending') // Pending applications
+        supabase.from('pending_agents').select('*').eq('status', 'pending'), // Pending applications
+        supabase.from('promotions').select('*') // Promos
       ])
 
       const orders = ordersResult.data as Order[] || []
@@ -370,6 +413,7 @@ export const AdminDashboard: React.FC = () => {
       const allAgents = agentsResult.data as Agent[] || []
       const allMechanics = mechanicsResult.data as Agent[] || []
       const allStations = stationsResult.data as Station[] || []
+      const allPromos = promosResult.data as Promo[] || []
       // Map pending agents from pending_agents table  
       const allPendingAgents = (pendingAgentsResult.data as any[] || []).map(agent => ({
         id: agent.id,
@@ -426,6 +470,7 @@ export const AdminDashboard: React.FC = () => {
       setMechanics(allMechanics)
       setPendingAgents(allPendingAgents)
       setStations(allStations)
+      setPromos(allPromos)
 
       // Mock activities
       setActivities([
@@ -1148,7 +1193,7 @@ export const AdminDashboard: React.FC = () => {
                         disabled={actionLoading === row.id}
                         onClick={async () => {
                           console.log('🔴 Suspend agent clicked:', row.id)
-                          if (!window.confirm('Are you sure you want to suspend this agent?')) return
+                          if (!await showConfirm('Are you sure you want to suspend this agent?', 'Suspend')) return
                           
                           try {
                             setActionLoading(row.id)
@@ -1289,7 +1334,7 @@ export const AdminDashboard: React.FC = () => {
                         disabled={actionLoading === row.id}
                         onClick={async () => {
                           console.log('🔴 Suspend mechanic clicked:', row.id)
-                          if (!window.confirm('Are you sure you want to suspend this mechanic?')) return
+                          if (!await showConfirm('Are you sure you want to suspend this mechanic?', 'Suspend')) return
                           
                           try {
                             setActionLoading(row.id)
@@ -1420,7 +1465,7 @@ export const AdminDashboard: React.FC = () => {
                         disabled={actionLoading === row.id}
                         onClick={async () => {
                           console.log('🔴 Suspend station clicked:', row.id)
-                          if (!window.confirm('Are you sure you want to suspend this station?')) return
+                          if (!await showConfirm('Are you sure you want to suspend this station?', 'Suspend')) return
                           
                           try {
                             setActionLoading(row.id)
@@ -1734,7 +1779,7 @@ export const AdminDashboard: React.FC = () => {
                           className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs transition-colors"
                           disabled={actionLoading === row.id}
                           onClick={async () => {
-                            if (window.confirm('Are you sure you want to reject this application? This action cannot be undone.')) {
+                            if (await showConfirm('Are you sure you want to reject this application? This action cannot be undone.', 'Reject')) {
                               try {
                                 setActionLoading(row.id)
                                 const { data: userData } = await supabase.auth.getUser()
@@ -2273,7 +2318,7 @@ export const AdminDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">12</div>
+                                  <div className="text-2xl font-bold text-white mb-1">{promos.filter(p=>p.active).length}</div>
                     <div className="text-gray-400 text-xs">Active Promos</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
@@ -2290,7 +2335,7 @@ export const AdminDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">1,247</div>
+                    <div className="text-2xl font-bold text-white mb-1">{promos.reduce((sum,p)=>sum + (p.usage_count||0),0)}</div>
                     <div className="text-gray-400 text-xs">Total Uses</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -2307,7 +2352,11 @@ export const AdminDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">$24.5K</div>
+                    <div className="text-2xl font-bold text-white mb-1">${promos.reduce((sum,p)=>{
+                        const uses = p.usage_count||0
+                        if (p.discount_type === 'fixed') return sum + (p.discount_value||0) * uses
+                        return sum
+                      },0).toLocaleString()}</div>
                     <div className="text-gray-400 text-xs">Total Discounts</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -2324,7 +2373,7 @@ export const AdminDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">834</div>
+                    <div className="text-2xl font-bold text-white mb-1">{/* unique users not tracked */ 0}</div>
                     <div className="text-gray-400 text-xs">Unique Users</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
@@ -2337,63 +2386,7 @@ export const AdminDashboard: React.FC = () => {
             {/* Promo Codes Table */}
             <DataTable
               title="Promotional Codes"
-              data={[
-                {
-                  id: 1,
-                  code: 'FUEL20',
-                  discount: '20%',
-                  type: 'percentage',
-                  status: 'active',
-                  uses: 156,
-                  max_uses: 500,
-                  valid_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                  created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                  id: 2,
-                  code: 'WELCOME10',
-                  discount: '$10',
-                  type: 'fixed',
-                  status: 'active',
-                  uses: 423,
-                  max_uses: 1000,
-                  valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                  created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                  id: 3,
-                  code: 'SUMMER25',
-                  discount: '25%',
-                  type: 'percentage',
-                  status: 'active',
-                  uses: 87,
-                  max_uses: 200,
-                  valid_until: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                  created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                  id: 4,
-                  code: 'FREESHIP',
-                  discount: '$5',
-                  type: 'fixed',
-                  status: 'active',
-                  uses: 234,
-                  max_uses: 500,
-                  valid_until: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
-                  created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                  id: 5,
-                  code: 'EXPIRED50',
-                  discount: '50%',
-                  type: 'percentage',
-                  status: 'expired',
-                  uses: 347,
-                  max_uses: 500,
-                  valid_until: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-                  created_at: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).toISOString()
-                }
-              ]}
+              data={promos}
               columns={[
                 { 
                   key: 'code', 
@@ -2407,24 +2400,27 @@ export const AdminDashboard: React.FC = () => {
                   )
                 },
                 { 
-                  key: 'discount', 
+                  key: 'discount_value', 
                   label: 'Discount',
-                  render: (discount: string, row: any) => (
-                    <div className="flex items-center gap-2">
-                      <span className="text-emerald-400 font-semibold">{discount}</span>
-                      <span className="text-gray-500 text-xs capitalize">({row.type})</span>
-                    </div>
-                  )
+                  render: (value: number, row: Promo) => {
+                    const formatted = row.discount_type === 'percentage' ? `${value}%` : `$${value}`
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className="text-emerald-400 font-semibold">{formatted}</span>
+                        <span className="text-gray-500 text-xs capitalize">({row.discount_type})</span>
+                      </div>
+                    )
+                  }
                 },
                 { 
-                  key: 'uses', 
+                  key: 'usage_count', 
                   label: 'Usage',
-                  render: (uses: number, row: any) => {
-                    const percentage = (uses / row.max_uses) * 100
+                  render: (uses: number, row: Promo) => {
+                    const percentage = row.usage_limit ? (uses / row.usage_limit) * 100 : 0
                     return (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-white">{uses} / {row.max_uses}</span>
+                          <span className="text-white">{uses} / {row.usage_limit || '∞'}</span>
                           <span className="text-gray-400">{percentage.toFixed(0)}%</span>
                         </div>
                         <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
@@ -2451,16 +2447,16 @@ export const AdminDashboard: React.FC = () => {
                     )
                   }
                 },
-                { key: 'status', label: 'Status', render: (status: string) => <StatusBadge status={status} /> },
+                { key: 'active', label: 'Status', render: (active: boolean) => <StatusBadge status={active ? 'active' : 'expired'} /> },
                 { 
                   key: 'actions', 
                   label: 'Actions',
-                  render: (_: any, row: any) => (
+                  render: (_: any, row: Promo) => (
                     <div className="flex gap-2">
                       <button className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs transition-colors">
                         Edit
                       </button>
-                      {row.status === 'active' && (
+                      {row.active && (
                         <button className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-xs transition-colors">
                           Pause
                         </button>
@@ -2884,7 +2880,7 @@ export const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse at top right, #0ea5e9 0%, #1e40af 50%, #0c4a6e 100%)' }}>
+    <div className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse at top right, #0ea5e9 0%, #1e40af 50%, #0c4a6e 100%)', userSelect: isResizing ? 'none' : 'auto' }}>
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes slideInUp {
@@ -2956,9 +2952,9 @@ export const AdminDashboard: React.FC = () => {
           )}
           
           {/* Logo with gradient line - Fixed at top */}
-          <div className="p-6 pb-4 flex-shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-16 h-16 flex items-center justify-center">
+          <div className={`${sidebarCollapsed ? 'px-3' : 'px-6'} py-6 pb-4 flex-shrink-0`}>
+            <div className={`flex items-center mb-4 ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+              <div className={`${sidebarCollapsed ? 'w-10 h-10' : 'w-16 h-16'} flex items-center justify-center flex-shrink-0 transition-all duration-300`}>
                 <img src={logo1} alt="FillUp" className="w-full h-full object-contain" />
               </div>
               {!sidebarCollapsed && (
@@ -2985,7 +2981,7 @@ export const AdminDashboard: React.FC = () => {
                   <li key={item.id}>
                     <button
                       onClick={() => setCurrentPage(item.id)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 ${
+                      className={`w-full flex items-center p-3 rounded-2xl transition-all duration-200 ${sidebarCollapsed ? 'justify-center' : 'gap-3'} ${
                         currentPage === item.id
                           ? 'bg-white/10 backdrop-blur-xl'
                           : 'hover:bg-white/5 text-gray-400 hover:text-white'
@@ -3076,16 +3072,25 @@ export const AdminDashboard: React.FC = () => {
               style={{ background: 'rgba(6, 11, 40, 0.7)' }}
             >
               <div className="flex items-center justify-between">
-              {/* Left Side - Breadcrumb */}
-              <div>
-                <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                  <Home size={12} />
-                  <span>/</span>
-                  <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
+              {/* Left Side - Toggle + Breadcrumb */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                  title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  <ChevronRight size={18} className={`text-gray-400 transition-transform duration-300 ${sidebarCollapsed ? '' : 'rotate-180'}`} />
+                </button>
+                <div>
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Home size={12} />
+                    <span>/</span>
+                    <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
+                  </div>
+                  <h2 className="text-lg font-bold text-white">
+                    {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
+                  </h2>
                 </div>
-                <h2 className="text-lg font-bold text-white">
-                  {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
-                </h2>
               </div>
 
               {/* Right Side - Actions */}
@@ -3889,7 +3894,7 @@ export const AdminDashboard: React.FC = () => {
                     <button 
                       className="flex-1 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-sm transition-colors"
                       onClick={async () => {
-                        if (!window.confirm('Are you sure you want to suspend this station?')) return
+                        if (!await showConfirm('Are you sure you want to suspend this station?', 'Suspend')) return
                         
                         try {
                           const { error } = await supabase
