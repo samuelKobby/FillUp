@@ -195,10 +195,60 @@ interface Action {
   label: string
 }
 
+function CountUp({
+  to,
+  prefix = '',
+  suffix = '',
+  decimals = 0,
+  duration = 1200
+}: {
+  to: number
+  prefix?: string
+  suffix?: string
+  decimals?: number
+  duration?: number
+}) {
+  const [display, setDisplay] = React.useState(0)
+
+  React.useEffect(() => {
+    const target = Number.isFinite(to) ? to : 0
+    if (target === 0) {
+      setDisplay(0)
+      return
+    }
+
+    let startTime: number | null = null
+    let raf = 0
+
+    const animate = (ts: number) => {
+      if (!startTime) startTime = ts
+      const progress = Math.min((ts - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(target * eased)
+      if (progress < 1) {
+        raf = requestAnimationFrame(animate)
+      } else {
+        setDisplay(target)
+      }
+    }
+
+    raf = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(raf)
+  }, [to, duration])
+
+  const formatted = display.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  })
+
+  return <>{prefix}{formatted}{suffix}</>
+}
+
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
   const [currentPage, setCurrentPage] = useState('dashboard')
+  const [darkMode, setDarkMode] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(320) // 80 * 4 = 320px (w-80)
   const [isResizing, setIsResizing] = useState(false)
@@ -501,6 +551,46 @@ export const AdminDashboard: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: Settings }
   ]
 
+  const rootBg = darkMode
+    ? '#111111'
+    : 'radial-gradient(ellipse at top right, #0ea5e9 0%, #1e40af 50%, #0c4a6e 100%)'
+  const lightCardGradient = 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+  const darkCardGradient = '#1f1f1f'
+  const sidebarBg = darkMode
+    ? 'linear-gradient(127deg, rgba(10, 10, 10, 0.97) 19.41%, rgba(16, 16, 16, 0.72) 76.65%)'
+    : 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+  const headerBg = darkMode ? 'rgba(15, 15, 15, 0.82)' : 'rgba(6, 11, 40, 0.7)'
+  const contentCardBg = darkMode ? darkCardGradient : lightCardGradient
+  const cardStyleObj = { background: contentCardBg }
+  const mainText = darkMode ? 'text-white' : 'text-white'
+  const secondaryText = darkMode ? 'text-gray-400' : 'text-gray-400'
+  const mutedText = darkMode ? 'text-gray-500' : 'text-gray-400'
+  const navItemActive = darkMode ? 'bg-white/10 backdrop-blur-xl' : 'bg-white/10 backdrop-blur-xl'
+  const navItemInactive = darkMode ? 'hover:bg-white/5 text-gray-400 hover:text-white' : 'hover:bg-white/5 text-gray-400 hover:text-white'
+  const navIconInactiveBg = darkMode ? 'bg-white/5' : 'bg-white/5'
+  const navLabelActive = darkMode ? 'text-white' : 'text-white'
+  const navIconInactiveColor = darkMode ? 'text-white' : 'text-white'
+  const hoverBg = darkMode ? 'hover:bg-white/10' : 'hover:bg-white/10'
+  const inputCls = darkMode
+    ? 'bg-white/5 text-white placeholder-gray-500 focus:bg-white/10'
+    : 'bg-white/5 text-white placeholder-gray-500 focus:bg-white/10'
+  const profileMenuBg = darkMode ? 'rgba(12,12,12,0.98)' : '#0a0e23'
+  const profileMenuBorder = darkMode ? 'border-white/10' : 'border-white/10'
+  const toggleLabelColor = darkMode ? 'text-gray-300 group-hover:text-white' : 'text-gray-300 group-hover:text-white'
+  const toggleIconBg = darkMode ? 'bg-white/10' : 'bg-white/10'
+  const bottomBtnBg = darkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-white/5 hover:bg-white/10'
+  const cardTitleText = darkMode ? 'text-white' : 'text-white'
+  const cardSubText = darkMode ? 'text-gray-400' : 'text-gray-400'
+  const cardHoverBg = darkMode ? 'hover:bg-white/5' : 'hover:bg-white/5'
+  const tableHeadBorder = darkMode ? 'border-white/10' : 'border-white/10'
+  const tableRowBorder = darkMode ? 'border-white/5' : 'border-white/5'
+  const tableRowHover = darkMode ? 'hover:bg-white/5' : 'hover:bg-white/5'
+  const tableHeadText = darkMode ? 'text-gray-400' : 'text-gray-400'
+  const tableBodyText = darkMode ? 'text-white' : 'text-white'
+  const tableActionBtn = darkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+  const primaryActionBg = darkMode ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+  const primaryActionShadow = darkMode ? '0 4px 20px rgba(59, 130, 246, 0.4)' : '0 4px 20px rgba(102, 126, 234, 0.4)'
+
   const statsData: StatData[] = [
     {
       title: 'Total Orders',
@@ -542,13 +632,13 @@ export const AdminDashboard: React.FC = () => {
       style={{
         animationDelay: `${index * 100}ms`,
         animation: 'slideInUp 0.6s ease-out forwards',
-        background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+        background: contentCardBg
       }}
     >
       <div className="relative flex items-start justify-between">
         <div className="flex-1">
-          <div className="text-gray-400 text-sm mb-3 font-medium">{stat.title}</div>
-          <div className="text-4xl font-bold text-white mb-3">
+          <div className={`text-sm mb-3 font-medium ${cardSubText}`}>{stat.title}</div>
+          <div className={`text-4xl font-bold mb-3 ${cardTitleText}`}>
             {stat.value}
           </div>
           <div className={`flex items-center gap-1 text-sm font-semibold ${
@@ -578,7 +668,7 @@ export const AdminDashboard: React.FC = () => {
 
     return (
       <div 
-        className="flex items-center gap-4 p-4 hover:bg-white/5 rounded-xl transition-all duration-300"
+        className={`flex items-center gap-4 p-4 ${cardHoverBg} rounded-xl transition-all duration-300`}
         style={{
           animationDelay: `${index * 100}ms`,
           animation: 'slideInRight 0.5s ease-out forwards'
@@ -588,8 +678,8 @@ export const AdminDashboard: React.FC = () => {
           <activity.icon size={16} />
         </div>
         <div className="flex-1">
-          <div className="text-white text-sm font-medium">{activity.text}</div>
-          <div className="text-gray-400 text-xs mt-1">{activity.time}</div>
+          <div className={`text-sm font-medium ${cardTitleText}`}>{activity.text}</div>
+          <div className={`text-xs mt-1 ${cardSubText}`}>{activity.time}</div>
         </div>
       </div>
     )
@@ -627,14 +717,14 @@ export const AdminDashboard: React.FC = () => {
     title: string; 
     actions?: Action[] 
   }> = ({ data, columns, title, actions }) => (
-    <div className="backdrop-blur-xl rounded-3xl p-6 mb-6" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+    <div className="backdrop-blur-xl rounded-3xl p-6 mb-6" style={cardStyleObj}>
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-bold text-white">{title}</h3>
+        <h3 className={`text-xl font-bold ${cardTitleText}`}>{title}</h3>
         <div className="flex gap-3">
           {actions?.map((action: Action, index: number) => (
             <button
               key={index}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white text-sm font-medium transition-all"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${tableActionBtn}`}
             >
               <action.icon size={16} />
               {action.label}
@@ -646,9 +736,9 @@ export const AdminDashboard: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10">
+            <tr className={`border-b ${tableHeadBorder}`}>
               {columns.map((column: Column, index: number) => (
-                <th key={index} className="text-left py-3 px-4 text-gray-400 font-medium text-xs uppercase tracking-wider">
+                <th key={index} className={`text-left py-3 px-4 font-medium text-xs uppercase tracking-wider ${tableHeadText}`}>
                   {column.label}
                 </th>
               ))}
@@ -658,10 +748,10 @@ export const AdminDashboard: React.FC = () => {
             {data.map((row: any, rowIndex: number) => (
               <tr 
                 key={rowIndex} 
-                className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                className={`border-b transition-colors ${tableRowBorder} ${tableRowHover}`}
               >
                 {columns.map((column: Column, colIndex: number) => (
-                  <td key={colIndex} className="py-5 px-4 text-white text-sm">
+                  <td key={colIndex} className={`py-5 px-4 text-sm ${tableBodyText}`}>
                     {column.render ? column.render(row[column.key], row) : row[column.key]}
                   </td>
                 ))}
@@ -711,11 +801,11 @@ export const AdminDashboard: React.FC = () => {
             {/* Top Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Today's Revenue */}
-              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: contentCardBg }}>
                 <div>
                   <p className="text-gray-400 text-xs mb-2">Today's Revenue</p>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-white text-2xl font-bold">GH₵{stats.revenueToday.toLocaleString()}</h3>
+                    <h3 className="text-white text-2xl font-bold"><CountUp to={stats.revenueToday} prefix="GH₵" /></h3>
                     <p className="text-emerald-400 text-xs font-semibold">+55%</p>
                   </div>
                 </div>
@@ -725,11 +815,11 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Today's Orders */}
-              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: contentCardBg }}>
                 <div>
                   <p className="text-gray-400 text-xs mb-2">Today's Orders</p>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-white text-2xl font-bold">{stats.totalOrders.toLocaleString()}</h3>
+                    <h3 className="text-white text-2xl font-bold"><CountUp to={stats.totalOrders} /></h3>
                     <p className="text-emerald-400 text-xs font-semibold">+3%</p>
                   </div>
                 </div>
@@ -739,11 +829,11 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               {/* New Customers */}
-              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: contentCardBg }}>
                 <div>
                   <p className="text-gray-400 text-xs mb-2">New Customers</p>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-white text-2xl font-bold">+{stats.activeUsers.toLocaleString()}</h3>
+                    <h3 className="text-white text-2xl font-bold">+<CountUp to={stats.activeUsers} /></h3>
                     <p className="text-red-400 text-xs font-semibold">-2%</p>
                   </div>
                 </div>
@@ -753,11 +843,11 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Active Agents */}
-              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+              <div className="backdrop-blur-xl rounded-3xl p-4 flex items-center justify-between" style={{ background: contentCardBg }}>
                 <div>
                   <p className="text-gray-400 text-xs mb-2">Active Agents</p>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-white text-2xl font-bold">{stats.agentsOnline}</h3>
+                    <h3 className="text-white text-2xl font-bold"><CountUp to={stats.agentsOnline} /></h3>
                     <p className="text-emerald-400 text-xs font-semibold">+5%</p>
                   </div>
                 </div>
@@ -798,7 +888,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Customer Satisfaction */}
-              <div className="lg:col-span-3 backdrop-blur-xl rounded-3xl p-4 sm:p-6 flex flex-col" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)', minHeight: '320px', maxHeight: '350px' }}>
+              <div className="lg:col-span-3 backdrop-blur-xl rounded-3xl p-4 sm:p-6 flex flex-col" style={{ background: contentCardBg, minHeight: '320px', maxHeight: '350px' }}>
                 <div className="mb-2 sm:mb-4 flex-shrink-0">
                   <h3 className="text-white font-bold text-lg sm:text-xl mb-1 whitespace-nowrap overflow-hidden text-ellipsis">Satisfaction Rate</h3>
                   <p className="text-gray-400 text-xs sm:text-sm">From all projects</p>
@@ -827,7 +917,7 @@ export const AdminDashboard: React.FC = () => {
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/4 bg-black/90 rounded-xl sm:rounded-2xl px-3 sm:px-6 py-2 sm:py-3 w-[90%] max-w-[200px]">
                       <div className="flex justify-between items-center mb-0.5 sm:mb-1">
                         <span className="text-[10px] sm:text-xs text-gray-500">0%</span>
-                        <span className="text-xl sm:text-3xl font-bold text-white">{satisfactionRate}%</span>
+                        <span className="text-xl sm:text-3xl font-bold text-white"><CountUp to={satisfactionRate} suffix="%" /></span>
                         <span className="text-[10px] sm:text-xs text-gray-500">100%</span>
                       </div>
                       <div className="text-gray-400 text-[10px] sm:text-xs text-center whitespace-nowrap overflow-hidden text-ellipsis">Based on completed orders</div>
@@ -837,7 +927,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Agent Performance - Taller */}
-              <div className="lg:col-span-4 backdrop-blur-2xl rounded-3xl p-4 sm:p-6" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)', minHeight: '320px', maxHeight: '420px' }}>
+              <div className="lg:col-span-4 backdrop-blur-2xl rounded-3xl p-4 sm:p-6" style={{ background: contentCardBg, minHeight: '320px', maxHeight: '420px' }}>
                 <div className="flex justify-between items-start mb-4 sm:mb-6 flex-shrink-0">
                   <h3 className="text-white font-bold text-lg sm:text-xl whitespace-nowrap overflow-hidden text-ellipsis">Referral Tracking</h3>
                   <button className="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-colors flex-shrink-0">
@@ -853,12 +943,12 @@ export const AdminDashboard: React.FC = () => {
                   <div className="space-y-3 sm:space-y-4 flex-shrink-0 w-full sm:w-auto">
                     <div className="bg-black/40 rounded-2xl p-3 sm:p-4 min-w-[100px] sm:min-w-[120px]">
                       <p className="text-gray-400 text-xs mb-1 sm:mb-2">Invited</p>
-                      <p className="text-white text-2xl sm:text-3xl font-bold mb-0.5 break-words">{referralData.invited}</p>
+                      <p className="text-white text-2xl sm:text-3xl font-bold mb-0.5 break-words"><CountUp to={referralData.invited} /></p>
                       <p className="text-white text-xs sm:text-sm">people</p>
                     </div>
                     <div className="bg-black/40 rounded-2xl p-3 sm:p-4 min-w-[100px] sm:min-w-[120px]">
                       <p className="text-gray-400 text-xs mb-1 sm:mb-2">Bonus</p>
-                      <p className="text-white text-2xl sm:text-3xl font-bold break-words">₵{referralData.bonus.toLocaleString()}</p>
+                      <p className="text-white text-2xl sm:text-3xl font-bold break-words"><CountUp to={referralData.bonus} prefix="₵" /></p>
                     </div>
                   </div>
                   {/* Right side - Circular progress */}
@@ -879,7 +969,7 @@ export const AdminDashboard: React.FC = () => {
                         strokeWidth={12}
                       />
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <div className="text-3xl sm:text-5xl font-bold text-white break-words">{referralData.safetyScore}</div>
+                        <div className="text-3xl sm:text-5xl font-bold text-white break-words"><CountUp to={referralData.safetyScore} /></div>
                         <div className="text-xs sm:text-sm text-gray-400 mt-1">Total Score</div>
                       </div>
                     </div>
@@ -891,7 +981,7 @@ export const AdminDashboard: React.FC = () => {
             {/* Charts and Stats Row */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Sales Overview Area Chart */}
-              <div className="lg:col-span-7 backdrop-blur-xl rounded-3xl p-6" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+              <div className="lg:col-span-7 backdrop-blur-xl rounded-3xl p-6" style={{ background: contentCardBg }}>
                 <div className="mb-6">
                   <h3 className="text-white font-bold text-xl mb-1">Service Overview</h3>
                   <p className="text-emerald-400 text-sm">
@@ -934,7 +1024,7 @@ export const AdminDashboard: React.FC = () => {
 
               {/* Right Side: Bar Chart and Active Users */}
               {/* Combined Bar Chart and Active Users Card */}
-              <div className="lg:col-span-5 backdrop-blur-xl rounded-3xl p-6" style={{ background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)' }}>
+              <div className="lg:col-span-5 backdrop-blur-xl rounded-3xl p-6" style={{ background: contentCardBg }}>
                 {/* Bar Chart */}
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={barChartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }} barCategoryGap="25%">
@@ -963,7 +1053,7 @@ export const AdminDashboard: React.FC = () => {
                   <div className="mb-4">
                     <h3 className="text-white font-bold text-lg mb-1">Platform Activity</h3>
                     <p className="text-emerald-400 text-xs">
-                      <span className="font-semibold">(+{stats.activeUsers})</span> active this week
+                      <span className="font-semibold">(+<CountUp to={stats.activeUsers} />)</span> active this week
                     </p>
                   </div>
                   <div className="grid grid-cols-4 gap-3">
@@ -972,7 +1062,7 @@ export const AdminDashboard: React.FC = () => {
                         <Users size={16} className="text-white" />
                       </div>
                       <div className="text-xs text-gray-400 mb-1">Customers</div>
-                      <div className="text-lg font-bold text-white">{stats.activeUsers.toLocaleString()}</div>
+                      <div className="text-lg font-bold text-white"><CountUp to={stats.activeUsers} /></div>
                       <div className="w-full bg-gray-700/30 rounded-full h-1 mt-2 overflow-hidden">
                         <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((stats.activeUsers / Math.max(stats.activeUsers, stats.totalOrders, stats.revenueToday, stats.agentsOnline)) * 100, 100)}%` }}></div>
                       </div>
@@ -982,7 +1072,7 @@ export const AdminDashboard: React.FC = () => {
                         <Fuel size={16} className="text-white" />
                       </div>
                       <div className="text-xs text-gray-400 mb-1">Deliveries</div>
-                      <div className="text-lg font-bold text-white">{stats.totalOrders.toLocaleString()}</div>
+                      <div className="text-lg font-bold text-white"><CountUp to={stats.totalOrders} /></div>
                       <div className="w-full bg-gray-700/30 rounded-full h-1 mt-2 overflow-hidden">
                         <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((stats.totalOrders / Math.max(stats.activeUsers, stats.totalOrders, stats.revenueToday, stats.agentsOnline)) * 100, 100)}%` }}></div>
                       </div>
@@ -992,7 +1082,7 @@ export const AdminDashboard: React.FC = () => {
                         <DollarSign size={16} className="text-white" />
                       </div>
                       <div className="text-xs text-gray-400 mb-1">Revenue</div>
-                      <div className="text-lg font-bold text-white">GH₵{stats.revenueToday.toLocaleString()}</div>
+                      <div className="text-lg font-bold text-white"><CountUp to={stats.revenueToday} prefix="GH₵" /></div>
                       <div className="w-full bg-gray-700/30 rounded-full h-1 mt-2 overflow-hidden">
                         <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((stats.revenueToday / Math.max(stats.activeUsers, stats.totalOrders, stats.revenueToday, stats.agentsOnline)) * 100, 100)}%` }}></div>
                       </div>
@@ -1002,7 +1092,7 @@ export const AdminDashboard: React.FC = () => {
                         <Truck size={16} className="text-white" />
                       </div>
                       <div className="text-xs text-gray-400 mb-1">Agents</div>
-                      <div className="text-lg font-bold text-white">{stats.agentsOnline}</div>
+                      <div className="text-lg font-bold text-white"><CountUp to={stats.agentsOnline} /></div>
                       <div className="w-full bg-gray-700/30 rounded-full h-1 mt-2 overflow-hidden">
                         <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((stats.agentsOnline / Math.max(stats.activeUsers, stats.totalOrders, stats.revenueToday, stats.agentsOnline)) * 100, 100)}%` }}></div>
                       </div>
@@ -1560,7 +1650,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="group relative backdrop-blur-xl rounded-3xl p-4 hover:transform hover:-translate-y-2 transition-all duration-500 overflow-hidden shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -1570,7 +1660,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-4xl font-bold text-white mb-3">
-                  {pendingAgents.filter(a => a.status === 'pending').length}
+                  <CountUp to={pendingAgents.filter(a => a.status === 'pending').length} />
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-amber-400">
                   <Clock size={14} />
@@ -1582,7 +1672,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="group relative backdrop-blur-xl rounded-3xl p-4 hover:transform hover:-translate-y-2 transition-all duration-500 overflow-hidden shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -1592,7 +1682,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-4xl font-bold text-white mb-3">
-                  {pendingAgents.filter(a => a.status === 'approved').length}
+                  <CountUp to={pendingAgents.filter(a => a.status === 'approved').length} />
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-emerald-400">
                   <CheckCircle size={14} />
@@ -1604,7 +1694,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="group relative backdrop-blur-xl rounded-3xl p-4 hover:transform hover:-translate-y-2 transition-all duration-500 overflow-hidden shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -1614,7 +1704,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-4xl font-bold text-white mb-3">
-                  {pendingAgents.filter(a => a.service_type === 'fuel_delivery' || a.service_type === 'both').length}
+                  <CountUp to={pendingAgents.filter(a => a.service_type === 'fuel_delivery' || a.service_type === 'both').length} />
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-blue-400">
                   <Truck size={14} />
@@ -1626,7 +1716,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="group relative backdrop-blur-xl rounded-3xl p-4 hover:transform hover:-translate-y-2 transition-all duration-500 overflow-hidden shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -1636,7 +1726,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-4xl font-bold text-white mb-3">
-                  {pendingAgents.filter(a => a.service_type === 'mechanic' || a.service_type === 'both').length}
+                  <CountUp to={pendingAgents.filter(a => a.service_type === 'mechanic' || a.service_type === 'both').length} />
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-purple-400">
                   <Wrench size={14} />
@@ -1831,7 +1921,7 @@ export const AdminDashboard: React.FC = () => {
             <div 
               className="backdrop-blur-xl rounded-3xl p-8 shadow-lg"
               style={{
-                background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                background: contentCardBg
               }}
             >
               <div className="flex items-center justify-between">
@@ -1857,13 +1947,13 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold text-white mb-1">
-                      ${recentOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.total_amount || 0), 0).toLocaleString()}
+                      <CountUp to={recentOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.total_amount || 0), 0)} prefix="$" />
                     </div>
                     <div className="text-gray-400 text-xs">Total Revenue</div>
                     <div className="flex items-center gap-2 mt-1">
@@ -1880,12 +1970,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">{recentOrders.filter(o => o.status === 'completed').length}</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={recentOrders.filter(o => o.status === 'completed').length} /></div>
                     <div className="text-gray-400 text-xs">Transactions</div>
                     <div className="flex items-center gap-2 mt-1">
                       <TrendingUp className="h-3 w-3 text-blue-400" />
@@ -1901,13 +1991,13 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold text-white mb-1">
-                      ${(recentOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.total_amount || 0), 0) * 0.15).toLocaleString()}
+                      <CountUp to={(recentOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.total_amount || 0), 0) * 0.15)} prefix="$" />
                     </div>
                     <div className="text-gray-400 text-xs">Platform Revenue</div>
                     <div className="text-gray-400 text-xs mt-0.5">(15% Commission)</div>
@@ -1921,16 +2011,16 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold text-white mb-1">
-                      ${recentOrders.filter(o => o.status === 'pending' || o.status === 'accepted').reduce((sum, o) => sum + (o.total_amount || 0), 0).toLocaleString()}
+                      <CountUp to={recentOrders.filter(o => o.status === 'pending' || o.status === 'accepted').reduce((sum, o) => sum + (o.total_amount || 0), 0)} prefix="$" />
                     </div>
                     <div className="text-gray-400 text-xs">Pending Payments</div>
-                    <div className="text-amber-400 text-xs mt-0.5">{recentOrders.filter(o => o.status === 'pending' || o.status === 'accepted').length} orders</div>
+                    <div className="text-amber-400 text-xs mt-0.5"><CountUp to={recentOrders.filter(o => o.status === 'pending' || o.status === 'accepted').length} /> orders</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
                     <Clock className="h-5 w-5 text-amber-400" />
@@ -2043,7 +2133,7 @@ export const AdminDashboard: React.FC = () => {
             <div 
               className="backdrop-blur-xl rounded-3xl p-8 shadow-lg"
               style={{
-                background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                background: contentCardBg
               }}
             >
               <div className="flex items-center justify-between">
@@ -2069,12 +2159,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">18</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={18} /></div>
                     <div className="text-gray-400 text-xs">Open Tickets</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
@@ -2086,12 +2176,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">7</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={7} /></div>
                     <div className="text-gray-400 text-xs">In Progress</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -2103,12 +2193,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">156</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={156} /></div>
                     <div className="text-gray-400 text-xs">Resolved Today</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -2120,12 +2210,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">2.4h</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={2.4} decimals={1} suffix="h" /></div>
                     <div className="text-gray-400 text-xs">Avg Response</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
@@ -2293,7 +2383,7 @@ export const AdminDashboard: React.FC = () => {
             <div 
               className="backdrop-blur-xl rounded-3xl p-8 shadow-lg"
               style={{
-                background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                background: contentCardBg
               }}
             >
               <div className="flex items-center justify-between">
@@ -2313,12 +2403,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                                  <div className="text-2xl font-bold text-white mb-1">{promos.filter(p=>p.active).length}</div>
+                                  <div className="text-2xl font-bold text-white mb-1"><CountUp to={promos.filter(p=>p.active).length} /></div>
                     <div className="text-gray-400 text-xs">Active Promos</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
@@ -2330,12 +2420,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">{promos.reduce((sum,p)=>sum + (p.usage_count||0),0)}</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={promos.reduce((sum,p)=>sum + (p.usage_count||0),0)} /></div>
                     <div className="text-gray-400 text-xs">Total Uses</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -2347,16 +2437,16 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">${promos.reduce((sum,p)=>{
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={promos.reduce((sum,p)=>{
                         const uses = p.usage_count||0
                         if (p.discount_type === 'fixed') return sum + (p.discount_value||0) * uses
                         return sum
-                      },0).toLocaleString()}</div>
+                      },0)} prefix="$" /></div>
                     <div className="text-gray-400 text-xs">Total Discounts</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -2368,12 +2458,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">{/* unique users not tracked */ 0}</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={0} /></div>
                     <div className="text-gray-400 text-xs">Unique Users</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
@@ -2484,7 +2574,7 @@ export const AdminDashboard: React.FC = () => {
             <div 
               className="backdrop-blur-xl rounded-3xl p-8 shadow-lg"
               style={{
-                background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                background: contentCardBg
               }}
             >
               <div className="flex items-center justify-between">
@@ -2504,12 +2594,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">24</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={24} /></div>
                     <div className="text-gray-400 text-xs">Total Sent Today</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -2521,12 +2611,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">98%</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={98} suffix="%" /></div>
                     <div className="text-gray-400 text-xs">Delivery Rate</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -2538,12 +2628,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">{users.length}</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={users.length} /></div>
                     <div className="text-gray-400 text-xs">Active Users</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
@@ -2555,12 +2645,12 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-4 shadow-lg hover:transform hover:-translate-y-2 transition-all duration-500"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-white mb-1">3</div>
+                    <div className="text-2xl font-bold text-white mb-1"><CountUp to={3} /></div>
                     <div className="text-gray-400 text-xs">Pending Alerts</div>
                   </div>
                   <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
@@ -2673,7 +2763,7 @@ export const AdminDashboard: React.FC = () => {
             <div 
               className="backdrop-blur-xl rounded-3xl p-8 shadow-lg"
               style={{
-                background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                background: contentCardBg
               }}
             >
               <div className="flex items-center justify-between">
@@ -2691,7 +2781,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-6 shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -2730,7 +2820,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-6 shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -2774,7 +2864,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-6 shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -2816,7 +2906,7 @@ export const AdminDashboard: React.FC = () => {
               <div 
                 className="backdrop-blur-xl rounded-3xl p-6 shadow-lg"
                 style={{
-                  background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+                  background: contentCardBg
                 }}
               >
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -2880,7 +2970,7 @@ export const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse at top right, #0ea5e9 0%, #1e40af 50%, #0c4a6e 100%)', userSelect: isResizing ? 'none' : 'auto' }}>
+    <div className={`min-h-screen ${mainText}`} style={{ background: rootBg, userSelect: isResizing ? 'none' : 'auto' }}>
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes slideInUp {
@@ -2938,7 +3028,7 @@ export const AdminDashboard: React.FC = () => {
           style={{ 
             width: sidebarCollapsed ? '80px' : `${sidebarWidth}px`,
             transition: isResizing ? 'none' : 'width 300ms',
-            background: 'linear-gradient(127deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%)'
+            background: sidebarBg
           }}
         >
           {/* Resize Handle */}
@@ -2959,7 +3049,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
               {!sidebarCollapsed && (
                 <div>
-                  <h1 className="text-sm font-semibold text-white tracking-wider">
+                  <h1 className={`text-sm font-semibold ${mainText} tracking-wider`}>
                     FILLUP ADMIN
                   </h1>
                 </div>
@@ -2983,20 +3073,20 @@ export const AdminDashboard: React.FC = () => {
                       onClick={() => setCurrentPage(item.id)}
                       className={`w-full flex items-center p-3 rounded-2xl transition-all duration-200 ${sidebarCollapsed ? 'justify-center' : 'gap-3'} ${
                         currentPage === item.id
-                          ? 'bg-white/10 backdrop-blur-xl'
-                          : 'hover:bg-white/5 text-gray-400 hover:text-white'
+                          ? navItemActive
+                          : navItemInactive
                       }`}
                     >
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
                         currentPage === item.id
                           ? 'bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600 shadow-lg shadow-purple-500/50'
-                          : 'bg-white/5'
+                          : navIconInactiveBg
                       }`}>
-                        <item.icon size={18} className="text-white" />
+                        <item.icon size={18} className={currentPage === item.id ? 'text-white' : navIconInactiveColor} />
                       </div>
                       {!sidebarCollapsed && (
                         <span className={`font-medium text-sm ${
-                          currentPage === item.id ? 'text-white' : 'text-gray-400'
+                          currentPage === item.id ? navLabelActive : secondaryText
                         }`}>
                           {item.label}
                         </span>
@@ -3030,9 +3120,38 @@ export const AdminDashboard: React.FC = () => {
                 )}
             </nav>
 
-          {/* Logout Button - Fixed at bottom */}
+          {/* Theme Toggle + Logout - Fixed at bottom */}
           {!sidebarCollapsed && (
-            <div className="px-4 pb-6 flex-shrink-0">
+            <div className="px-4 pb-6 flex-shrink-0 space-y-3">
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-transparent ${hoverBg} transition-all group`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-xl ${toggleIconBg} flex items-center justify-center flex-shrink-0`}>
+                      {darkMode ? (
+                        <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.166 17.834a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.166 6.166a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591z" />
+                        </svg>
+                      ) : (
+                        <svg className={`w-4 h-4 ${secondaryText}`} fill="currentColor" viewBox="0 0 24 24">
+                          <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`text-sm font-medium ${toggleLabelColor} transition-colors`}>
+                      {darkMode ? 'Light Mode' : 'Dark Mode'}
+                    </span>
+                  </div>
+                  <div className={`w-10 h-5 rounded-full transition-all duration-300 relative flex-shrink-0 ${
+                    darkMode ? 'bg-blue-500' : 'bg-white/20'
+                  }`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${
+                      darkMode ? 'left-5' : 'left-0.5'
+                    }`} />
+                  </div>
+                </button>
                 <button
                   onClick={async () => {
                     await signOut()
@@ -3040,8 +3159,8 @@ export const AdminDashboard: React.FC = () => {
                   }}
                   className="w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all hover:transform hover:scale-105 flex items-center justify-center gap-2"
                   style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)'
+                    background: primaryActionBg,
+                    boxShadow: primaryActionShadow
                   }}
                 >
                   <LogOut size={18} />
@@ -3052,10 +3171,25 @@ export const AdminDashboard: React.FC = () => {
 
           {/* User Profile - Collapsed State Only */}
           {sidebarCollapsed && (
-            <div className="p-4 flex-shrink-0">
+            <div className="p-4 flex-shrink-0 space-y-2">
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className={`w-full p-3 rounded-xl transition-all ${bottomBtnBg}`}
+                >
+                  {darkMode ? (
+                    <svg className="w-5 h-5 text-yellow-300 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.166 17.834a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.166 6.166a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.061-1.06l-1.59-1.591z" />
+                    </svg>
+                  ) : (
+                    <svg className={`w-5 h-5 ${secondaryText} mx-auto`} fill="currentColor" viewBox="0 0 24 24">
+                      <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
                 <button
                   onClick={signOut}
-                  className="w-full p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+                  className={`w-full p-3 rounded-xl transition-all ${bottomBtnBg}`}
                 >
                   <LogOut size={20} className="text-gray-400 mx-auto" />
                 </button>
@@ -3069,116 +3203,96 @@ export const AdminDashboard: React.FC = () => {
           <header className="sticky top-0 z-40 p-4">
             <div 
               className="px-6 py-4 backdrop-blur-2xl rounded-3xl"
-              style={{ background: 'rgba(6, 11, 40, 0.7)' }}
+              style={{ background: headerBg }}
             >
               <div className="flex items-center justify-between">
               {/* Left Side - Toggle + Breadcrumb */}
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                  className={`p-2 ${hoverBg} rounded-xl transition-colors`}
                   title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
                   <ChevronRight size={18} className={`text-gray-400 transition-transform duration-300 ${sidebarCollapsed ? '' : 'rotate-180'}`} />
                 </button>
                 <div>
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                  <div className={`flex items-center gap-2 ${secondaryText} text-xs mb-1`}>
                     <Home size={12} />
                     <span>/</span>
                     <span>{menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}</span>
                   </div>
-                  <h2 className="text-lg font-bold text-white">
+                  <h2 className={`text-lg font-bold ${mainText}`}>
                     {menuItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
                   </h2>
                 </div>
               </div>
 
-              {/* Right Side - Actions */}
+              {/* Right - Search + Actions */}
               <div className="flex items-center gap-3">
-                {/* Search */}
-                <div className="relative">
+                <div className="relative hidden md:block">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
                   <input
                     type="text"
-                    placeholder="Type here..."
+                    placeholder="Search users, orders, agents..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-48 pl-9 pr-3 py-2 text-sm bg-white/5 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 transition-colors"
+                    className={`w-56 pl-9 pr-3 py-2 text-sm rounded-lg focus:outline-none transition-colors ${inputCls}`}
                   />
                 </div>
 
-                {/* Notification Bell */}
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
-                  <Bell size={18} className="text-gray-400" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+                <button className={`relative p-2 ${hoverBg} rounded-xl transition-colors`}>
+                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" />
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
                 </button>
 
-                {/* Settings Icon */}
-                <button 
-                  onClick={() => setCurrentPage('settings')}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <Settings size={18} className="text-gray-400" />
-                </button>
-
-                {/* User Profile Dropdown */}
                 <div className="relative group">
-                  <button className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:ring-2 hover:ring-blue-400 hover:ring-offset-2 hover:ring-offset-gray-900 transition-all">
-                    {userProfile?.name?.charAt(0)?.toUpperCase() || 'A'}
+                  <button className={`flex items-center gap-2.5 px-2 py-1.5 ${hoverBg} rounded-2xl transition-colors`}>
+                    <div className="relative flex-shrink-0">
+                      <div className="w-9 h-9 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                        {userProfile?.name?.charAt(0)?.toUpperCase() || 'A'}
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2" style={{ borderColor: headerBg }} />
+                    </div>
+
+                    <div className="text-left hidden sm:block">
+                      <p className={`text-sm font-semibold leading-tight ${mainText}`}>{userProfile?.name || 'Admin User'}</p>
+                      <p className={`text-xs ${secondaryText}`}>Platform Admin</p>
+                    </div>
+                    <ChevronDown size={14} className={`${secondaryText} hidden sm:block`} />
                   </button>
 
-                  {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-64 bg-[#0a0e23] rounded-2xl shadow-2xl border border-white/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    {/* Profile Header */}
-                    <div className="p-4 border-b border-white/10">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                          {userProfile?.name?.charAt(0)?.toUpperCase() || 'A'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-semibold text-sm truncate">
-                            {userProfile?.name || 'Admin User'}
-                          </p>
-                          <p className="text-gray-400 text-xs truncate">
-                            {userProfile?.email || 'admin@fillup.com'}
-                          </p>
-                        </div>
-                      </div>
+                  <div className={`absolute right-0 mt-2 w-56 backdrop-blur-2xl rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden shadow-xl border ${profileMenuBorder}`} style={{ background: profileMenuBg }}>
+                    <div className={`p-4 border-b ${profileMenuBorder}`}>
+                      <p className={`font-semibold text-sm ${mainText}`}>{userProfile?.name || 'Admin User'}</p>
+                      <p className={`text-xs mt-0.5 ${secondaryText}`}>{userProfile?.email || 'admin@fillup.com'}</p>
                     </div>
 
-                    {/* Menu Items */}
                     <div className="p-2">
                       <button
-                        onClick={() => {
-                          navigate('/profile')
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-sm"
+                        onClick={() => navigate('/profile')}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-left ${secondaryText} ${hoverBg} rounded-xl transition-colors text-sm`}
                       >
-                        <User size={16} />
-                        <span>My Profile</span>
+                        <User size={14} /><span>Profile</span>
                       </button>
                       <button
-                        onClick={() => {
-                          setCurrentPage('settings')
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-sm"
+                        onClick={() => setCurrentPage('settings')}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-left ${secondaryText} ${hoverBg} rounded-xl transition-colors text-sm`}
                       >
-                        <Settings size={16} />
-                        <span>Settings</span>
+                        <Settings size={14} /><span>Settings</span>
                       </button>
                     </div>
 
-                    {/* Logout */}
-                    <div className="p-2 border-t border-white/10">
+                    <div className={`p-2 border-t ${profileMenuBorder}`}>
                       <button
                         onClick={async () => {
                           await signOut()
                           navigate('/admin/login')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors text-sm font-medium"
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left text-red-400 hover:bg-red-500/10 rounded-xl transition-colors text-sm"
                       >
-                        <LogOut size={16} />
-                        <span>Logout</span>
+                        <LogOut size={14} /><span>Logout</span>
                       </button>
                     </div>
                   </div>

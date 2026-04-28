@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Header } from '../components/layout/Header'
-import { Footer } from '../components/layout/Footer'
 import { useAuth } from '../contexts/AuthContext'
 import heroVideo from '../assets/hero.mp4'
 import wheelImg from '../assets/wheel.png'
@@ -50,6 +49,100 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
   const [isClosing, setIsClosing] = useState(false)
   const [mouseX, setMouseX] = useState(0)
   const [mouseY, setMouseY] = useState(0)
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null)
+  const [activeService, setActiveService] = useState(0)
+  const [stackOrder, setStackOrder] = useState([0, 1, 2, 3])
+  const [cardLeaving, setCardLeaving] = useState(false)
+  const stackRef = useRef<HTMLDivElement>(null)
+  const cardLeavingRef = useRef(false)
+  const sectionRef = useRef<HTMLElement>(null)
+  const scrollIndexRef = useRef(0)
+
+  const rotateStack = useCallback(() => {
+    if (cardLeavingRef.current) return
+    cardLeavingRef.current = true
+    setCardLeaving(true)
+    setTimeout(() => {
+      setStackOrder(prev => {
+        const next = [...prev]
+        const first = next.shift()!
+        next.push(first)
+        setActiveService(next[0])
+        return next
+      })
+      setCardLeaving(false)
+      cardLeavingRef.current = false
+    }, 420)
+  }, [])
+
+  const rotateStackBack = useCallback(() => {
+    if (cardLeavingRef.current) return
+    cardLeavingRef.current = true
+    setStackOrder(prev => {
+      const next = [...prev]
+      const last = next.pop()!
+      next.unshift(last)
+      setActiveService(next[0])
+      return next
+    })
+    setTimeout(() => { cardLeavingRef.current = false }, 520)
+  }, [])
+
+  // Window-level scroll hijack: capture wheel events while services section is active
+  useEffect(() => {
+    const lastWheelTimeRef = { current: 0 }
+    const THROTTLE = 680
+
+    const onWheel = (e: WheelEvent) => {
+      const section = sectionRef.current
+      if (!section) return
+      const rect = section.getBoundingClientRect()
+
+      // Auto-reset index if section is completely outside the viewport
+      if (rect.top > window.innerHeight) {
+        scrollIndexRef.current = 0   // section below view → reset forward
+        return
+      }
+      if (rect.bottom < 0) {
+        scrollIndexRef.current = 3   // section above view → reset backward
+        return
+      }
+
+      // "Engaged" = section top has entered the viewport and is near the top
+      // (between -80px and 160px of viewport top) — user has "arrived" at section
+      const engaged = rect.top >= -80 && rect.top <= 160
+      if (!engaged) return
+
+      if (e.deltaY > 0) {
+        // Scrolling DOWN — intercept only when there are still cards to show
+        if (scrollIndexRef.current < 3) {
+          e.preventDefault()   // prevent page scroll FIRST
+          const now = Date.now()
+          if (now - lastWheelTimeRef.current > THROTTLE) {
+            lastWheelTimeRef.current = now
+            rotateStack()
+            scrollIndexRef.current++
+          }
+        }
+        // index === 3: all cards shown, let scroll pass naturally
+      } else if (e.deltaY < 0) {
+        // Scrolling UP — intercept only when cards can still go back
+        if (scrollIndexRef.current > 0) {
+          e.preventDefault()   // prevent page scroll FIRST
+          const now = Date.now()
+          if (now - lastWheelTimeRef.current > THROTTLE) {
+            lastWheelTimeRef.current = now
+            rotateStackBack()
+            scrollIndexRef.current--
+          }
+        }
+        // index === 0: first card, let scroll pass naturally
+      }
+    }
+
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [rotateStack, rotateStackBack])
 
   // Handle menu close with animation
   const handleCloseMenu = () => {
@@ -640,147 +733,846 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-20 bg-gray-50 relative z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div 
-            className="text-center mb-16"
-            data-aos="fade-up"
-          >
-            <div className="inline-flex items-center space-x-2 bg-blue-100 px-4 py-2 rounded-full mb-4">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-600">Simple Process</span>
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Getting fuel delivered or booking a mechanic has never been easier. 
-              Follow these simple steps to get started.
-            </p>
+      <section id="how-it-works" className="relative z-20 overflow-hidden" style={{background: 'linear-gradient(160deg, #f0f4ff 0%, #fff7f0 50%, #f0fff4 100%)', paddingTop: '80px', paddingBottom: '100px'}}>
+        {/* Background blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div style={{position:'absolute', top:'5%', left:'5%', width:'500px', height:'500px', background:'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)', borderRadius:'50%'}} />
+          <div style={{position:'absolute', top:'5%', right:'5%', width:'500px', height:'500px', background:'radial-gradient(circle, rgba(249,115,22,0.07) 0%, transparent 70%)', borderRadius:'50%'}} />
+          <div style={{position:'absolute', bottom:'0%', left:'30%', width:'600px', height:'300px', background:'radial-gradient(circle, rgba(34,197,94,0.05) 0%, transparent 70%)', borderRadius:'50%'}} />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+
+          {/* Giant title — sits behind the cards */}
+          <div className="text-center relative" style={{zIndex: 1, marginBottom: '-18px', pointerEvents: 'none'}} data-aos="fade-up">
+            <h2 style={{
+              fontSize: 'clamp(48px, 7vw, 88px)',
+              fontWeight: 900,
+              lineHeight: 1,
+              letterSpacing: '-0.04em',
+              background: 'linear-gradient(160deg, #f97316 0%, #fb923c 50%, #fdba74 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              userSelect: 'none',
+              opacity: 0.95,
+            }}>
+              How it Works
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center group" data-aos="fade-up" data-aos-delay="0">
-              <div className="relative mb-6">
-                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  1
+          {/* Phone card trio */}
+          <div className="flex items-center justify-center relative" style={{perspective: '1200px', gap: '0px', zIndex: 10}}>
+
+            {/* ── Card 1: Request Service (left, receded) ── */}
+            <div
+              data-aos="fade-right"
+              data-aos-delay="150"
+              className="relative flex-shrink-0"
+              onMouseEnter={() => setHoveredCard(1)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={{
+                width: '232px',
+                zIndex: hoveredCard === 1 ? 30 : 1,
+                transform: hoveredCard === 1
+                  ? 'rotateY(0deg) translateX(0px) translateY(0px) scale(1.06)'
+                  : 'rotateY(12deg) translateX(24px) translateY(32px) scale(0.93)',
+                transformOrigin: 'right center',
+                transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), z-index 0s',
+                cursor: 'pointer',
+              }}
+            >
+              <div
+                className="relative rounded-[2.5rem] overflow-hidden flex flex-col"
+                style={{
+                  height: '480px',
+                  background: 'rgba(255,255,255,0.55)',
+                  backdropFilter: 'blur(24px) saturate(180%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+                  border: hoveredCard === 1 ? '1.5px solid rgba(59,130,246,0.35)' : '1.5px solid rgba(255,255,255,0.85)',
+                  boxShadow: hoveredCard === 1
+                    ? '0 32px 80px rgba(59,130,246,0.20), 0 4px 16px rgba(59,130,246,0.10), inset 0 1px 0 rgba(255,255,255,0.9)'
+                    : '0 8px 40px rgba(59,130,246,0.10), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  transition: 'box-shadow 0.35s ease, border-color 0.35s ease',
+                }}
+              >
+                {/* Top notch bar */}
+                <div className="flex justify-center pt-4 pb-2">
+                  <div className="w-16 h-1 bg-gray-200 rounded-full" />
                 </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-400 rounded-full animate-pulse"></div>
+
+                <div className="px-5 pt-2 flex-1 flex flex-col">
+                  {/* Nav icon */}
+                  <div className="flex justify-center mb-5">
+                    <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
+                      <Fuel className="h-4 w-4 text-blue-500" />
+                    </div>
+                  </div>
+
+                  {/* Card content */}
+                  <h3 className="text-base font-semibold text-gray-800 text-center mb-4">Request Service</h3>
+
+                  {/* Mock UI */}
+                  <div className="space-y-2.5">
+                    {/* Service type pill row */}
+                    <div className="flex gap-2">
+                      <span className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm font-medium">
+                        <Fuel className="h-2.5 w-2.5" /> Fuel
+                      </span>
+                      <span className="bg-gray-100 text-gray-500 text-xs px-3 py-1.5 rounded-full font-medium">
+                        Mechanic
+                      </span>
+                    </div>
+
+                    {/* Location row */}
+                    <div className="bg-gray-50 rounded-2xl p-3 flex items-center gap-2.5 border border-gray-100">
+                      <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <MapPin className="h-3.5 w-3.5 text-orange-500" />
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-2 bg-gray-300 rounded-full w-full" />
+                        <div className="h-1.5 bg-gray-200 rounded-full w-2/3" />
+                      </div>
+                    </div>
+
+                    {/* Quantity selector mock */}
+                    <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+                      <div className="text-[10px] text-gray-400 font-medium mb-2 uppercase tracking-wide">Litres</div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {['5 L', '10 L', '20 L'].map((l, i) => (
+                          <div key={l} className={`rounded-xl py-1.5 text-center text-xs font-semibold border transition-colors ${i === 1 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>{l}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom description */}
+                <div className="px-5 pb-5 pt-3 bg-gradient-to-t from-white via-white to-transparent mt-auto">
+                  <p className="text-[11px] text-gray-400 leading-relaxed text-center">
+                    Open the app, choose your service and specify your requirements.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Request Service</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Open the app, select your service (fuel delivery or mechanic), 
-                enter your location, and specify your requirements.
-              </p>
             </div>
 
-            <div className="text-center group" data-aos="fade-up" data-aos-delay="200">
-              <div className="relative mb-6">
-                <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  2
+            {/* ── Card 2: Get Matched (CENTER, large) ── */}
+            <div
+              data-aos="fade-up"
+              data-aos-delay="0"
+              className="relative flex-shrink-0"
+              onMouseEnter={() => setHoveredCard(2)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={{
+                zIndex: hoveredCard === 2 ? 30 : 10,
+                width: '272px',
+                transform: hoveredCard === 2 ? 'translateY(-16px) scale(1.05)' : 'translateY(0) scale(1)',
+                transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), z-index 0s',
+                cursor: 'pointer',
+              }}
+            >
+              {/* Colored glow ring */}
+              <div
+                className="absolute inset-0 rounded-[2.8rem]"
+                style={{
+                  background: hoveredCard === 2
+                    ? 'linear-gradient(135deg, rgba(249,115,22,0.40) 0%, rgba(59,130,246,0.35) 100%)'
+                    : 'linear-gradient(135deg, rgba(249,115,22,0.25) 0%, rgba(59,130,246,0.20) 100%)',
+                  filter: 'blur(20px)',
+                  transform: 'scale(1.08)',
+                  transition: 'background 0.35s ease',
+                }}
+              />
+              <div
+                className="relative rounded-[2.8rem] overflow-hidden flex flex-col"
+                style={{
+                  height: '540px',
+                  background: 'rgba(255,255,255,0.60)',
+                  backdropFilter: 'blur(28px) saturate(190%)',
+                  WebkitBackdropFilter: 'blur(28px) saturate(190%)',
+                  border: hoveredCard === 2 ? '2px solid rgba(249,115,22,0.50)' : '2px solid rgba(249,115,22,0.30)',
+                  boxShadow: hoveredCard === 2
+                    ? '0 40px 100px rgba(59,130,246,0.22), 0 8px 30px rgba(249,115,22,0.18), inset 0 1px 0 rgba(255,255,255,0.95)'
+                    : '0 24px 64px rgba(59,130,246,0.15), 0 4px 16px rgba(249,115,22,0.12), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  transition: 'box-shadow 0.35s ease, border-color 0.35s ease',
+                }}
+              >
+                {/* Top notch */}
+                <div className="flex justify-center pt-4 pb-2">
+                  <div className="w-16 h-1 bg-gray-200 rounded-full" />
                 </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-400 rounded-full animate-pulse delay-300"></div>
+
+                <div className="px-5 pt-2 flex-1 flex flex-col">
+                  {/* Icon */}
+                  <div className="flex justify-center mb-5">
+                    <div className="w-9 h-9 bg-orange-50 rounded-xl flex items-center justify-center">
+                      <Zap className="h-4 w-4 text-orange-500" />
+                    </div>
+                  </div>
+
+                  {/* Toggle pills */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="bg-gray-100 text-gray-500 text-xs px-3 py-1.5 rounded-full font-medium">Fuel</span>
+                    <span className="bg-orange-500 text-white text-xs px-3 py-1.5 rounded-full font-medium shadow-sm">Agent</span>
+                  </div>
+
+                  <h3 className="text-lg font-semibold text-gray-800 mb-5">Get Matched</h3>
+
+                  {/* Waveform bars — signal/connection visual */}
+                  <div className="flex items-end justify-center gap-[3px] mb-4" style={{height: '64px'}}>
+                    {[20, 36, 52, 64, 52, 56, 44, 64, 48, 36, 20].map((h, i) => (
+                      <div
+                        key={i}
+                        className="rounded-full flex-shrink-0"
+                        style={{
+                          width: '6px',
+                          height: `${h}px`,
+                          background: i >= 4 && i <= 7
+                            ? 'linear-gradient(to top, #f97316, #fb923c)'
+                            : 'linear-gradient(to top, #3b82f6, #93c5fd)',
+                          opacity: 0.75 + (i % 3) * 0.08,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-gray-500 text-center mb-4">Connecting to nearest agent…</p>
+
+                  {/* Agent match card */}
+                  <div className="bg-blue-50 rounded-2xl p-3 flex items-center gap-3 border border-blue-100">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Users className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="h-2 bg-blue-200 rounded-full w-20 mb-1.5" />
+                      <div className="h-1.5 bg-blue-100 rounded-full w-14" />
+                    </div>
+                    <div className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0">0.8 km</div>
+                  </div>
+                </div>
+
+                {/* Bottom */}
+                <div className="px-5 pb-5 pt-3 bg-gradient-to-t from-white via-white to-transparent mt-auto">
+                  <p className="text-[11px] text-gray-400 leading-relaxed text-center">
+                    We instantly connect you with the nearest verified agent. Track them in real-time as they head your way.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Get Matched</h3>
-              <p className="text-gray-600 leading-relaxed">
-                We instantly connect you with the nearest verified service provider. 
-                Track their location in real-time as they head your way.
-              </p>
             </div>
 
-            <div className="text-center group" data-aos="fade-up" data-aos-delay="400">
-              <div className="relative mb-6">
-                <div className="bg-gradient-to-r from-green-600 to-green-700 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  3
+            {/* ── Card 3: Service Complete (right, receded) ── */}
+            <div
+              data-aos="fade-left"
+              data-aos-delay="150"
+              className="relative flex-shrink-0"
+              onMouseEnter={() => setHoveredCard(3)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={{
+                width: '232px',
+                zIndex: hoveredCard === 3 ? 30 : 1,
+                transform: hoveredCard === 3
+                  ? 'rotateY(0deg) translateX(0px) translateY(0px) scale(1.06)'
+                  : 'rotateY(-12deg) translateX(-24px) translateY(32px) scale(0.93)',
+                transformOrigin: 'left center',
+                transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), z-index 0s',
+                cursor: 'pointer',
+              }}
+            >
+              <div
+                className="relative rounded-[2.5rem] overflow-hidden flex flex-col"
+                style={{
+                  height: '480px',
+                  background: 'rgba(255,255,255,0.55)',
+                  backdropFilter: 'blur(24px) saturate(180%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+                  border: hoveredCard === 3 ? '1.5px solid rgba(34,197,94,0.35)' : '1.5px solid rgba(255,255,255,0.85)',
+                  boxShadow: hoveredCard === 3
+                    ? '0 32px 80px rgba(34,197,94,0.20), 0 4px 16px rgba(34,197,94,0.10), inset 0 1px 0 rgba(255,255,255,0.9)'
+                    : '0 8px 40px rgba(34,197,94,0.10), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  transition: 'box-shadow 0.35s ease, border-color 0.35s ease',
+                }}
+              >
+                {/* Notch */}
+                <div className="flex justify-center pt-4 pb-2">
+                  <div className="w-16 h-1 bg-gray-200 rounded-full" />
                 </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-400 rounded-full animate-pulse delay-500"></div>
+
+                <div className="px-5 pt-2 flex-1 flex flex-col">
+                  {/* Icon */}
+                  <div className="flex justify-center mb-5">
+                    <div className="w-9 h-9 bg-green-50 rounded-xl flex items-center justify-center">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-base font-semibold text-gray-800 text-center mb-4">Service Complete</h3>
+
+                  {/* Order history items — like the calendar in the image */}
+                  <div className="space-y-2">
+                    {[
+                      { date: 'Today', time: '2:30 PM – 3:00 PM', label: 'Fuel Delivery', active: true },
+                      { date: 'Mar 5', time: '10:00 AM – 11:00 AM', label: 'Mechanic Visit', active: false },
+                      { date: 'Mar 12', time: '1:00 PM – 1:30 PM', label: 'Fuel Delivery', active: false },
+                    ].map((item, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-2xl px-3 py-2.5 border ${item.active ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100'}`}
+                      >
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5">{item.date}</div>
+                        <div className="text-[11px] text-gray-500 mb-0.5">{item.time}</div>
+                        <div className={`text-xs font-semibold ${item.active ? 'text-blue-700' : 'text-gray-600'}`}>{item.label}</div>
+                        {item.active && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <CheckCircle className="h-3 w-3 text-green-500" />
+                            <span className="text-[10px] text-green-600 font-medium">Completed · ₵48.00</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bottom */}
+                <div className="px-5 pb-5 pt-3 bg-gradient-to-t from-white via-white to-transparent mt-auto">
+                  <p className="text-[11px] text-gray-400 leading-relaxed text-center">
+                    Receive your service, pay securely in-app, and rate your experience.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Service Complete</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Receive your service, make secure payment through the app, 
-                and rate your experience to help maintain quality.
-              </p>
             </div>
-          </div>
+
+          </div>{/* end card trio */}
         </div>
       </section>
 
       {/* Services */}
-      <section id="services" className="py-20 relative z-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div 
-            className="text-center mb-16"
-            data-aos="fade-up"
-          >
-            <div className="inline-flex items-center space-x-2 bg-orange-100 px-4 py-2 rounded-full mb-4">
+      <section id="services" ref={sectionRef as React.RefObject<HTMLDivElement>} className="py-24 relative z-20 overflow-hidden" style={{background:'linear-gradient(170deg,#f0f6ff 0%,#fff8f0 55%,#f0fff8 100%)'}}>
+        {/* Decorative blobs */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div style={{position:'absolute',top:'-10%',left:'-8%',width:'520px',height:'520px',background:'radial-gradient(circle,rgba(59,130,246,0.09) 0%,transparent 70%)',borderRadius:'50%'}} />
+          <div style={{position:'absolute',bottom:'-5%',right:'-5%',width:'480px',height:'480px',background:'radial-gradient(circle,rgba(249,115,22,0.08) 0%,transparent 70%)',borderRadius:'50%'}} />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+
+          {/* Header */}
+          <div className="text-center mb-14" data-aos="fade-up">
+            <div className="inline-flex items-center gap-2 bg-orange-100 px-4 py-2 rounded-full mb-5">
               <Award className="h-4 w-4 text-orange-600" />
-              <span className="text-sm font-medium text-orange-600">Premium Services</span>
+              <span className="text-sm font-semibold text-orange-600">Premium Services</span>
             </div>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Our Services</h2>
-            <p className="text-xl text-gray-600">
-              Comprehensive automotive services delivered to your doorstep
-            </p>
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4" style={{letterSpacing:'-0.03em'}}>
+              Everything you need,{' '}
+              <span style={{background:'linear-gradient(90deg,#f97316,#fb923c)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>delivered.</span>
+            </h2>
+            <p className="text-lg text-gray-500">Click a service to preview the live dashboard experience</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div data-aos="zoom-in" data-aos-delay="0">
-              <Card hover className="group h-full">
-                <CardContent className="text-center p-8">
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-2xl mb-4 inline-block shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    <Fuel className="h-8 w-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Fuel Delivery</h3>
-                  <p className="text-gray-600 mb-4">
-                    Premium petrol and diesel delivered to your exact location
-                  </p>
-                  <div className="text-blue-600 font-medium text-sm">Starting from ₵15/L</div>
-                </CardContent>
-              </Card>
-            </div>
+          {/* Main layout: tabs left + MacBook right */}
+          <div className="flex flex-col lg:flex-row gap-8 items-start" data-aos="fade-up" data-aos-delay="100">
 
-            <div data-aos="zoom-in" data-aos-delay="100">
-              <Card hover className="group h-full">
-                <CardContent className="text-center p-8">
-                  <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4 rounded-2xl mb-4 inline-block shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    <Wrench className="h-8 w-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Mobile Mechanic</h3>
-                  <p className="text-gray-600 mb-4">
-                    Expert mechanics for repairs and maintenance services
-                  </p>
-                  <div className="text-orange-600 font-medium text-sm">Starting from ₵50</div>
-                </CardContent>
-              </Card>
-            </div>
+            {/* ── Left: phone-sized fan stack cards ── */}
+            {(()=>{
+              const svcs = [
+                {
+                  name:'Fuel Delivery', icon:Fuel, color:'#3b82f6', bg:'#eff6ff', border:'#bfdbfe', price:'From ₵15/L',
+                  desc:'Premium petrol & diesel delivered to your exact GPS location, 24/7.',
+                  features:['Petrol & Diesel available','Real-time agent tracking','Pay securely in-app'],
+                  stats:[{label:'Today\'s Orders',val:'48'},{label:'Active Agents',val:'12'}],
+                  visual:{ type:'fuel', bars:[90,70,55,80,65,45,75] }
+                },
+                {
+                  name:'Mobile Mechanic', icon:Wrench, color:'#f97316', bg:'#fff7ed', border:'#fed7aa', price:'From ₵50',
+                  desc:'Licensed mechanics dispatched to your location for repairs & maintenance.',
+                  features:['Engine, brakes & electrical','Licensed & vetted technicians','30-min average response'],
+                  stats:[{label:'Avg. Rating',val:'4.9 ★'},{label:'Jobs Done',val:'1.2k'}],
+                  visual:{ type:'mechanic', bars:[60,80,70,90,75,85,65] }
+                },
+                {
+                  name:'Battery Jump-Start', icon:Zap, color:'#22c55e', bg:'#f0fdf4', border:'#bbf7d0', price:'From ₵40',
+                  desc:'Fast, guaranteed jump-start for any car battery — get back on the road fast.',
+                  features:['Works on all car types','Usually under 15 minutes','Guaranteed or free retry'],
+                  stats:[{label:'Avg. Arrival',val:'11 min'},{label:'Success Rate',val:'99%'}],
+                  visual:{ type:'battery', bars:[30,50,65,80,90,70,55] }
+                },
+                {
+                  name:'Tire Change', icon:Shield, color:'#a855f7', bg:'#faf5ff', border:'#e9d5ff', price:'From ₵60',
+                  desc:'Professional on-demand tire change, repair and balancing wherever you are.',
+                  features:['All tire sizes covered','Balancing & fitting included','Spare tire available'],
+                  stats:[{label:'Tires Changed',val:'800+'},{label:'Coverage',val:'5 km radius'}],
+                  visual:{ type:'tire', bars:[55,70,80,65,90,75,60] }
+                },
+              ]
 
-            <div data-aos="zoom-in" data-aos-delay="200">
-              <Card hover className="group h-full">
-                <CardContent className="text-center p-8">
-                  <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-2xl mb-4 inline-block shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    <Zap className="h-8 w-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Battery Jump</h3>
-                  <p className="text-gray-600 mb-4">
-                    Quick battery jump-start service to get you moving
-                  </p>
-                  <div className="text-green-600 font-medium text-sm">Starting from ₵40</div>
-                </CardContent>
-              </Card>
-            </div>
+              const CARD_W = 278
+              const CARD_H = 420
+              const FAN_X = 24    // px right per depth level
+              const FAN_Y = 16    // px up per depth level
+              const FAN_ROT = 4.5 // deg clockwise per depth level
+              const N = 4
+              const MAX_TOP = (N - 1) * FAN_Y  // = 48px
+              const MAX_LEFT = (N - 1) * FAN_X // = 72px
+              const containerW = CARD_W + MAX_LEFT + 24
+              const containerH = CARD_H + MAX_TOP + 24
 
-            <div data-aos="zoom-in" data-aos-delay="300">
-              <Card hover className="group h-full">
-                <CardContent className="text-center p-8">
-                  <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-2xl mb-4 inline-block shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    <Users className="h-8 w-8 text-white" />
+              return (
+                <div
+                  ref={stackRef}
+                  className="flex-shrink-0 hidden lg:block select-none"
+                  style={{
+                    width:`${containerW}px`,
+                    height:`${containerH}px`,
+                    position:'relative',
+                    cursor:'pointer',
+                  }}
+                  onClick={rotateStack}
+                >
+                  {/* Progress dots */}
+                  <div style={{
+                    position:'absolute',
+                    bottom:'-36px',
+                    left:0, right:0,
+                    display:'flex',
+                    alignItems:'center',
+                    justifyContent:'center',
+                    gap:'6px',
+                  }}>
+                    {svcs.map((_, i) => {
+                      const isActive = stackOrder[0] === i
+                      return (
+                        <div key={i} style={{
+                          width: isActive ? '18px' : '6px',
+                          height:'6px',
+                          borderRadius:'999px',
+                          background: isActive ? svcs[stackOrder[0]].color : '#d1d5db',
+                          transition:'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+                        }} />
+                      )
+                    })}
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Tire Change</h3>
-                  <p className="text-gray-600 mb-4">
-                    Professional tire changing and repair services
-                  </p>
-                  <div className="text-purple-600 font-medium text-sm">Starting from ₵60</div>
-                </CardContent>
-              </Card>
+                  {/* Scroll hint */}
+                  <div style={{
+                    position:'absolute',
+                    bottom:'-58px',
+                    left:0, right:0,
+                    textAlign:'center',
+                    fontSize:'10.5px',
+                    color:'#9ca3af',
+                    fontWeight:500,
+                    display:'flex',
+                    alignItems:'center',
+                    justifyContent:'center',
+                    gap:'4px',
+                  }}>
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                      <path d="M6 2v8M3 7l3 3 3-3" stroke="#d1d5db" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Scroll to explore all services
+                  </div>
+
+                  {svcs.map((svc, i) => {
+                    const pos = stackOrder.indexOf(i)
+                    const isTop = pos === 0
+                    const isLeaving = cardLeaving && isTop
+                    const Icon = svc.icon
+
+                    // Fan positions: front=lower-left, back=upper-right (money spread)
+                    const left = pos * FAN_X                 // front: leftmost, back: rightmost
+                    const top  = MAX_TOP - pos * FAN_Y       // front: MAX_TOP (lower), back: 0 (higher)
+                    const rotate = pos * FAN_ROT
+                    const scale = 1 - pos * 0.025
+                    const opacity = pos === 0 ? 1 : Math.max(0.55, 1 - pos * 0.15)
+                    const brightness = 1 - pos * 0.06
+
+                    return (
+                      <div
+                        key={svc.name}
+                        style={{
+                          position:'absolute',
+                          left:`${left}px`,
+                          top:`${top}px`,
+                          width:`${CARD_W}px`,
+                          height:`${CARD_H}px`,
+                          zIndex: isLeaving ? 50 : 40 - pos * 10,
+                          borderRadius:'24px',
+                          overflow:'hidden',
+                          background: isTop ? svc.bg : '#fff',
+                          border:`2px solid ${isTop ? svc.color : svc.border}`,
+                          boxShadow: isTop
+                            ? `0 20px 60px ${svc.color}30, 0 6px 16px rgba(0,0,0,0.10)`
+                            : `0 4px 12px rgba(0,0,0,${Math.max(0.03, 0.09 - pos*0.02)})`,
+                          filter:`brightness(${brightness})`,
+                          opacity,
+                          transform: isLeaving
+                            ? 'translateX(-145%) translateY(12%) rotate(-18deg) scale(0.84)'
+                            : `rotate(${rotate}deg) scale(${scale})`,
+                          transformOrigin: 'bottom left',
+                          transition: isLeaving
+                            ? 'transform 0.40s cubic-bezier(0.55,0,1,0.45), opacity 0.30s ease'
+                            : 'all 0.50s cubic-bezier(0.34,1.15,0.64,1)',
+                          padding:'22px',
+                          display:'flex',
+                          flexDirection:'column',
+                          gap:'0px',
+                          pointerEvents: isTop ? 'auto' : 'none',
+                          willChange:'transform',
+                        }}
+                      >
+                        {/* Top row: icon + price */}
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'14px'}}>
+                          <div style={{
+                            width:'52px',height:'52px',borderRadius:'16px',flexShrink:0,
+                            background: isTop ? svc.color : `${svc.color}20`,
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            boxShadow: isTop ? `0 6px 18px ${svc.color}45` : 'none',
+                            transition:'all 0.3s',
+                          }}>
+                            <Icon style={{width:'24px',height:'24px',color:isTop?'#fff':svc.color}} />
+                          </div>
+                          <div style={{textAlign:'right'}}>
+                            <div style={{fontSize:'10px',color:'#9ca3af',fontWeight:500,marginBottom:'3px'}}>Starting from</div>
+                            <div style={{
+                              fontSize:'13px',fontWeight:800,color:svc.color,
+                              background:svc.bg,padding:'4px 10px',borderRadius:'999px',
+                              border:`1px solid ${svc.border}`,
+                            }}>{svc.price}</div>
+                          </div>
+                        </div>
+
+                        {/* Name + desc */}
+                        <div style={{marginBottom:'14px'}}>
+                          <div style={{fontSize:'18px',fontWeight:800,color:'#111827',lineHeight:1.2,letterSpacing:'-0.03em'}}>{svc.name}</div>
+                          <div style={{fontSize:'12px',color:'#6b7280',marginTop:'6px',lineHeight:1.6}}>{svc.desc}</div>
+                        </div>
+
+                        {/* Mini stat bar */}
+                        <div style={{
+                          display:'flex',gap:'8px',marginBottom:'14px',
+                        }}>
+                          {svc.stats.map(s=>(
+                            <div key={s.label} style={{
+                              flex:1,background:isTop?`${svc.color}10`:'#f9fafb',
+                              border:`1px solid ${svc.border}`,
+                              borderRadius:'12px',padding:'8px 10px',
+                            }}>
+                              <div style={{fontSize:'16px',fontWeight:800,color:svc.color,lineHeight:1}}>{s.val}</div>
+                              <div style={{fontSize:'10px',color:'#9ca3af',marginTop:'3px',fontWeight:500}}>{s.label}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Mini bar chart */}
+                        <div style={{
+                          display:'flex',alignItems:'flex-end',gap:'4px',height:'44px',
+                          marginBottom:'14px',
+                          padding:'8px 10px',
+                          background:isTop?`${svc.color}08`:'#f9fafb',
+                          borderRadius:'12px',
+                          border:`1px solid ${svc.border}`,
+                        }}>
+                          {svc.visual.bars.map((h,bi)=>(
+                            <div key={bi} style={{
+                              flex:1,
+                              height:`${h}%`,
+                              borderRadius:'3px',
+                              background: bi === 3 || bi === 4
+                                ? svc.color
+                                : `${svc.color}35`,
+                              transition:`height 0.6s ease ${bi*0.05}s`,
+                            }} />
+                          ))}
+                          <div style={{marginLeft:'auto',fontSize:'9px',color:'#9ca3af',fontWeight:600,alignSelf:'flex-start',whiteSpace:'nowrap'}}>7-day activity</div>
+                        </div>
+
+                        {/* Features */}
+                        <div style={{display:'flex',flexDirection:'column',gap:'7px',marginBottom:'16px'}}>
+                          {svc.features.map(f=>(
+                            <div key={f} style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                              <div style={{
+                                width:'16px',height:'16px',borderRadius:'50%',flexShrink:0,
+                                background:`${svc.color}20`,
+                                display:'flex',alignItems:'center',justifyContent:'center',
+                              }}>
+                                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                  <path d="M1.5 4l2 2 3-3" stroke={svc.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </div>
+                              <span style={{fontSize:'11.5px',color:'#374151',fontWeight:500}}>{f}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Bottom CTA */}
+                        <div style={{
+                          marginTop:'auto',
+                          paddingTop:'12px',
+                          borderTop:`1px solid ${svc.border}`,
+                          display:'flex',
+                          alignItems:'center',
+                          justifyContent:'space-between',
+                        }}>
+                          <span style={{fontSize:'11px',color:isTop?svc.color:'#9ca3af',fontWeight:600}}>
+                            {isTop ? '← viewing dashboard' : `${3 - pos} card${3-pos!==1?'s':''} behind`}
+                          </span>
+                          <div style={{
+                            width:'28px',height:'28px',borderRadius:'50%',
+                            background:isTop?svc.color:`${svc.color}30`,
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            transition:'all 0.3s',
+                          }}>
+                            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                              <path d="M2.5 5.5h6M5.5 2.5l3 3-3 3" stroke={isTop?'#fff':svc.color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            {/* ── Right: Browser frame ── */}
+            <div className="flex-1 min-w-0 flex flex-col items-center" data-aos="zoom-in" data-aos-delay="200">
+              <div style={{width:'100%', maxWidth:'760px'}}>
+
+                {/* Browser chrome */}
+                <div style={{
+                  background:'#f5f5f7',
+                  border:'1px solid #d1d5db',
+                  borderRadius:'12px',
+                  boxShadow:'0 20px 60px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06)',
+                  overflow:'hidden',
+                }}>
+
+                  {/* Browser toolbar */}
+                  <div style={{
+                    background:'linear-gradient(180deg,#f9f9fb 0%,#f0f0f5 100%)',
+                    borderBottom:'1px solid #e2e2e8',
+                    padding:'9px 14px',
+                    display:'flex',
+                    alignItems:'center',
+                    gap:'10px',
+                  }}>
+                    {/* Traffic lights */}
+                    <div style={{display:'flex',gap:'5px',flexShrink:0}}>
+                      <div style={{width:'11px',height:'11px',borderRadius:'50%',background:'#ff5f57',border:'0.5px solid rgba(0,0,0,0.12)'}} />
+                      <div style={{width:'11px',height:'11px',borderRadius:'50%',background:'#febc2e',border:'0.5px solid rgba(0,0,0,0.12)'}} />
+                      <div style={{width:'11px',height:'11px',borderRadius:'50%',background:'#28c840',border:'0.5px solid rgba(0,0,0,0.12)'}} />
+                    </div>
+                    {/* Back/forward */}
+                    <div style={{display:'flex',gap:'2px',flexShrink:0}}>
+                      <div style={{width:'22px',height:'22px',borderRadius:'5px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'default'}}>
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M7 1L2 6L7 11" stroke="#b0b0b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div style={{width:'22px',height:'22px',borderRadius:'5px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'default'}}>
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1L6 6L1 11" stroke="#d0d0d8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                    {/* URL bar */}
+                    <div style={{
+                      flex:1,
+                      background:'#fff',
+                      border:'1px solid #e2e2e8',
+                      borderRadius:'7px',
+                      padding:'4px 10px',
+                      display:'flex',
+                      alignItems:'center',
+                      gap:'6px',
+                      boxShadow:'0 1px 2px rgba(0,0,0,0.04) inset',
+                    }}>
+                      <svg width="9" height="11" viewBox="0 0 9 11" fill="none"><path d="M4.5 1a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm-4 9.5c0-2.21 1.79-4 4-4s4 1.79 4 4" stroke="#aab0bd" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                      <span style={{flex:1,fontSize:'11px',color:'#6b7280',textAlign:'center',letterSpacing:'0.01em'}}>app.fillup.gh/dashboard</span>
+                      <svg width="9" height="11" viewBox="0 0 10 12" fill="none"><path d="M5 1v7M2 5l3 3 3-3M1 11h8" stroke="#aab0bd" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </div>
+                    {/* Right icons */}
+                    <div style={{display:'flex',gap:'4px',flexShrink:0}}>
+                      <div style={{width:'22px',height:'22px',borderRadius:'5px',background:'transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1l1.5 4H13l-3.5 2.5L11 12 7 9.5 3 12l1.5-4.5L1 5h4.5z" stroke="#b0b0b8" strokeWidth="1.3" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div style={{width:'27px',height:'27px',borderRadius:'50%',background:'linear-gradient(135deg,#f97316,#ea580c)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'#fff',flexShrink:0}}>K</div>
+                    </div>
+                  </div>
+
+                  {/* Dashboard content */}
+                  <div style={{background:'#ffffff', display:'flex', height:'420px', fontSize:'11px', overflow:'hidden'}}>
+
+                    {/* Sidebar */}
+                    <div style={{width:'136px',background:'#fff',borderRight:'1px solid #f1f3f5',padding:'14px 10px',display:'flex',flexDirection:'column',gap:'2px',flexShrink:0}}>
+                      {/* Logo */}
+                      <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'14px',padding:'0 4px'}}>
+                        <div style={{width:'24px',height:'24px',borderRadius:'7px',background:'linear-gradient(135deg,#f97316,#ea580c)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          <Fuel style={{width:'13px',height:'13px',color:'#fff'}} />
+                        </div>
+                        <span style={{fontWeight:800,fontSize:'12px',color:'#111827',letterSpacing:'-0.02em'}}>FillUp</span>
+                      </div>
+                      {/* Nav items */}
+                      {[
+                        {label:'Overview',    active:true},
+                        {label:'Live Orders', active:false},
+                        {label:'Agents',      active:false},
+                        {label:'Stations',    active:false},
+                        {label:'Analytics',   active:false},
+                        {label:'Settings',    active:false},
+                      ].map(item=>(
+                        <div key={item.label} style={{
+                          padding:'6px 8px',
+                          borderRadius:'7px',
+                          background:item.active?'#fff4ed':'transparent',
+                          color:item.active?'#ea580c':'#6b7280',
+                          fontWeight:item.active?600:400,
+                          fontSize:'10.5px',
+                          cursor:'pointer',
+                          borderLeft:item.active?'2px solid #f97316':'2px solid transparent',
+                        }}>{item.label}</div>
+                      ))}
+                      {/* Online agents */}
+                      <div style={{marginTop:'auto',paddingTop:'10px',borderTop:'1px solid #f1f3f5'}}>
+                        <div style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'8px'}}>Online Agents</div>
+                        {[
+                          {name:'Kofi Mensah', img:'https://i.pravatar.cc/32?img=11', km:'0.8 km'},
+                          {name:'Ama Boateng', img:'https://i.pravatar.cc/32?img=47', km:'1.4 km'},
+                          {name:'Yaw Asante',  img:'https://i.pravatar.cc/32?img=14', km:'2.1 km'},
+                        ].map(a=>(
+                          <div key={a.name} style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'6px'}}>
+                            <div style={{position:'relative',flexShrink:0}}>
+                              <img src={a.img} alt={a.name} style={{width:'22px',height:'22px',borderRadius:'50%',objectFit:'cover',display:'block'}} />
+                              <div style={{position:'absolute',bottom:0,right:0,width:'6px',height:'6px',borderRadius:'50%',background:'#22c55e',border:'1.5px solid #fff'}} />
+                            </div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:'9px',fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.name}</div>
+                              <div style={{fontSize:'8px',color:'#9ca3af'}}>{a.km}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Main content */}
+                    <div style={{flex:1,padding:'14px 14px',display:'flex',flexDirection:'column',gap:'10px',overflow:'hidden',background:'#fafafa'}}>
+
+                      {/* Top bar */}
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:'13px',color:'#111827'}}>Good morning, Kwame 👋</div>
+                          <div style={{fontSize:'9.5px',color:'#9ca3af',marginTop:'1px'}}>Wednesday, Feb 25 · Here's what's happening</div>
+                        </div>
+                        <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                          <div style={{background:'#f0fdf4',color:'#16a34a',fontSize:'9px',fontWeight:600,padding:'3px 8px',borderRadius:'999px',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:'3px'}}>
+                            <div style={{width:'5px',height:'5px',borderRadius:'50%',background:'#22c55e'}} />
+                            24 Active
+                          </div>
+                          <img src="https://i.pravatar.cc/32?img=33" alt="user" style={{width:'28px',height:'28px',borderRadius:'50%',border:'2px solid #f97316',objectFit:'cover'}} />
+                        </div>
+                      </div>
+
+                      {/* Stat cards */}
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px'}}>
+                        {[
+                          {lbl:'Orders Today',  val:'142',   sub:'+12% vs yesterday', color:'#3b82f6', bg:'#eff6ff', bdr:'#dbeafe'},
+                          {lbl:'Revenue',        val:'₵8,420',sub:'+8% this week',     color:'#f97316', bg:'#fff7ed', bdr:'#fed7aa'},
+                          {lbl:'Agents Online',  val:'38',    sub:'3 new today',        color:'#22c55e', bg:'#f0fdf4', bdr:'#bbf7d0'},
+                          {lbl:'Avg. Rating',    val:'4.9★',  sub:'from 840 reviews',   color:'#f59e0b', bg:'#fffbeb', bdr:'#fde68a'},
+                        ].map(s=>(
+                          <div key={s.lbl} style={{background:s.bg,border:`1px solid ${s.bdr}`,borderRadius:'10px',padding:'9px 10px'}}>
+                            <div style={{fontWeight:800,fontSize:'14px',color:s.color,lineHeight:1}}>{s.val}</div>
+                            <div style={{fontSize:'8.5px',fontWeight:600,color:'#374151',marginTop:'3px'}}>{s.lbl}</div>
+                            <div style={{fontSize:'7.5px',color:'#9ca3af',marginTop:'2px'}}>{s.sub}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Orders table */}
+                      <div style={{background:'#fff',borderRadius:'10px',border:'1px solid #f1f3f5',overflow:'hidden',flex:1,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                        <div style={{padding:'8px 12px',borderBottom:'1px solid #f9fafb',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontWeight:700,fontSize:'10.5px',color:'#111827'}}>Recent Orders</span>
+                          <span style={{fontSize:'9px',color:'#f97316',fontWeight:600,cursor:'pointer'}}>View all →</span>
+                        </div>
+                        {/* Table header */}
+                        <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1.2fr 1fr',gap:'0',padding:'5px 12px',background:'#f9fafb',borderBottom:'1px solid #f1f3f5'}}>
+                          {['Customer','Service & Location','Agent','Status'].map(h=>(
+                            <div key={h} style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px'}}>{h}</div>
+                          ))}
+                        </div>
+                        {[
+                          {name:'Kwame Mensah',  img:'https://i.pravatar.cc/32?img=3',  svc:'Fuel · 20L Diesel',  loc:'Accra Central',   agent:'Kofi M.', agentImg:'https://i.pravatar.cc/32?img=11', st:'En Route',  sc:'#f97316'},
+                          {name:'Aba Sarpong',   img:'https://i.pravatar.cc/32?img=47', svc:'Fuel · 15L Petrol',  loc:'East Legon',      agent:'Ama B.',  agentImg:'https://i.pravatar.cc/32?img=47', st:'Delivered', sc:'#16a34a'},
+                          {name:'Daniel Asare',  img:'https://i.pravatar.cc/32?img=15', svc:'Mechanic · Brakes',  loc:'Tema Comm. 1',    agent:'Yaw A.',  agentImg:'https://i.pravatar.cc/32?img=14', st:'Pending',   sc:'#6b7280'},
+                          {name:'Nana Owusu',    img:'https://i.pravatar.cc/32?img=25', svc:'Battery Jump-Start', loc:'Osu Oxford St.',  agent:'Eric K.', agentImg:'https://i.pravatar.cc/32?img=8',  st:'Confirmed', sc:'#3b82f6'},
+                        ].map((o,i,arr)=>(
+                          <div key={o.name} style={{display:'grid',gridTemplateColumns:'2fr 2fr 1.2fr 1fr',gap:'0',padding:'6px 12px',borderBottom:i<arr.length-1?'1px solid #f9fafb':'none',alignItems:'center'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
+                              <img src={o.img} alt={o.name} style={{width:'24px',height:'24px',borderRadius:'50%',objectFit:'cover',flexShrink:0,border:'1.5px solid #f1f3f5'}} />
+                              <span style={{fontSize:'9.5px',fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.name}</span>
+                            </div>
+                            <div>
+                              <div style={{fontSize:'9.5px',fontWeight:500,color:'#374151'}}>{o.svc}</div>
+                              <div style={{fontSize:'8px',color:'#9ca3af',marginTop:'1px',display:'flex',alignItems:'center',gap:'3px'}}>
+                                <MapPin style={{width:'7px',height:'7px',flexShrink:0}} />{o.loc}
+                              </div>
+                            </div>
+                            <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                              <img src={o.agentImg} alt={o.agent} style={{width:'20px',height:'20px',borderRadius:'50%',objectFit:'cover',flexShrink:0}} />
+                              <span style={{fontSize:'9px',color:'#374151',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.agent}</span>
+                            </div>
+                            <div>
+                              <span style={{fontSize:'8.5px',fontWeight:600,color:o.sc,background:o.sc+'14',padding:'2px 8px',borderRadius:'999px',border:`1px solid ${o.sc}25`,whiteSpace:'nowrap'}}>{o.st}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                    </div>
+
+                    {/* Right panel */}
+                    <div style={{width:'106px',borderLeft:'1px solid #f1f3f5',padding:'14px 10px',display:'flex',flexDirection:'column',gap:'10px',flexShrink:0,background:'#fff'}}>
+                      <div style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px'}}>Top Stations</div>
+                      {[
+                        {name:'Shell East Legon', img:'https://i.pravatar.cc/32?img=60', orders:48},
+                        {name:'Total Accra Mall',  img:'https://i.pravatar.cc/32?img=61', orders:34},
+                        {name:'Goil Tema',          img:'https://i.pravatar.cc/32?img=62', orders:27},
+                      ].map((s,i)=>(
+                        <div key={s.name} style={{display:'flex',flexDirection:'column',gap:'3px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                            <img src={s.img} alt={s.name} style={{width:'20px',height:'20px',borderRadius:'6px',objectFit:'cover',flexShrink:0}} />
+                            <div style={{fontSize:'8.5px',fontWeight:600,color:'#374151',flex:1,minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{s.name}</div>
+                          </div>
+                          <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                            <div style={{height:'3.5px',flex:1,background:'#f1f3f5',borderRadius:'2px',overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${100*(s.orders/48)}%`,background:'linear-gradient(90deg,#f97316,#fb923c)',borderRadius:'2px'}} />
+                            </div>
+                            <span style={{fontSize:'7.5px',color:'#9ca3af',flexShrink:0}}>{s.orders}</span>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div style={{height:'1px',background:'#f1f3f5',margin:'2px 0'}} />
+
+                      <div style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px'}}>Quick Stats</div>
+                      {[
+                        {lbl:'Avg. ETA',   val:'7 min'},
+                        {lbl:'Completed',  val:'138/142'},
+                        {lbl:'Cancelled',  val:'4'},
+                        {lbl:'NPS Score',  val:'78'},
+                      ].map(m=>(
+                        <div key={m.lbl} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontSize:'8.5px',color:'#6b7280'}}>{m.lbl}</span>
+                          <span style={{fontSize:'9px',fontWeight:700,color:'#111827'}}>{m.val}</span>
+                        </div>
+                      ))}
+
+                      <div style={{marginTop:'auto',background:'linear-gradient(135deg,#fff7ed,#ffedd5)',borderRadius:'9px',padding:'9px',border:'1px solid #fed7aa',textAlign:'center'}}>
+                        <div style={{fontSize:'15px',fontWeight:900,color:'#ea580c',lineHeight:1}}>₵8,420</div>
+                        <div style={{fontSize:'7.5px',color:'#92400e',marginTop:'2px',fontWeight:500}}>Today's Revenue</div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
             </div>
-          </div>
+          </div>{/* end main layout */}
         </div>
       </section>
 
@@ -1109,8 +1901,6 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
         </button>
       )}
 
-      {/* Footer */}
-      <Footer />
       </div>
     </>
   )
