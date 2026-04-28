@@ -6,23 +6,37 @@ import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import toast from '../../lib/toast'
 
+type AuthRedirectState = {
+  from?: {
+    pathname?: string
+  }
+}
+
+const getErrorMessage = (err: unknown) => {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Something went wrong'
+}
+
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   
-  const { signIn, user, userRole } = useAuth()
+  const { signIn, signInWithGoogle, user, userRole } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   // Check if user is already logged in
   useEffect(() => {
     if (user) {
+      const state = location.state as AuthRedirectState | null
       // Get the redirect path from session storage or state
       const redirectPath = sessionStorage.getItem('redirectPath') || 
-                          (location.state as any)?.from?.pathname || 
+                          state?.from?.pathname || 
                           getDefaultRedirectPath(userRole)
       
       navigate(redirectPath, { replace: true })
@@ -71,29 +85,43 @@ export const Login: React.FC = () => {
       toast.success('Welcome back!')
       navigate(redirectPath, { replace: true })
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err)
+      const message = getErrorMessage(err)
       
       // Handle specific error cases
-      if (err.message?.includes('Invalid login credentials')) {
+      if (message.includes('Invalid login credentials')) {
         toast.error('Invalid email or password.')
         setError('Invalid email or password. Please check your credentials and try again.')
-      } else if (err.message?.includes('verify your email')) {
-        setError(err.message)
+      } else if (message.includes('verify your email')) {
+        setError(message)
         // Optionally redirect to verification page
         setTimeout(() => {
           navigate(`/verify-email?email=${encodeURIComponent(email)}`)
         }, 3000)
-      } else if (err.message?.includes('Email not confirmed')) {
+      } else if (message.includes('Email not confirmed')) {
         setError('Please verify your email address before signing in.')
         setTimeout(() => {
           navigate(`/verify-email?email=${encodeURIComponent(email)}`)
         }, 3000)
       } else {
-        setError(err.message || 'Login failed. Please try again.')
+        setError(message || 'Login failed. Please try again.')
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true)
+    setError('')
+    try {
+      await signInWithGoogle()
+      // Redirect is handled by Supabase (or by AuthContext fallback).
+    } catch (err: unknown) {
+      console.error('Google sign-in error:', err)
+      setGoogleLoading(false)
+      setError(getErrorMessage(err) || 'Google sign-in failed. Please try again.')
     }
   }
 
@@ -256,6 +284,24 @@ export const Login: React.FC = () => {
               className="w-full text-lg py-3 bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 rounded-2xl font-bold transition-all hover:scale-105"
             >
               {loading ? 'Signing in...' : 'Sign In'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={googleLoading || loading}
+              onClick={handleGoogleSignIn}
+              className="w-full gap-3 rounded-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:ring-gray-200 shadow-sm font-semibold"
+            >
+              <img
+                src="/google-g.svg"
+                alt="Google"
+                className="h-5 w-5 flex-shrink-0"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+              {googleLoading ? 'Connecting…' : 'Continue with Google'}
             </Button>
           </form>
 

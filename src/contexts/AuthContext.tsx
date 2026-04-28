@@ -14,6 +14,7 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ user: User | null; userRole: UserRole | null }>
   signUp: (email: string, password: string, userData: { name: string; phone: string; role: UserRole }) => Promise<void>
+  signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
   invalidateAllSessions: () => Promise<void>
@@ -301,6 +302,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const signInWithGoogle = async () => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+      },
+    })
+
+    if (error) throw error
+
+    // In most browsers supabase-js will redirect automatically,
+    // but we also handle the returned URL defensively.
+    if (data?.url) {
+      window.location.assign(data.url)
+    }
+  }
+
   const signOut = async () => {
     try {
       // First, invalidate all active sessions globally
@@ -458,6 +478,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
     updateProfile,
     invalidateAllSessions,

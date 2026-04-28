@@ -733,7 +733,11 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="relative z-20 overflow-hidden" style={{background: 'linear-gradient(160deg, #f0f4ff 0%, #fff7f0 50%, #f0fff4 100%)', paddingTop: '80px', paddingBottom: '100px'}}>
+      <section
+        id="how-it-works"
+        className="relative z-20 overflow-hidden pt-16 pb-20 md:pt-20 md:pb-24"
+        style={{ background: 'linear-gradient(160deg, #f0f4ff 0%, #fff7f0 50%, #f0fff4 100%)' }}
+      >
         {/* Background blobs */}
         <div className="absolute inset-0 pointer-events-none">
           <div style={{position:'absolute', top:'5%', left:'5%', width:'500px', height:'500px', background:'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)', borderRadius:'50%'}} />
@@ -744,9 +748,9 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
 
           {/* Giant title — sits behind the cards */}
-          <div className="text-center relative" style={{zIndex: 1, marginBottom: '-18px', pointerEvents: 'none'}} data-aos="fade-up">
+          <div className="text-center relative pointer-events-none mb-10 md:-mb-4" style={{ zIndex: 1 }} data-aos="fade-up">
             <h2 style={{
-              fontSize: 'clamp(48px, 7vw, 88px)',
+              fontSize: 'clamp(40px, 7vw, 88px)',
               fontWeight: 900,
               lineHeight: 1,
               letterSpacing: '-0.04em',
@@ -762,7 +766,52 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
           </div>
 
           {/* Phone card trio */}
-          <div className="flex items-center justify-center relative" style={{perspective: '1200px', gap: '0px', zIndex: 10}}>
+          {/* Mobile: simplified step cards */}
+          <div className="md:hidden mt-8 grid grid-cols-1 gap-4" data-aos="fade-up" data-aos-delay="100">
+            {[
+              {
+                title: 'Request Service',
+                desc: 'Open the app, choose your service and specify your requirements.',
+                icon: Fuel,
+                iconBg: 'bg-blue-50',
+                iconFg: 'text-blue-600',
+              },
+              {
+                title: 'Get Matched',
+                desc: 'We match you with a nearby verified agent and dispatch instantly.',
+                icon: Zap,
+                iconBg: 'bg-orange-50',
+                iconFg: 'text-orange-600',
+              },
+              {
+                title: 'Service Complete',
+                desc: 'Receive your service, pay securely in-app, and rate your experience.',
+                icon: CheckCircle,
+                iconBg: 'bg-green-50',
+                iconFg: 'text-green-600',
+              },
+            ].map((step) => {
+              const Icon = step.icon
+              return (
+                <Card key={step.title} className="shadow-xl">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${step.iconBg}`}>
+                        <Icon className={`h-5 w-5 ${step.iconFg}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-base font-semibold text-gray-900">{step.title}</div>
+                        <div className="text-sm text-gray-600 mt-1 leading-relaxed">{step.desc}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Desktop: interactive phone trio */}
+          <div className="hidden md:flex items-center justify-center relative" style={{perspective: '1200px', gap: '0px', zIndex: 10}}>
 
             {/* ── Card 1: Request Service (left, receded) ── */}
             <div
@@ -1046,7 +1095,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
       </section>
 
       {/* Services */}
-      <section id="services" ref={sectionRef as React.RefObject<HTMLDivElement>} className="py-24 relative z-20 overflow-hidden" style={{background:'linear-gradient(170deg,#f0f6ff 0%,#fff8f0 55%,#f0fff8 100%)'}}>
+      <section id="services" ref={sectionRef as React.RefObject<HTMLDivElement>} className="py-16 md:py-24 relative z-20 overflow-hidden" style={{background:'linear-gradient(170deg,#f0f6ff 0%,#fff8f0 55%,#f0fff8 100%)'}}>
         {/* Decorative blobs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div style={{position:'absolute',top:'-10%',left:'-8%',width:'520px',height:'520px',background:'radial-gradient(circle,rgba(59,130,246,0.09) 0%,transparent 70%)',borderRadius:'50%'}} />
@@ -1056,7 +1105,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
 
           {/* Header */}
-          <div className="text-center mb-14" data-aos="fade-up">
+          <div className="text-center mb-10 md:mb-14" data-aos="fade-up">
             <div className="inline-flex items-center gap-2 bg-orange-100 px-4 py-2 rounded-full mb-5">
               <Award className="h-4 w-4 text-orange-600" />
               <span className="text-sm font-semibold text-orange-600">Premium Services</span>
@@ -1065,13 +1114,16 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
               Everything you need,{' '}
               <span style={{background:'linear-gradient(90deg,#f97316,#fb923c)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>delivered.</span>
             </h2>
-            <p className="text-lg text-gray-500">Click a service to preview the live dashboard experience</p>
+            <p className="text-base sm:text-lg text-gray-500">
+              <span className="lg:hidden">Tap a service to preview the dashboard experience</span>
+              <span className="hidden lg:inline">Click a service to preview the live dashboard experience</span>
+            </p>
           </div>
 
           {/* Main layout: tabs left + MacBook right */}
           <div className="flex flex-col lg:flex-row gap-8 items-start" data-aos="fade-up" data-aos-delay="100">
 
-            {/* ── Left: phone-sized fan stack cards ── */}
+            {/* ── Left: phone-sized fan stack cards (desktop) + service cards (mobile) ── */}
             {(()=>{
               const svcs = [
                 {
@@ -1116,17 +1168,54 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
               const containerH = CARD_H + MAX_TOP + 24
 
               return (
-                <div
-                  ref={stackRef}
-                  className="flex-shrink-0 hidden lg:block select-none"
-                  style={{
-                    width:`${containerW}px`,
-                    height:`${containerH}px`,
-                    position:'relative',
-                    cursor:'pointer',
-                  }}
-                  onClick={rotateStack}
-                >
+                <>
+                  {/* Mobile/tablet: readable service cards */}
+                  <div className="w-full lg:hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+                      {svcs.map((svc) => {
+                        const Icon = svc.icon
+                        return (
+                          <Card key={svc.name} hover>
+                            <CardContent className="p-5">
+                              <div className="flex items-start gap-4">
+                                <div
+                                  className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                                  style={{ background: svc.bg }}
+                                >
+                                  <Icon className="h-5 w-5" style={{ color: svc.color }} />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-base font-semibold text-gray-900 truncate">{svc.name}</div>
+                                    <div
+                                      className="text-xs font-semibold rounded-full px-2 py-1 whitespace-nowrap"
+                                      style={{ color: svc.color, background: svc.bg, border: `1px solid ${svc.border}` }}
+                                    >
+                                      {svc.price}
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-600 mt-1 leading-relaxed">{svc.desc}</div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Desktop: interactive fan stack */}
+                  <div
+                    ref={stackRef}
+                    className="flex-shrink-0 hidden lg:block select-none"
+                    style={{
+                      width:`${containerW}px`,
+                      height:`${containerH}px`,
+                      position:'relative',
+                      cursor:'pointer',
+                    }}
+                    onClick={rotateStack}
+                  >
                   {/* Progress dots */}
                   <div style={{
                     position:'absolute',
@@ -1328,12 +1417,13 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                       </div>
                     )
                   })}
-                </div>
+                  </div>
+                </>
               )
             })()}
 
             {/* ── Right: Browser frame ── */}
-            <div className="flex-1 min-w-0 flex flex-col items-center" data-aos="zoom-in" data-aos-delay="200">
+            <div className="flex-1 min-w-0 w-full flex flex-col items-center" data-aos="zoom-in" data-aos-delay="200">
               <div style={{width:'100%', maxWidth:'760px'}}>
 
                 {/* Browser chrome */}
@@ -1398,7 +1488,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                   <div style={{background:'#ffffff', display:'flex', height:'420px', fontSize:'11px', overflow:'hidden'}}>
 
                     {/* Sidebar */}
-                    <div style={{width:'136px',background:'#fff',borderRight:'1px solid #f1f3f5',padding:'14px 10px',display:'flex',flexDirection:'column',gap:'2px',flexShrink:0}}>
+                    <div className="hidden sm:flex" style={{width:'136px',background:'#fff',borderRight:'1px solid #f1f3f5',padding:'14px 10px',flexDirection:'column',gap:'2px',flexShrink:0}}>
                       {/* Logo */}
                       <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'14px',padding:'0 4px'}}>
                         <div style={{width:'24px',height:'24px',borderRadius:'7px',background:'linear-gradient(135deg,#f97316,#ea580c)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
@@ -1449,7 +1539,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                     </div>
 
                     {/* Main content */}
-                    <div style={{flex:1,padding:'14px 14px',display:'flex',flexDirection:'column',gap:'10px',overflow:'hidden',background:'#fafafa'}}>
+                    <div style={{flex:1,padding:'14px 14px',display:'flex',flexDirection:'column',gap:'10px',overflow:'hidden',background:'#fafafa',minWidth:0}}>
 
                       {/* Top bar */}
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -1467,7 +1557,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                       </div>
 
                       {/* Stat cards */}
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px'}}>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {[
                           {lbl:'Orders Today',  val:'142',   sub:'+12% vs yesterday', color:'#3b82f6', bg:'#eff6ff', bdr:'#dbeafe'},
                           {lbl:'Revenue',        val:'₵8,420',sub:'+8% this week',     color:'#f97316', bg:'#fff7ed', bdr:'#fed7aa'},
@@ -1489,10 +1579,11 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                           <span style={{fontSize:'9px',color:'#f97316',fontWeight:600,cursor:'pointer'}}>View all →</span>
                         </div>
                         {/* Table header */}
-                        <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1.2fr 1fr',gap:'0',padding:'5px 12px',background:'#f9fafb',borderBottom:'1px solid #f1f3f5'}}>
-                          {['Customer','Service & Location','Agent','Status'].map(h=>(
-                            <div key={h} style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px'}}>{h}</div>
-                          ))}
+                        <div className="grid grid-cols-[2fr_2fr] md:grid-cols-[2fr_2fr_1.2fr_1fr]" style={{gap:'0',padding:'5px 12px',background:'#f9fafb',borderBottom:'1px solid #f1f3f5'}}>
+                          <div style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px'}}>Customer</div>
+                          <div style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px'}}>Service &amp; Location</div>
+                          <div className="hidden md:block" style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px'}}>Agent</div>
+                          <div className="hidden md:block" style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.4px'}}>Status</div>
                         </div>
                         {[
                           {name:'Kwame Mensah',  img:'https://i.pravatar.cc/32?img=3',  svc:'Fuel · 20L Diesel',  loc:'Accra Central',   agent:'Kofi M.', agentImg:'https://i.pravatar.cc/32?img=11', st:'En Route',  sc:'#f97316'},
@@ -1500,7 +1591,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                           {name:'Daniel Asare',  img:'https://i.pravatar.cc/32?img=15', svc:'Mechanic · Brakes',  loc:'Tema Comm. 1',    agent:'Yaw A.',  agentImg:'https://i.pravatar.cc/32?img=14', st:'Pending',   sc:'#6b7280'},
                           {name:'Nana Owusu',    img:'https://i.pravatar.cc/32?img=25', svc:'Battery Jump-Start', loc:'Osu Oxford St.',  agent:'Eric K.', agentImg:'https://i.pravatar.cc/32?img=8',  st:'Confirmed', sc:'#3b82f6'},
                         ].map((o,i,arr)=>(
-                          <div key={o.name} style={{display:'grid',gridTemplateColumns:'2fr 2fr 1.2fr 1fr',gap:'0',padding:'6px 12px',borderBottom:i<arr.length-1?'1px solid #f9fafb':'none',alignItems:'center'}}>
+                          <div key={o.name} className="grid grid-cols-[2fr_2fr] md:grid-cols-[2fr_2fr_1.2fr_1fr]" style={{gap:'0',padding:'6px 12px',borderBottom:i<arr.length-1?'1px solid #f9fafb':'none',alignItems:'center'}}>
                             <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
                               <img src={o.img} alt={o.name} style={{width:'24px',height:'24px',borderRadius:'50%',objectFit:'cover',flexShrink:0,border:'1.5px solid #f1f3f5'}} />
                               <span style={{fontSize:'9.5px',fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.name}</span>
@@ -1511,11 +1602,11 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                                 <MapPin style={{width:'7px',height:'7px',flexShrink:0}} />{o.loc}
                               </div>
                             </div>
-                            <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                            <div className="hidden md:flex" style={{alignItems:'center',gap:'5px'}}>
                               <img src={o.agentImg} alt={o.agent} style={{width:'20px',height:'20px',borderRadius:'50%',objectFit:'cover',flexShrink:0}} />
                               <span style={{fontSize:'9px',color:'#374151',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.agent}</span>
                             </div>
-                            <div>
+                            <div className="hidden md:block">
                               <span style={{fontSize:'8.5px',fontWeight:600,color:o.sc,background:o.sc+'14',padding:'2px 8px',borderRadius:'999px',border:`1px solid ${o.sc}25`,whiteSpace:'nowrap'}}>{o.st}</span>
                             </div>
                           </div>
@@ -1525,7 +1616,7 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
                     </div>
 
                     {/* Right panel */}
-                    <div style={{width:'106px',borderLeft:'1px solid #f1f3f5',padding:'14px 10px',display:'flex',flexDirection:'column',gap:'10px',flexShrink:0,background:'#fff'}}>
+                    <div className="hidden md:flex" style={{width:'106px',borderLeft:'1px solid #f1f3f5',padding:'14px 10px',flexDirection:'column',gap:'10px',flexShrink:0,background:'#fff'}}>
                       <div style={{fontSize:'8px',fontWeight:700,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'0.5px'}}>Top Stations</div>
                       {[
                         {name:'Shell East Legon', img:'https://i.pravatar.cc/32?img=60', orders:48},

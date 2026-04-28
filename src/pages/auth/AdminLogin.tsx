@@ -12,11 +12,18 @@ export const AdminLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   const [debugInfo, setDebugInfo] = useState<any>(null)
   
-  const { signIn, user, userRole, signOut } = useAuth()
+  const { signIn, signInWithGoogle, user, userRole, signOut } = useAuth()
   const navigate = useNavigate()
+
+  const getErrorMessage = (err: unknown) => {
+    if (err instanceof Error) return err.message
+    if (typeof err === 'string') return err
+    return 'Something went wrong'
+  }
 
   // Redirect if already logged in as admin
   useEffect(() => {
@@ -25,6 +32,14 @@ export const AdminLogin: React.FC = () => {
       navigate('/admin/dashboard', { replace: true })
     }
   }, [user, userRole, navigate])
+
+  // If someone is authenticated here but isn't an admin, block access.
+  useEffect(() => {
+    if (!user || !userRole) return
+    if (userRole === 'admin') return
+    setError(`Access denied. This account has role: ${userRole}. Administrator privileges required.`)
+    void signOut()
+  }, [user, userRole, signOut])
 
   const handleDebug = async () => {
     console.log('🐛 Running debug check...')
@@ -74,6 +89,18 @@ export const AdminLogin: React.FC = () => {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true)
+    setError('')
+    try {
+      await signInWithGoogle()
+    } catch (err: unknown) {
+      console.error('Google sign-in error:', err)
+      setGoogleLoading(false)
+      setError(getErrorMessage(err) || 'Google sign-in failed. Please try again.')
     }
   }
 
@@ -231,6 +258,24 @@ export const AdminLogin: React.FC = () => {
             >
               {loading ? 'HI DEAR, WAIT A MOMENT...' : 'SIGN IN'}
             </button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={googleLoading || loading}
+              onClick={handleGoogleSignIn}
+              className="w-full gap-3 rounded-full border border-white/20 bg-white text-gray-900 hover:bg-gray-50 focus:ring-gray-200 shadow-sm font-semibold"
+            >
+              <img
+                src="/google-g.svg"
+                alt="Google"
+                className="h-5 w-5 flex-shrink-0"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+              {googleLoading ? 'Connecting…' : 'Continue with Google'}
+            </Button>
           </form>
 
           {/* Back to Home Link */}

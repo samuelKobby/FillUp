@@ -11,10 +11,17 @@ export const AgentLogin: React.FC = () => {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   
-  const { signIn, user, userRole } = useAuth()
+  const { signIn, signInWithGoogle, signOut, user, userRole } = useAuth()
   const navigate = useNavigate()
+
+  const getErrorMessage = (err: unknown) => {
+    if (err instanceof Error) return err.message
+    if (typeof err === 'string') return err
+    return 'Something went wrong'
+  }
 
   // Redirect if already logged in as agent
   useEffect(() => {
@@ -22,6 +29,14 @@ export const AgentLogin: React.FC = () => {
       navigate('/agent/dashboard', { replace: true })
     }
   }, [user, userRole, navigate])
+
+  // If someone signs in with Google but is not an agent, block access.
+  useEffect(() => {
+    if (!user || !userRole) return
+    if (userRole === 'agent') return
+    setError(`Access denied. This account has role: ${userRole}. Agent access required.`)
+    void signOut()
+  }, [user, userRole, signOut])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,20 +55,33 @@ export const AgentLogin: React.FC = () => {
       toast.success('Welcome back, Agent!')
       navigate('/agent/dashboard', { replace: true })
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Agent login error:', err)
+      const message = getErrorMessage(err)
       
       // Handle specific error cases
-      if (err.message?.includes('Invalid login credentials')) {
+      if (message.includes('Invalid login credentials')) {
         toast.error('Invalid agent credentials.')
         setError('Invalid agent credentials. Please check your email and password.')
-      } else if (err.message?.includes('verify your email')) {
+      } else if (message.includes('verify your email')) {
         setError('Please verify your email address before accessing the agent portal.')
       } else {
-        setError(err.message || 'Login failed. Please check your credentials.')
+        setError(message || 'Login failed. Please check your credentials.')
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true)
+    setError('')
+    try {
+      await signInWithGoogle()
+    } catch (err: unknown) {
+      console.error('Google sign-in error:', err)
+      setGoogleLoading(false)
+      setError(getErrorMessage(err) || 'Google sign-in failed. Please try again.')
     }
   }
 
@@ -219,6 +247,24 @@ export const AgentLogin: React.FC = () => {
               className="w-full text-lg py-3 bg-orange-600 hover:bg-orange-700 focus:ring-orange-500 rounded-2xl font-bold transition-all hover:scale-105"
             >
               {loading ? 'Hi dear, wait a moment...' : 'Sign In'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={googleLoading || loading}
+              onClick={handleGoogleSignIn}
+              className="w-full gap-3 rounded-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:ring-gray-200 shadow-sm font-semibold"
+            >
+              <img
+                src="/google-g.svg"
+                alt="Google"
+                className="h-5 w-5 flex-shrink-0"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+              {googleLoading ? 'Connecting…' : 'Continue with Google'}
             </Button>
           </form>
 

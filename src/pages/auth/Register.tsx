@@ -1,9 +1,15 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, User, Phone, Fuel, Upload, X } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { uploadCustomerImage, updateCustomerImage } from '../../lib/imageUpload'
+
+const getErrorMessage = (err: unknown) => {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Something went wrong'
+}
 
 export const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -16,12 +22,29 @@ export const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   
-  const { signUp } = useAuth()
+  const { signUp, signInWithGoogle, user, userRole } = useAuth()
   const navigate = useNavigate()
+
+  const getDefaultRedirectPath = (role: string | null) => {
+    switch (role) {
+      case 'admin': return '/admin/dashboard'
+      case 'agent': return '/agent/dashboard'
+      case 'station': return '/station/dashboard'
+      default: return '/dashboard'
+    }
+  }
+
+  useEffect(() => {
+    if (user) {
+      const redirectPath = sessionStorage.getItem('redirectPath') || getDefaultRedirectPath(userRole)
+      navigate(redirectPath, { replace: true })
+    }
+  }, [user, userRole, navigate])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -93,10 +116,22 @@ export const Register: React.FC = () => {
       
       // Redirect to email verification page
       navigate(`/verify-email?email=${encodeURIComponent(formData.email)}`)
-    } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.')
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSignUp = async () => {
+    setGoogleLoading(true)
+    setError('')
+    try {
+      await signInWithGoogle()
+    } catch (err: unknown) {
+      console.error('Google sign-up error:', err)
+      setGoogleLoading(false)
+      setError(getErrorMessage(err) || 'Google sign-up failed. Please try again.')
     }
   }
 
@@ -317,6 +352,24 @@ export const Register: React.FC = () => {
               className="w-full text-lg py-3"
             >
               {loading ? 'Creating Account...' : 'Create Account'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={googleLoading || loading}
+              onClick={handleGoogleSignUp}
+              className="w-full gap-3 rounded-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:ring-gray-200 shadow-sm font-semibold"
+            >
+              <img
+                src="/google-g.svg"
+                alt="Google"
+                className="h-5 w-5 flex-shrink-0"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+              {googleLoading ? 'Connecting…' : 'Continue with Google'}
             </Button>
           </form>
 
