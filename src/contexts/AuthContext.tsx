@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ user: User | null; userRole: UserRole | null }>
   signUp: (email: string, password: string, userData: { name: string; phone: string; role: UserRole }) => Promise<void>
   signInWithGoogle: () => Promise<void>
+  linkGoogleIdentity: () => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
   invalidateAllSessions: () => Promise<void>
@@ -35,6 +36,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const ensureUserProfileExists = async (authUser: User): Promise<UserProfile | null> => {
+    const { data: existing, error: existingError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle()
+
+    if (existingError) throw existingError
+    if (existing) return existing
+
+    const email = authUser.email
+    if (!email) throw new Error('Missing email for authenticated user')
+
+    const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>
+    const name = (meta.name as string) || (meta.full_name as string) || (meta.display_name as string) || null
+    const phone = (meta.phone as string) || null
+    const avatar_url = (meta.avatar_url as string) || (meta.picture as string) || null
+    const role = ((meta.role as UserRole) || 'customer') satisfies UserRole
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('users')
+      .insert({ id: authUser.id, email, role, name, phone, avatar_url })
+      .select('*')
+      .single()
+
+    if (insertError) {
+      // If something else created it concurrently, just re-fetch.
+      const { data: retry } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle()
+      return retry ?? null
+    }
+
+    return inserted
+  }
+
+  const maybeExchangeOAuthCodeForSession = async () => {
+    try {
+      const url = new URL(window.location.href)
+      const code = url.searchParams.get('code')
+      const error = url.searchParams.get('error')
+
+      if (!code || error) return
+
+      // Some deployments/providers won't auto-exchange the PKCE code.
+      // Doing it explicitly prevents getting stuck on an auth loading screen.
+      await supabase.auth.exchangeCodeForSession(code)
+
+      // Clean up OAuth params from the URL.
+      url.searchParams.delete('code')
+      url.searchParams.delete('state')
+      url.searchParams.delete('error')
+      url.searchParams.delete('error_description')
+      const cleaned = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : '') + url.hash
+      window.history.replaceState({}, document.title, cleaned)
+    } catch {
+      // Ignore exchange failures; session validation below will handle the outcome.
+    }
+  }
 
   const loadUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
@@ -62,6 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Validate and refresh session
     const validateSession = async () => {
       try {
+        await maybeExchangeOAuthCodeForSession()
+
         // Get current session
         const { data: { session }, error } = await supabase.auth.getSession()
         
@@ -110,7 +175,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Use refreshed session
           if (mounted) {
             setUser(refreshData.session.user)
-            await loadUserProfile(refreshData.session.user.id)
+            const profile = (await ensureUserProfileExists(refreshData.session.user))
+            if (profile) {
+              setUserProfile(profile)
+              setUserRole(profile.role)
+            } else {
+              setUserProfile(null)
+              setUserRole(null)
+            }
             setLoading(false)
           }
         } else {
@@ -118,7 +190,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (mounted) {
             setUser(session.user)
             try {
-              await loadUserProfile(session.user.id)
+              const profile = (await ensureUserProfileExists(session.user))
+              if (profile) {
+                setUserProfile(profile)
+                setUserRole(profile.role)
+              } else {
+                setUserProfile(null)
+                setUserRole(null)
+              }
             } catch (profileError) {
             }
             setLoading(false)
@@ -143,7 +222,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setUser(session?.user ?? null)
         if (session?.user) {
-          const profile = await loadUserProfile(session.user.id)
+          let profile: UserProfile | null = null
+          try {
+            profile = await ensureUserProfileExists(session.user)
+            if (profile) {
+              setUserProfile(profile)
+              setUserRole(profile.role)
+            } else {
+              setUserProfile(null)
+              setUserRole(null)
+            }
+          } catch {
+            // Keep existing profile/role if present
+          }
           
           // If user is an agent, check approval status
           if (profile && profile.role === 'agent') {
@@ -323,6 +414,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const linkGoogleIdentity = async () => {
+    if (!user) throw new Error('No user logged in')
+
+    // After linking, bounce back to profile.
+    sessionStorage.setItem('redirectPath', '/profile')
+
+    // Use the same stable callback URL we already allowlist.
+    const redirectTo = `${window.location.origin}/login`
+
+    // Requires an active session. This links the Google identity to the current user.
+    const { data, error } = await supabase.auth.linkIdentity({
+      provider: 'google',
+      options: { redirectTo },
+    })
+
+    if (error) throw error
+
+    if (data?.url) {
+      window.location.assign(data.url)
+    }
+  }
+
   const signOut = async () => {
     try {
       // First, invalidate all active sessions globally
@@ -481,6 +594,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signInWithGoogle,
+    linkGoogleIdentity,
     signOut,
     updateProfile,
     invalidateAllSessions,

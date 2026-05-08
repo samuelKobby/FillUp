@@ -43,7 +43,7 @@ interface NotificationSettings {
 }
 
 export const Profile: React.FC = () => {
-  const { user, signOut } = useAuth()
+  const { user, signOut, linkGoogleIdentity } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(() => {
@@ -305,6 +305,40 @@ export const Profile: React.FC = () => {
       </div>
 
       <div className="px-6 py-6 space-y-6">
+        {/* Connected Accounts */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Connected Accounts</h3>
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+            <button
+              onClick={async () => {
+                try {
+                  const providers = ((user?.app_metadata as any)?.providers as string[] | undefined) ?? []
+                  if (providers.includes('google')) {
+                    toast.success('Google is already linked to this account.')
+                    return
+                  }
+
+                  await linkGoogleIdentity()
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to link Google account')
+                }
+              }}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Mail01Icon size={20} color="#6B7280" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium">Google sign-in</div>
+                  <div className="text-xs text-gray-500">Link Google to use “Continue with Google”</div>
+                </div>
+              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
+            </button>
+          </div>
+        </div>
+
         {/* General Section */}
         <div>
           <h3 className="text-sm font-medium text-gray-500 mb-3">General</h3>

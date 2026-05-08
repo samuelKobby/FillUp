@@ -49,14 +49,14 @@ export const getUserProfile = async (userId: string) => {
     .from('users')
     .select('*')
     .eq('id', userId)
-    .single()
+    .maybeSingle()
   
   if (error) {
     console.error('❌ Error getting user profile:', error)
     throw error
   }
   
-  return data
+  return data ?? null
 }
 
 export const updateUserProfile = async (userId: string, updates: Partial<Database['public']['Tables']['users']['Update']>) => {
