@@ -36,6 +36,39 @@ FillUp is Ghana's leading platform for fuel delivery and mechanical services. Ge
    npm run dev
    ```
 
+## Deploying (Fix Google OAuth Redirecting to localhost)
+
+If Google sign-in works locally but redirects to `http://localhost:...` after deploying, your Supabase Auth URL configuration is still pointing at localhost (or your live domain is not allowlisted).
+
+In your Supabase project:
+
+1. Go to **Authentication → URL Configuration**
+2. Set **Site URL** to your live site origin
+   - Netlify default domain example: `https://your-site-name.netlify.app`
+   - Custom domain example: `https://your-domain.com`
+3. Add these to **Additional Redirect URLs** (include every domain you actually use):
+   - `https://your-site-name.netlify.app`
+   - `https://your-site-name.netlify.app/login`
+   - `https://your-domain.com`
+   - `https://your-domain.com/login`
+   - Local dev (optional): `http://localhost:5173/login`
+
+If you are using Netlify Deploy Previews (different subdomains per PR), prefer deploying from a stable domain (your main Netlify domain or a custom domain) so you don’t have to keep updating allowlists.
+
+Google Cloud / OAuth provider checklist:
+
+- In **Supabase → Authentication → Providers → Google**, ensure Google is enabled.
+- In **Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs (Web application)**:
+  - **Authorized redirect URIs** must include your Supabase callback:
+    - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+  - **Authorized JavaScript origins** should include your app origin(s):
+    - `https://your-site-name.netlify.app`
+    - `https://your-domain.com`
+
+Notes:
+- This app uses a stable OAuth return URL of `/login` (see `signInWithGoogle`). Allowlist the `/login` URL for each domain you use.
+- Also make sure your Netlify environment variables point to the correct Supabase project (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+
 ## User Roles
 
 ### Customer (`/dashboard`)

@@ -303,7 +303,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const signInWithGoogle = async () => {
-    const redirectTo = `${window.location.origin}${window.location.pathname}`
+    // Use a single, stable callback URL so Supabase redirect allowlisting is easy
+    // (and avoids falling back to an old localhost Site URL in production).
+    const redirectTo = `${window.location.origin}/login`
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
