@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, UserRole, getUserProfile } from '../lib/supabase'
+import { supabase, UserRole } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { Database } from '../lib/database.types'
 import loaderGif from '../assets/lodaer.gif'
@@ -112,47 +112,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const maybeExchangeOAuthCodeForSession = async () => {
-    try {
-      const url = new URL(window.location.href)
-      const code = url.searchParams.get('code')
-      const error = url.searchParams.get('error')
+    // We use /login as the OAuth callback; this makes the allowlist simple.
+    // Some deployments/providers won't auto-exchange the PKCE code, so we do it.
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('code')
+    const authError = url.searchParams.get('error')
 
-      if (!code || error) return
-
-      // Some deployments/providers won't auto-exchange the PKCE code.
-      // Doing it explicitly prevents getting stuck on an auth loading screen.
-      await supabase.auth.exchangeCodeForSession(code)
-
-      // Clean up OAuth params from the URL.
+    if (authError) {
+      // Clean up OAuth params even on failure to avoid loops.
       url.searchParams.delete('code')
       url.searchParams.delete('state')
       url.searchParams.delete('error')
       url.searchParams.delete('error_description')
       const cleaned = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : '') + url.hash
       window.history.replaceState({}, document.title, cleaned)
-    } catch {
-      // Ignore exchange failures; session validation below will handle the outcome.
+      return
     }
-  }
 
-  const loadUserProfile = async (userId: string): Promise<UserProfile | null> => {
+    if (!code) return
+
     try {
-      const profile = await getUserProfile(userId)
-      
-      if (!profile) {
-        setUserProfile(null)
-        setUserRole(null)
-        return null
-      }
-      
-      setUserProfile(profile)
-      setUserRole(profile.role)
-      persistUserRole(userId, profile.role)
-      return profile
-    } catch (error) {
-      // Don't set profile to null on error - keep existing profile if available
-      // This prevents the app from breaking when there are temporary network issues
-      return null
+      await supabase.auth.exchangeCodeForSession(code)
+    } catch {
+      // Non-fatal: supabase-js might have already processed the code (detectSessionInUrl)
+      // or the exchange can fail transiently. We'll rely on getSession() next.
+    } finally {
+      // Always clean up OAuth params from the URL.
+      url.searchParams.delete('code')
+      url.searchParams.delete('state')
+      url.searchParams.delete('error')
+      url.searchParams.delete('error_description')
+      const cleaned = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : '') + url.hash
+      window.history.replaceState({}, document.title, cleaned)
     }
   }
 
@@ -180,125 +171,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let mounted = true
-    
-    // Validate and refresh session
-    const validateSession = async () => {
+
+    const applySignedOut = () => {
+      setUser(null)
+      setUserProfile(null)
+      setUserRole(null)
+    }
+
+    const applySignedIn = (authUser: User) => {
+      setUser(authUser)
+      const optimisticRole = getOptimisticRole(authUser)
+      if (optimisticRole) {
+        setUserRole(prev => prev ?? optimisticRole)
+      }
+      setLoading(false)
+      void hydrateProfileForUser(authUser, () => mounted)
+    }
+
+    const init = async () => {
       try {
+        setLoading(true)
         await maybeExchangeOAuthCodeForSession()
 
-        // Get current session
         const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (error) {
-          if (mounted) {
-            setUser(null)
-            setUserProfile(null)
-            setUserRole(null)
-            setLoading(false)
-          }
-          return
-        }
+        if (!mounted) return
 
-        // No session found
-        if (!session) {
-          if (mounted) {
-            setUser(null)
-            setUserProfile(null)
-            setUserRole(null)
-            setLoading(false)
-          }
-          return
-        }
-
-        // Check if token is expired
-        const expiresAt = session.expires_at
-        const now = Math.floor(Date.now() / 1000)
-        const isExpired = expiresAt ? now >= expiresAt : false
-
-        if (isExpired) {
-          // Try to refresh the session
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-          
-          if (refreshError || !refreshData.session) {
-            // Force logout on expired session
-            await supabase.auth.signOut()
-            if (mounted) {
-              setUser(null)
-              setUserProfile(null)
-              setUserRole(null)
-              setLoading(false)
-            }
-            return
-          }
-
-          // Use refreshed session
-          if (mounted) {
-            const refreshedUser = refreshData.session.user
-            setUser(refreshedUser)
-            const optimisticRole = getOptimisticRole(refreshedUser)
-            if (optimisticRole) {
-              setUserRole(prev => prev ?? optimisticRole)
-            }
-            setLoading(false)
-            void hydrateProfileForUser(refreshedUser, () => mounted)
-          }
-        } else {
-          // Valid session
-          if (mounted) {
-            const sessionUser = session.user
-            setUser(sessionUser)
-            const optimisticRole = getOptimisticRole(sessionUser)
-            if (optimisticRole) {
-              setUserRole(prev => prev ?? optimisticRole)
-            }
-            setLoading(false)
-            void hydrateProfileForUser(sessionUser, () => mounted)
-          }
-        }
-      } catch (error) {
-        if (mounted) {
-          setUser(null)
-          setUserProfile(null)
-          setUserRole(null)
+        if (error || !session?.user) {
+          applySignedOut()
           setLoading(false)
+          return
         }
+
+        applySignedIn(session.user)
+      } catch {
+        if (!mounted) return
+        applySignedOut()
+        setLoading(false)
       }
     }
-    
-    validateSession()
+
+    void init()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          const optimisticRole = getOptimisticRole(session.user)
-          if (optimisticRole) {
-            setUserRole(prev => prev ?? optimisticRole)
+
+        if (!session?.user) {
+          applySignedOut()
+          setLoading(false)
+          return
+        }
+
+        // Keep the UX responsive: set auth state immediately, hydrate profile async.
+        setUser(session.user)
+        const optimisticRole = getOptimisticRole(session.user)
+        if (optimisticRole) {
+          setUserRole(prev => prev ?? optimisticRole)
+        }
+        setLoading(false)
+
+        void (async () => {
+          const profile = await ensureUserProfileExists(session.user)
+          if (!mounted) return
+
+          if (profile) {
+            setUserProfile(profile)
+            setUserRole(profile.role)
+            persistUserRole(session.user.id, profile.role)
+            try {
+              sessionStorage.removeItem(OAUTH_INTENDED_ROLE_KEY)
+            } catch {
+              // ignore
+            }
           }
 
-          let profile: UserProfile | null = null
-          try {
-            profile = await ensureUserProfileExists(session.user)
-            if (profile) {
-              setUserProfile(profile)
-              setUserRole(profile.role)
-              persistUserRole(session.user.id, profile.role)
-              try {
-                sessionStorage.removeItem(OAUTH_INTENDED_ROLE_KEY)
-              } catch {
-                // ignore
-              }
-            } else {
-              setUserProfile(null)
-              setUserRole(null)
-            }
-          } catch {
-            // Keep existing profile/role if present
-          }
-          
           // If user is an agent, check approval status
           if (profile && profile.role === 'agent') {
             try {
@@ -307,114 +254,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .select('id, is_verified')
                 .eq('user_id', session.user.id)
                 .single()
-              
-              // If agent is not approved, sign them out
+
               if (error || !agentData || !agentData.is_verified) {
-                console.log('Agent not approved, signing out...')
                 await supabase.auth.signOut()
-                return
               }
-            } catch (err) {
-              console.error('Error checking agent approval:', err)
+            } catch {
               await supabase.auth.signOut()
-              return
             }
           }
-        } else {
-          setUserProfile(null)
-          setUserRole(null)
-        }
-        setLoading(false)
+        })()
       }
     )
-
-    // Handle page visibility changes to refresh session
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && mounted) {
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession()
-          if (error) {
-            setUser(null)
-            setUserProfile(null)
-            setUserRole(null)
-            return
-          }
-
-          if (!session) {
-            if (mounted) {
-              setUser(null)
-              setUserProfile(null)
-              setUserRole(null)
-            }
-            return
-          }
-
-          // Check token expiration
-          const expiresAt = session.expires_at
-          const now = Math.floor(Date.now() / 1000)
-          const isExpired = expiresAt ? now >= expiresAt : false
-
-          if (isExpired) {
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-            
-            if (refreshError || !refreshData.session) {
-              await supabase.auth.signOut()
-              if (mounted) {
-                setUser(null)
-                setUserProfile(null)
-                setUserRole(null)
-              }
-              return
-            }
-
-            if (mounted) {
-              setUser(refreshData.session.user)
-            const optimisticRole = getOptimisticRole(refreshData.session.user)
-            if (optimisticRole) {
-              setUserRole(prev => prev ?? optimisticRole)
-            }
-              try {
-                const profile = await ensureUserProfileExists(refreshData.session.user)
-                if (profile) {
-                  setUserProfile(profile)
-                  setUserRole(profile.role)
-                persistUserRole(refreshData.session.user.id, profile.role)
-                }
-              } catch (err) {
-                console.error('Refresh profile load error:', err)
-              }
-            }
-          } else {
-            // Valid session, just sync state
-            if (mounted && session.user) {
-              setUser(session.user)
-            const optimisticRole = getOptimisticRole(session.user)
-            if (optimisticRole) {
-              setUserRole(prev => prev ?? optimisticRole)
-            }
-              try {
-                const profile = await ensureUserProfileExists(session.user)
-                if (profile) {
-                  setUserProfile(profile)
-                  setUserRole(profile.role)
-                persistUserRole(session.user.id, profile.role)
-                }
-              } catch (err) {
-                console.error('Visibility change profile load error:', err)
-              }
-            }
-          }
-        } catch (error) {
-        }
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       mounted = false
       subscription.unsubscribe()
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
@@ -434,13 +288,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.auth.signOut()
         throw new Error('Please verify your email address before signing in. Check your inbox for a verification link.')
       }
-      
-      // Load user profile to get role - wait for it to complete
-      let profile = null
+
+      let profile: UserProfile | null = null
       if (data.user) {
-        profile = await loadUserProfile(data.user.id)
-        // Wait a bit to ensure state is updated
-        await new Promise(resolve => setTimeout(resolve, 200))
+        // Ensure profile exists and use it as the source of truth for role.
+        profile = await ensureUserProfileExists(data.user)
+        if (profile) {
+          setUserProfile(profile)
+          setUserRole(profile.role)
+          persistUserRole(data.user.id, profile.role)
+        }
       }
       
       // Check for redirect path from session storage
@@ -539,10 +396,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' })
       if (localSignOutError) {
       }
-      
-      // Force refresh the auth session to ensure it's cleared
-      await supabase.auth.refreshSession()
-      
+
     } catch (error) {
       // Continue with local cleanup even if server sign out fails
     }
