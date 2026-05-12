@@ -96,7 +96,7 @@ export const AdminLogin: React.FC = () => {
     setGoogleLoading(true)
     setError('')
     try {
-      await signInWithGoogle()
+      await signInWithGoogle('admin')
     } catch (err: unknown) {
       console.error('Google sign-in error:', err)
       setGoogleLoading(false)

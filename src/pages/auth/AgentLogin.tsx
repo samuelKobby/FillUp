@@ -77,7 +77,7 @@ export const AgentLogin: React.FC = () => {
     setGoogleLoading(true)
     setError('')
     try {
-      await signInWithGoogle()
+      await signInWithGoogle('agent')
     } catch (err: unknown) {
       console.error('Google sign-in error:', err)
       setGoogleLoading(false)

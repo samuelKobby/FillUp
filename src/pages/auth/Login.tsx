@@ -116,7 +116,7 @@ export const Login: React.FC = () => {
     setGoogleLoading(true)
     setError('')
     try {
-      await signInWithGoogle()
+      await signInWithGoogle('customer')
       // Redirect is handled by Supabase (or by AuthContext fallback).
     } catch (err: unknown) {
       console.error('Google sign-in error:', err)

@@ -14,7 +14,7 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ user: User | null; userRole: UserRole | null }>
   signUp: (email: string, password: string, userData: { name: string; phone: string; role: UserRole }) => Promise<void>
-  signInWithGoogle: () => Promise<void>
+  signInWithGoogle: (role?: UserRole) => Promise<void>
   linkGoogleIdentity: () => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
@@ -54,7 +54,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const name = (meta.name as string) || (meta.full_name as string) || (meta.display_name as string) || null
     const phone = (meta.phone as string) || null
     const avatar_url = (meta.avatar_url as string) || (meta.picture as string) || null
-    const role = ((meta.role as UserRole) || 'customer') satisfies UserRole
+    
+    // Check if we saved an intended role from the Google sign up flow, otherwise default to customer
+    const intendedRole = sessionStorage.getItem('oauth_intended_role') as UserRole | null
+    const role = (intendedRole || (meta.role as UserRole) || 'customer') satisfies UserRole
+    if (intendedRole) {
+      sessionStorage.removeItem('oauth_intended_role')
+    }
 
     const { data: inserted, error: insertError } = await supabase
       .from('users')
@@ -306,13 +312,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (mounted) {
               setUser(refreshData.session.user)
-              await loadUserProfile(refreshData.session.user.id)
+              try {
+                const profile = await ensureUserProfileExists(refreshData.session.user)
+                if (profile) {
+                  setUserProfile(profile)
+                  setUserRole(profile.role)
+                }
+              } catch (err) {
+                console.error('Refresh profile load error:', err)
+              }
             }
           } else {
             // Valid session, just sync state
             if (mounted && session.user) {
               setUser(session.user)
-              await loadUserProfile(session.user.id)
+              try {
+                const profile = await ensureUserProfileExists(session.user)
+                if (profile) {
+                  setUserProfile(profile)
+                  setUserRole(profile.role)
+                }
+              } catch (err) {
+                console.error('Visibility change profile load error:', err)
+              }
             }
           }
         } catch (error) {
@@ -393,7 +415,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (role?: UserRole) => {
+    if (role) {
+      sessionStorage.setItem('oauth_intended_role', role)
+    }
     // Use a single, stable callback URL so Supabase redirect allowlisting is easy
     // (and avoids falling back to an old localhost Site URL in production).
     const redirectTo = `${window.location.origin}/login`

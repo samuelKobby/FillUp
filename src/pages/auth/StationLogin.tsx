@@ -82,7 +82,7 @@ export const StationLogin: React.FC = () => {
     setGoogleLoading(true)
     setError('')
     try {
-      await signInWithGoogle()
+      await signInWithGoogle('station')
     } catch (err: unknown) {
       console.error('Google sign-in error:', err)
       setGoogleLoading(false)

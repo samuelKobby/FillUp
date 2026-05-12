@@ -127,7 +127,7 @@ export const Register: React.FC = () => {
     setGoogleLoading(true)
     setError('')
     try {
-      await signInWithGoogle()
+      await signInWithGoogle('customer')
     } catch (err: unknown) {
       console.error('Google sign-up error:', err)
       setGoogleLoading(false)
