@@ -37,6 +37,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const OAUTH_INTENDED_ROLE_KEY = 'oauth_intended_role'
+  const USER_ROLE_CACHE_PREFIX = 'user_role:'
+
+  const parseUserRole = (value: unknown): UserRole | null => {
+    if (typeof value !== 'string') return null
+    const allowed: UserRole[] = ['customer', 'agent', 'station', 'admin']
+    return allowed.includes(value as UserRole) ? (value as UserRole) : null
+  }
+
+  const getOptimisticRole = (authUser: User): UserRole | null => {
+    try {
+      const fromSession = parseUserRole(sessionStorage.getItem(OAUTH_INTENDED_ROLE_KEY))
+      if (fromSession) return fromSession
+
+      const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>
+      const fromMeta = parseUserRole(meta.role)
+      if (fromMeta) return fromMeta
+
+      const fromCache = parseUserRole(localStorage.getItem(`${USER_ROLE_CACHE_PREFIX}${authUser.id}`))
+      return fromCache
+    } catch {
+      return null
+    }
+  }
+
+  const persistUserRole = (userId: string, role: UserRole) => {
+    try {
+      localStorage.setItem(`${USER_ROLE_CACHE_PREFIX}${userId}`, role)
+    } catch {
+      // Ignore storage failures
+    }
+  }
+
   const ensureUserProfileExists = async (authUser: User): Promise<UserProfile | null> => {
     const { data: existing, error: existingError } = await supabase
       .from('users')
@@ -56,11 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const avatar_url = (meta.avatar_url as string) || (meta.picture as string) || null
     
     // Check if we saved an intended role from the Google sign up flow, otherwise default to customer
-    const intendedRole = sessionStorage.getItem('oauth_intended_role') as UserRole | null
+    const intendedRole = parseUserRole(sessionStorage.getItem(OAUTH_INTENDED_ROLE_KEY))
     const role = (intendedRole || (meta.role as UserRole) || 'customer') satisfies UserRole
-    if (intendedRole) {
-      sessionStorage.removeItem('oauth_intended_role')
-    }
 
     const { data: inserted, error: insertError } = await supabase
       .from('users')
@@ -117,11 +147,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setUserProfile(profile)
       setUserRole(profile.role)
+      persistUserRole(userId, profile.role)
       return profile
     } catch (error) {
       // Don't set profile to null on error - keep existing profile if available
       // This prevents the app from breaking when there are temporary network issues
       return null
+    }
+  }
+
+  const hydrateProfileForUser = async (authUser: User, isMounted: () => boolean) => {
+    try {
+      const profile = await ensureUserProfileExists(authUser)
+      if (!isMounted()) return
+
+      if (profile) {
+        setUserProfile(profile)
+        setUserRole(profile.role)
+        persistUserRole(authUser.id, profile.role)
+      }
+
+      // Only clear the intended role once we have a real profile/role loaded.
+      try {
+        sessionStorage.removeItem(OAUTH_INTENDED_ROLE_KEY)
+      } catch {
+        // ignore
+      }
+    } catch {
+      // Keep optimistic role if we set one.
     }
   }
 
@@ -180,33 +233,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // Use refreshed session
           if (mounted) {
-            setUser(refreshData.session.user)
-            const profile = (await ensureUserProfileExists(refreshData.session.user))
-            if (profile) {
-              setUserProfile(profile)
-              setUserRole(profile.role)
-            } else {
-              setUserProfile(null)
-              setUserRole(null)
+            const refreshedUser = refreshData.session.user
+            setUser(refreshedUser)
+            const optimisticRole = getOptimisticRole(refreshedUser)
+            if (optimisticRole) {
+              setUserRole(prev => prev ?? optimisticRole)
             }
             setLoading(false)
+            void hydrateProfileForUser(refreshedUser, () => mounted)
           }
         } else {
           // Valid session
           if (mounted) {
-            setUser(session.user)
-            try {
-              const profile = (await ensureUserProfileExists(session.user))
-              if (profile) {
-                setUserProfile(profile)
-                setUserRole(profile.role)
-              } else {
-                setUserProfile(null)
-                setUserRole(null)
-              }
-            } catch (profileError) {
+            const sessionUser = session.user
+            setUser(sessionUser)
+            const optimisticRole = getOptimisticRole(sessionUser)
+            if (optimisticRole) {
+              setUserRole(prev => prev ?? optimisticRole)
             }
             setLoading(false)
+            void hydrateProfileForUser(sessionUser, () => mounted)
           }
         }
       } catch (error) {
@@ -228,12 +274,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setUser(session?.user ?? null)
         if (session?.user) {
+          const optimisticRole = getOptimisticRole(session.user)
+          if (optimisticRole) {
+            setUserRole(prev => prev ?? optimisticRole)
+          }
+
           let profile: UserProfile | null = null
           try {
             profile = await ensureUserProfileExists(session.user)
             if (profile) {
               setUserProfile(profile)
               setUserRole(profile.role)
+              persistUserRole(session.user.id, profile.role)
+              try {
+                sessionStorage.removeItem(OAUTH_INTENDED_ROLE_KEY)
+              } catch {
+                // ignore
+              }
             } else {
               setUserProfile(null)
               setUserRole(null)
@@ -312,11 +369,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (mounted) {
               setUser(refreshData.session.user)
+            const optimisticRole = getOptimisticRole(refreshData.session.user)
+            if (optimisticRole) {
+              setUserRole(prev => prev ?? optimisticRole)
+            }
               try {
                 const profile = await ensureUserProfileExists(refreshData.session.user)
                 if (profile) {
                   setUserProfile(profile)
                   setUserRole(profile.role)
+                persistUserRole(refreshData.session.user.id, profile.role)
                 }
               } catch (err) {
                 console.error('Refresh profile load error:', err)
@@ -326,11 +388,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Valid session, just sync state
             if (mounted && session.user) {
               setUser(session.user)
+            const optimisticRole = getOptimisticRole(session.user)
+            if (optimisticRole) {
+              setUserRole(prev => prev ?? optimisticRole)
+            }
               try {
                 const profile = await ensureUserProfileExists(session.user)
                 if (profile) {
                   setUserProfile(profile)
                   setUserRole(profile.role)
+                persistUserRole(session.user.id, profile.role)
                 }
               } catch (err) {
                 console.error('Visibility change profile load error:', err)
