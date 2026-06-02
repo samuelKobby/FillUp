@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card, CardContent } from '../components/ui/Card'
+import { TestimonialsSection } from '../components/TestimonialsMarquee'
 
 interface LandingProps {
   showSplash?: boolean
@@ -1789,158 +1790,215 @@ export const Landing: React.FC<LandingProps> = ({ showSplash = false }) => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div data-aos="fade-up" data-aos-delay="0">
-              <Card className="group hover:shadow-xl transition-all duration-300 h-full">
-                <CardContent className="p-8">
-                  <div className="flex items-center mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 mb-6 leading-relaxed">
-                    "FillUp saved my day! My car broke down in Tema and within 20 minutes, 
-                    I had a mechanic fixing my battery. Excellent service!"
-                  </p>
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full mr-4 flex items-center justify-center text-white font-semibold">
-                      KA
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Kwame Asante</p>
-                      <p className="text-gray-600 text-sm">Accra</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div data-aos="fade-up" data-aos-delay="100">
-              <Card className="group hover:shadow-xl transition-all duration-300 h-full">
-                <CardContent className="p-8">
-                  <div className="flex items-center mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 mb-6 leading-relaxed">
-                    "I run a delivery business and FillUp's fuel delivery service keeps my 
-                    fleet running. No more waiting in long fuel station queues!"
-                  </p>
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-green-500 rounded-full mr-4 flex items-center justify-center text-white font-semibold">
-                      AO
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Ama Osei</p>
-                      <p className="text-gray-600 text-sm">Kumasi</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div data-aos="fade-up" data-aos-delay="200">
-              <Card className="group hover:shadow-xl transition-all duration-300 h-full">
-                <CardContent className="p-8">
-                  <div className="flex items-center mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 mb-6 leading-relaxed">
-                    "As a fuel delivery agent, FillUp has given me a steady income. 
-                    The app is easy to use and customers are always satisfied."
-                  </p>
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-gradient-to-r from-orange-400 to-orange-500 rounded-full mr-4 flex items-center justify-center text-white font-semibold">
-                      JM
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Joseph Mensah</p>
-                      <p className="text-gray-600 text-sm">Service Partner</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <div className="w-full">
+            <TestimonialsSection />
           </div>
         </div>
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-20 bg-gray-50 relative z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div data-aos="fade-right">
-              <div className="inline-flex items-center space-x-2 bg-blue-100 px-4 py-2 rounded-full mb-6">
-                <MessageSquare className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-600">Get In Touch</span>
-              </div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">Need Help or Have Questions?</h2>
-              <p className="text-xl text-gray-600 mb-8">
-                Our support team is here to help you 24/7. Reach out to us through any of these channels.
-              </p>
-              
-              <div className="space-y-6">
-                <div className="flex items-center space-x-4" data-aos="fade-right" data-aos-delay="100">
-                  <div className="bg-blue-100 p-3 rounded-lg">
-                    <Phone className="h-6 w-6 text-blue-600" />
+      <section id="contact" className="py-24 relative z-20 overflow-hidden" style={{
+        background: 'linear-gradient(135deg, #f8fafb 0%, #f0f4f8 50%, #fef8f0 100%)',
+      }}>
+        {/* Decorative blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div style={{position:'absolute', top:'-50px', right:'-100px', width:'400px', height:'400px', background:'radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%)', borderRadius:'50%'}} />
+          <div style={{position:'absolute', bottom:'-50px', left:'-100px', width:'350px', height:'350px', background:'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)', borderRadius:'50%'}} />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          {/* Section Header */}
+          <div className="text-center mb-20" data-aos="fade-up">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-100 to-orange-50 px-4 py-2 rounded-full mb-6 border border-orange-200">
+              <MessageSquare className="h-4 w-4 text-orange-600" />
+              <span className="text-sm font-semibold text-orange-600">Get In Touch</span>
+            </div>
+            <h2 style={{
+              fontSize: 'clamp(32px, 5vw, 48px)',
+              fontWeight: 900,
+              lineHeight: 1.2,
+              letterSpacing: '-0.03em',
+              background: 'linear-gradient(135deg, #111827 0%, #374151 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              marginBottom: '16px',
+            }}>
+              We're Here to Help
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Got a question? Our support team is ready to assist you 24/7. Choose your preferred way to reach us.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+            {/* Left: Contact Methods */}
+            <div className="space-y-6">
+              {[
+                {
+                  icon: Phone,
+                  title: 'Call Us',
+                  desc: 'Speak directly with our support team',
+                  value: '+233 50 123 4567',
+                  color: 'from-blue-600 to-blue-500',
+                  bgColor: 'from-blue-50 to-blue-100',
+                  delay: '0'
+                },
+                {
+                  icon: Mail,
+                  title: 'Email Us',
+                  desc: 'Send us your questions anytime',
+                  value: 'support@fillup.gh',
+                  color: 'from-orange-600 to-orange-500',
+                  bgColor: 'from-orange-50 to-orange-100',
+                  delay: '100'
+                },
+                {
+                  icon: MessageSquare,
+                  title: 'Live Chat',
+                  desc: 'Chat with us in real-time',
+                  value: 'Available 24/7 in app',
+                  color: 'from-green-600 to-green-500',
+                  bgColor: 'from-green-50 to-green-100',
+                  delay: '200'
+                },
+              ].map((method) => {
+                const Icon = method.icon
+                return (
+                  <div
+                    key={method.title}
+                    className="group"
+                    data-aos="fade-right"
+                    data-aos-delay={method.delay}
+                  >
+                    <div className="relative overflow-hidden rounded-2xl bg-white border border-gray-200 hover:border-gray-300 transition-all duration-300 p-6 hover:shadow-lg hover:shadow-gray-200/40">
+                      {/* Gradient background on hover */}
+                      <div className={`absolute -top-1/2 -right-1/2 w-96 h-96 bg-gradient-to-br ${method.bgColor} opacity-0 group-hover:opacity-40 transition-opacity duration-500 rounded-full blur-3xl pointer-events-none`} />
+
+                      <div className="relative flex items-start gap-5">
+                        {/* Icon */}
+                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${method.color} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                          <Icon className="h-6 w-6 text-white" />
+                        </div>
+
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{method.title}</h3>
+                          <p className="text-sm text-gray-500 mb-3">{method.desc}</p>
+                          <p className="text-base font-semibold text-transparent bg-gradient-to-r bg-clip-text" style={{
+                            backgroundImage: `linear-gradient(135deg, var(--tw-gradient-stops))`,
+                            '--tw-gradient-stops': `var(--tw-gradient-from), var(--tw-gradient-to)`,
+                            '--tw-gradient-from': method.color.split(' ')[1].replace('to-', ''),
+                          }}>
+                            <span style={{color: method.color.includes('blue') ? '#1e40af' : method.color.includes('orange') ? '#c2410c' : '#15803d'}}>
+                              {method.value}
+                            </span>
+                          </p>
+                        </div>
+
+                        {/* Arrow */}
+                        <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-gray-900 transition-all duration-300 transform group-hover:translate-x-1 flex-shrink-0 mt-1" />
+                      </div>
+                    </div>
                   </div>
+                )
+              })}
+
+              {/* Response Time Info */}
+              <div className="mt-8 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200" data-aos="fade-up" data-aos-delay="300">
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 rounded-full bg-yellow-500 mt-2 flex-shrink-0" />
                   <div>
-                    <p className="font-semibold text-gray-900">Call Us</p>
-                    <p className="text-gray-600">+233 50 123 4567</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-4" data-aos="fade-right" data-aos-delay="200">
-                  <div className="bg-green-100 p-3 rounded-lg">
-                    <Mail className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Email Us</p>
-                    <p className="text-gray-600">support@fillup.gh</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-4" data-aos="fade-right" data-aos-delay="300">
-                  <div className="bg-purple-100 p-3 rounded-lg">
-                    <MessageSquare className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Live Chat</p>
-                    <p className="text-gray-600">Available 24/7 in the app</p>
+                    <p className="text-sm font-semibold text-yellow-900">Quick Response Time</p>
+                    <p className="text-xs text-yellow-700 mt-1">We typically respond within 30 minutes during business hours</p>
                   </div>
                 </div>
               </div>
             </div>
-            
-            <div 
-              className="bg-white p-8 rounded-2xl shadow-xl"
+
+            {/* Right: Contact Form */}
+            <div
+              className="relative"
               data-aos="fade-left"
             >
-              <h3 className="text-2xl font-semibold text-gray-900 mb-6">Send us a message</h3>
-              <form className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                    <input type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                    <input type="text" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
+              {/* Form Card */}
+              <div className="relative rounded-3xl overflow-hidden bg-white shadow-2xl">
+                {/* Gradient border effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-500 via-orange-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{padding: '2px'}} />
+
+                <div className="relative bg-white rounded-3xl p-8 sm:p-10">
+                  <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Send us a message</h3>
+                  <p className="text-gray-600 mb-8">We'd love to hear from you. Drop us a line!</p>
+
+                  <form className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="group">
+                        <label className="block text-sm font-semibold text-gray-900 mb-2.5">First Name</label>
+                        <input
+                          type="text"
+                          placeholder="Enter your first name"
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 focus:bg-white transition-all duration-200 group-hover:border-gray-300"
+                        />
+                      </div>
+                      <div className="group">
+                        <label className="block text-sm font-semibold text-gray-900 mb-2.5">Last Name</label>
+                        <input
+                          type="text"
+                          placeholder="Enter your last name"
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 focus:bg-white transition-all duration-200 group-hover:border-gray-300"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="group">
+                      <label className="block text-sm font-semibold text-gray-900 mb-2.5">Email Address</label>
+                      <input
+                        type="email"
+                        placeholder="your@email.com"
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 focus:bg-white transition-all duration-200 group-hover:border-gray-300"
+                      />
+                    </div>
+
+                    <div className="group">
+                      <label className="block text-sm font-semibold text-gray-900 mb-2.5">Subject</label>
+                      <select
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:border-orange-500 focus:bg-white transition-all duration-200 group-hover:border-gray-300"
+                      >
+                        <option>General Inquiry</option>
+                        <option>Technical Support</option>
+                        <option>Business Partnership</option>
+                        <option>Report an Issue</option>
+                      </select>
+                    </div>
+
+                    <div className="group">
+                      <label className="block text-sm font-semibold text-gray-900 mb-2.5">Message</label>
+                      <textarea
+                        rows={4}
+                        placeholder="Tell us what's on your mind..."
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 focus:bg-white transition-all duration-200 resize-none group-hover:border-gray-300"
+                      />
+                    </div>
+
+                    <Button className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-3.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/30 transform hover:scale-[1.02] active:scale-95">
+                      Send Message
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </form>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input type="email" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              </div>
+
+              {/* Floating stats */}
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <div className="bg-white rounded-2xl p-5 shadow-lg text-center border border-gray-100">
+                  <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">24/7</div>
+                  <div className="text-xs text-gray-600 mt-1">Round the clock support</div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
-                  <textarea rows={4} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <div className="bg-white rounded-2xl p-5 shadow-lg text-center border border-gray-100">
+                  <div className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">30min</div>
+                  <div className="text-xs text-gray-600 mt-1">Avg response time</div>
                 </div>
-                <Button className="w-full">Send Message</Button>
-              </form>
+              </div>
             </div>
           </div>
         </div>
