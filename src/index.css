@@ -50,3 +50,175 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
+
+/* MICRO-INTERACTIONS & SCROLL ANIMATIONS */
+
+/* .hover-lift — Card lift on hover */
+.hover-lift {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.hover-lift:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.dark .hover-lift:hover {
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 4px 12px rgba(6,182,212,0.08);
+}
+
+/* .hover-glow — Indigo/cyan glow on hover */
+.hover-glow {
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+  will-change: transform;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.4), 0 8px 30px rgba(99,102,241,0.2);
+  transform: translateY(-3px);
+}
+
+.dark .hover-glow:hover {
+  box-shadow: 0 0 0 2px rgba(6,182,212,0.35), 0 8px 30px rgba(6,182,212,0.15);
+}
+
+/* .btn-animated — Button scale + radial ripple on hover */
+.btn-animated {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+}
+
+.btn-animated::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.2) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.btn-animated:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.btn-animated:hover::after {
+  opacity: 1;
+}
+
+.btn-animated:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* .link-reveal — Animated underline for nav/text links */
+.link-reveal {
+  position: relative;
+  display: inline-block;
+}
+
+.link-reveal::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1.5px;
+  background: currentColor;
+  border-radius: 1px;
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.link-reveal:hover::after {
+  width: 100%;
+}
+
+/* .hover-shine — Diagonal shine sweep on hover */
+.hover-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%);
+  transition: left 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.hover-shine:hover::before {
+  left: 160%;
+}
+
+/* .animate-section-enter — CSS-only fallback fade-up */
+@keyframes section-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-section-enter {
+  animation: section-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Accessibility: Disable animations for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .hover-lift,
+  .hover-lift:hover,
+  .hover-glow,
+  .hover-glow:hover,
+  .btn-animated,
+  .btn-animated:hover,
+  .btn-animated:active,
+  .hover-shine,
+  .hover-shine::before,
+  .link-reveal::after {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .hover-glow:hover {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .btn-animated:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-animated:active {
+    transform: none;
+  }
+
+  .link-reveal::after {
+    width: 0;
+  }
+
+  .hover-shine::before {
+    left: -100%;
+  }
+
+  .animate-section-enter {
+    animation: none;
+  }
+}

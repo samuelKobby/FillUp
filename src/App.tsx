@@ -1,11 +1,13 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ScrollProvider } from './contexts/ScrollContext'
 import { Footer } from './components/layout/Footer'
 import { PageTransition } from './components/layout/PageTransition'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SplashScreen } from './components/SplashScreen'
 import { motion } from 'framer-motion'
+import { useSmoothScroll } from './hooks/useSmoothScroll'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
@@ -95,6 +97,9 @@ const RedirectOnRefresh: React.FC = () => {
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, userRole } = useAuth()
   const location = useLocation()
+
+  // Enable smooth scroll on all pages including home page
+  useSmoothScroll({ enabled: true })
 
   // Check if current path is an auth page (login, register, etc.)
   const isAuthPage = location.pathname.includes('/login') || 
@@ -239,8 +244,9 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        {/* Toast notifications */}
-        <Toaster
+        <ScrollProvider>
+          {/* Toast notifications */}
+          <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
@@ -473,6 +479,7 @@ function App() {
           </PageTransition>
         </Layout>
         </motion.div>
+        </ScrollProvider>
       </AuthProvider>
     </Router>
   )

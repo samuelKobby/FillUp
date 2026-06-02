@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Fuel, Menu, User, ChevronDown, Bell } from 'lucide-react'
 import logo1 from '../../assets/logo1.png'
@@ -8,6 +8,12 @@ export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const { user, userRole, signOut, userProfile } = useAuth()
+  const location = useLocation()
+  const isLanding2 = location.pathname === '/landing2'
+
+  if (isLanding2) {
+    return null;
+  }
 
   const handleSignOut = async () => {
     try {
