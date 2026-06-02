@@ -32,17 +32,36 @@ export function CirclesModelCanvas({ className }: Props) {
 
     renderer.setClearColor(0x000000, 0)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.2
 
     const scene = new THREE.Scene()
 
     const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 200)
     camera.position.set(0, 0, 5)
 
-    const ambient = new THREE.AmbientLight(0xffffff, 1.15)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6)
     scene.add(ambient)
-    const dir = new THREE.DirectionalLight(0xffffff, 1.25)
-    dir.position.set(3, 4, 6)
-    scene.add(dir)
+    
+    // Main rim light (White/Cool)
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.5)
+    dirLight1.position.set(5, 5, 5)
+    scene.add(dirLight1)
+
+    // Brand color light (Orange)
+    const dirLight2 = new THREE.DirectionalLight(0xf97316, 4)
+    dirLight2.position.set(-5, 2, 5)
+    scene.add(dirLight2)
+
+    // Accent light (Red)
+    const dirLight3 = new THREE.DirectionalLight(0xef4444, 3)
+    dirLight3.position.set(0, -5, 2)
+    scene.add(dirLight3)
+
+    // Specular point light for glossiness
+    const pointLight = new THREE.PointLight(0xffffff, 2, 20)
+    pointLight.position.set(0, 2, 4)
+    scene.add(pointLight)
 
     let model: THREE.Object3D | null = null
     let mixer: THREE.AnimationMixer | null = null
@@ -61,6 +80,16 @@ export function CirclesModelCanvas({ className }: Props) {
           const mesh = obj as THREE.Mesh
           if (!mesh.isMesh) return
           mesh.frustumCulled = false
+          
+          // Apply premium glossy brand material
+          mesh.material = new THREE.MeshPhysicalMaterial({
+            color: new THREE.Color(0xf6850a), // Matched to brand orange
+            emissive: new THREE.Color(0x2a0a00), // Slight warm glow
+            metalness: 0.9,
+            roughness: 0.1,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.05,
+          })
         })
 
         // Setup animation mixer if model has animations

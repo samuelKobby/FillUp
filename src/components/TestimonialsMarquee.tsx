@@ -1,6 +1,6 @@
 import React from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
-import { Card, CardContent } from './ui/card'
+import { Card, CardContent } from './ui/Card'
 import { Marquee } from './ui/3d-testimonials'
 
 const testimonials = [
