@@ -5,7 +5,8 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { Button } from '../../components/ui/Button'
-import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../lib/supabase'
+import { uploadStationImage } from '../../lib/imageUpload'
 
 // Fix Leaflet default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -49,7 +50,6 @@ export const StationRegister: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null)
   
-  const { signUp } = useAuth()
   const navigate = useNavigate()
 
   // Map picker component
@@ -190,17 +190,107 @@ export const StationRegister: React.FC = () => {
     setLoading(true)
 
     try {
-      // First create the user account
-      await signUp(formData.email, formData.password, {
-        name: formData.name,
-        phone: formData.phone,
-        role: 'station'
+      const stationLocation = coordinates
+        ? {
+            type: 'Point' as const,
+            coordinates: [coordinates[1], coordinates[0]] as [number, number]
+          }
+        : null
+
+      const stationPayload = {
+        station_name: formData.stationName,
+        station_address: `${formData.address}, ${formData.location}`,
+        station_location: stationLocation,
+        station_phone: formData.stationPhone || null,
+        fuel_types: formData.fuelTypes,
+        petrol_price: parseFloat(formData.petrolPrice) || 0,
+        diesel_price: parseFloat(formData.dieselPrice) || 0,
+        operating_hours: formData.operatingHours,
+        description: formData.description || null
+      }
+
+      // First create the auth account so the station can be linked to a user record
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            phone: formData.phone,
+            role: 'station',
+            intent: 'station_registration',
+            ...stationPayload
+          }
+        }
       })
+
+      if (error) throw error
+
+      if (!data.user?.id) {
+        throw new Error('Station account created, but the user ID was not returned.')
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const { data: pendingStation, error: pendingStationError } = await supabase
+        .from('pending_stations')
+        .select('id')
+        .eq('auth_id', data.user.id)
+        .single()
+
+      let pendingStationId = pendingStation?.id || null
+
+      if (pendingStationError || !pendingStationId) {
+        // Build insert payload but avoid sending a GeoJSON-like object
+        // directly into a POINT column. Convert to Postgres point string
+        // or omit the field to let the DB trigger handle it.
+        const insertPayload: any = {
+          auth_id: data.user.id,
+          email: formData.email,
+          name: formData.name,
+          phone: formData.phone,
+          status: 'pending'
+        }
+
+        // If station_location exists, convert to Postgres point literal '(lng,lat)'
+        if (stationPayload.station_location && stationPayload.station_location.coordinates) {
+          const lng = stationPayload.station_location.coordinates[0]
+          const lat = stationPayload.station_location.coordinates[1]
+          insertPayload.location = `(${lng},${lat})`
+        }
+
+        // Copy other allowed fields
+        insertPayload.station_name = stationPayload.station_name
+        insertPayload.station_address = stationPayload.station_address
+        insertPayload.station_phone = stationPayload.station_phone
+        insertPayload.fuel_types = stationPayload.fuel_types
+        insertPayload.petrol_price = stationPayload.petrol_price
+        insertPayload.diesel_price = stationPayload.diesel_price
+        insertPayload.operating_hours = stationPayload.operating_hours
+        insertPayload.description = stationPayload.description
+
+        const { data: insertedPendingStation, error: insertError } = await supabase
+          .from('pending_stations')
+          .insert(insertPayload)
+          .select('id')
+          .single()
+
+        if (insertError) {
+          throw insertError
+        }
+
+        pendingStationId = insertedPendingStation?.id || null
+      }
+
+      if (pendingStationId) {
+        localStorage.setItem('pendingStationId', pendingStationId)
+      }
       
-      // Store station data for later use after email verification
+      // Keep a fallback copy in localStorage in case the verification flow needs to repair data
       localStorage.setItem('pendingStationData', JSON.stringify({
+        stationId: pendingStationId,
         stationName: formData.stationName,
-        address: formData.address + ', ' + formData.location, // Combine address with city/region
+        address: `${formData.address}, ${formData.location}`,
         coordinates: coordinates ? {
           lat: coordinates[0],
           lng: coordinates[1]
@@ -216,11 +306,15 @@ export const StationRegister: React.FC = () => {
       
       // Store image separately if exists
       if (stationImage) {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          localStorage.setItem('pendingStationImage', reader.result as string)
+        try {
+          const imageUrl = await uploadStationImage(stationImage, pendingStationId || data.user.id)
+          await supabase
+            .from('pending_stations')
+            .update({ image_url: imageUrl })
+            .eq('id', pendingStationId)
+        } catch (imageError) {
+          console.error('Failed to upload station image during registration:', imageError)
         }
-        reader.readAsDataURL(stationImage)
       }
       
       navigate(`/verify-email?email=${encodeURIComponent(formData.email)}&type=station`)

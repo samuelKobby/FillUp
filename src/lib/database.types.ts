@@ -176,6 +176,8 @@ export interface Database {
           is_verified: boolean
           is_active: boolean
           operating_hours: Json
+          description: string | null
+          image_url: string | null
           created_at: string
           updated_at: string
         }
@@ -192,6 +194,8 @@ export interface Database {
           is_verified?: boolean
           is_active?: boolean
           operating_hours?: Json
+          description?: string | null
+          image_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -208,8 +212,81 @@ export interface Database {
           is_verified?: boolean
           is_active?: boolean
           operating_hours?: Json
+          description?: string | null
+          image_url?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      pending_stations: {
+        Row: {
+          id: string
+          auth_id: string
+          email: string
+          name: string
+          phone: string | null
+          station_name: string
+          station_address: string
+          location: GeoJSONPoint | null
+          station_phone: string | null
+          fuel_types: string[]
+          petrol_price: number
+          diesel_price: number
+          operating_hours: Json
+          description: string | null
+          image_url: string | null
+          status: 'pending' | 'approved' | 'rejected'
+          admin_notes: string | null
+          created_at: string
+          updated_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        Insert: {
+          id?: string
+          auth_id: string
+          email: string
+          name: string
+          phone?: string | null
+          station_name: string
+          station_address: string
+          location?: GeoJSONPoint | null
+          station_phone?: string | null
+          fuel_types?: string[]
+          petrol_price?: number
+          diesel_price?: number
+          operating_hours?: Json
+          description?: string | null
+          image_url?: string | null
+          status?: 'pending' | 'approved' | 'rejected'
+          admin_notes?: string | null
+          created_at?: string
+          updated_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Update: {
+          id?: string
+          auth_id?: string
+          email?: string
+          name?: string
+          phone?: string | null
+          station_name?: string
+          station_address?: string
+          location?: GeoJSONPoint | null
+          station_phone?: string | null
+          fuel_types?: string[]
+          petrol_price?: number
+          diesel_price?: number
+          operating_hours?: Json
+          description?: string | null
+          image_url?: string | null
+          status?: 'pending' | 'approved' | 'rejected'
+          admin_notes?: string | null
+          created_at?: string
+          updated_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
         }
       }
       orders: {

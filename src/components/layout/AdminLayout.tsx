@@ -12,7 +12,8 @@ import {
   Shield,
   BarChart3,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
@@ -71,6 +72,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       href: '/admin/stations',
       icon: MapPin,
       current: location.pathname === '/admin/stations'
+    },
+    {
+      name: 'Pending Stations',
+      href: '/admin/pending-stations',
+      icon: Clock,
+      current: location.pathname === '/admin/pending-stations'
     },
     {
       name: 'Payments',

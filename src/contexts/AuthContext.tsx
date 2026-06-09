@@ -111,6 +111,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return inserted
   }
 
+  const ensureApprovedRoleAccess = async (authUser: User, role: UserRole | null) => {
+    if (!role || role === 'customer' || role === 'admin') return
+
+    if (role === 'agent') {
+      const { data, error } = await supabase
+        .from('agents')
+        .select('id, is_verified')
+        .eq('user_id', authUser.id)
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data || !data.is_verified) {
+        throw new Error('Your agent application is pending admin approval.')
+      }
+
+      return
+    }
+
+    if (role === 'station') {
+      const { data, error } = await supabase
+        .from('stations')
+        .select('id, is_verified')
+        .eq('user_id', authUser.id)
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data || !data.is_verified) {
+        throw new Error('Your station application is pending admin approval.')
+      }
+    }
+  }
+
   const maybeExchangeOAuthCodeForSession = async () => {
     // We use /login as the OAuth callback; this makes the allowlist simple.
     // Some deployments/providers won't auto-exchange the PKCE code, so we do it.
@@ -156,6 +188,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserProfile(profile)
         setUserRole(profile.role)
         persistUserRole(authUser.id, profile.role)
+        try {
+          await ensureApprovedRoleAccess(authUser, profile.role)
+        } catch {
+          await supabase.auth.signOut()
+        }
       }
 
       // Only clear the intended role once we have a real profile/role loaded.
@@ -244,20 +281,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } catch {
               // ignore
             }
-          }
 
-          // If user is an agent, check approval status
-          if (profile && profile.role === 'agent') {
             try {
-              const { data: agentData, error } = await supabase
-                .from('agents')
-                .select('id, is_verified')
-                .eq('user_id', session.user.id)
-                .single()
-
-              if (error || !agentData || !agentData.is_verified) {
-                await supabase.auth.signOut()
-              }
+              await ensureApprovedRoleAccess(session.user, profile.role)
             } catch {
               await supabase.auth.signOut()
             }
@@ -297,6 +323,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserProfile(profile)
           setUserRole(profile.role)
           persistUserRole(data.user.id, profile.role)
+          try {
+            await ensureApprovedRoleAccess(data.user, profile.role)
+          } catch (approvalError) {
+            await supabase.auth.signOut()
+            throw approvalError
+          }
         }
       }
       

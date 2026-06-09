@@ -146,6 +146,25 @@ interface Station {
   users: User
 }
 
+interface PendingStation {
+  id: string
+  auth_id: string
+  email: string
+  name: string
+  phone: string | null
+  station_name: string
+  station_address: string
+  station_phone: string | null
+  fuel_types: string[]
+  petrol_price: number
+  diesel_price: number
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+  updated_at?: string
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+}
+
 // Promo definition matching database schema (see column list provided by user)
 interface Promo {
   id: string
@@ -296,6 +315,7 @@ export const AdminDashboard: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([])
   const [mechanics, setMechanics] = useState<Agent[]>([])
   const [pendingAgents, setPendingAgents] = useState<PendingAgent[]>([])
+  const [pendingStations, setPendingStations] = useState<PendingStation[]>([])
   const [stations, setStations] = useState<Station[]>([])
   const [promos, setPromos] = useState<Promo[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -447,6 +467,7 @@ export const AdminDashboard: React.FC = () => {
         mechanicsResult,
         stationsResult,
         pendingAgentsResult,
+        pendingStationsResult,
         promosResult
       ] = await Promise.all([
         supabase.from('orders').select('*'),
@@ -455,6 +476,7 @@ export const AdminDashboard: React.FC = () => {
         supabase.from('agents').select('*, users(*)').eq('service_type', 'mechanic'), // Mechanics
         supabase.from('stations').select('*, users(*)'),
         supabase.from('pending_agents').select('*').eq('status', 'pending'), // Pending applications
+        supabase.from('pending_stations').select('*'),
         supabase.from('promotions').select('*') // Promos
       ])
 
@@ -464,6 +486,7 @@ export const AdminDashboard: React.FC = () => {
       const allMechanics = mechanicsResult.data as Agent[] || []
       const allStations = stationsResult.data as Station[] || []
       const allPromos = promosResult.data as Promo[] || []
+      const allPendingStations = pendingStationsResult.data as PendingStation[] || []
       // Map pending agents from pending_agents table  
       const allPendingAgents = (pendingAgentsResult.data as any[] || []).map(agent => ({
         id: agent.id,
@@ -519,6 +542,7 @@ export const AdminDashboard: React.FC = () => {
       setAgents(allAgents)
       setMechanics(allMechanics)
       setPendingAgents(allPendingAgents)
+      setPendingStations(allPendingStations)
       setStations(allStations)
       setPromos(allPromos)
 
@@ -543,6 +567,7 @@ export const AdminDashboard: React.FC = () => {
     { id: 'mechanics', label: 'Mechanics', icon: Wrench },
     { id: 'agent-applications', label: 'Agent Applications', icon: UserPlus },
     { id: 'stations', label: 'Stations', icon: MapPin },
+    { id: 'pending-stations', label: 'Pending Stations', icon: Clock },
     { id: 'orders', label: 'Orders', icon: ClipboardList },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'support', label: 'Support', icon: AlertTriangle },
@@ -1582,6 +1607,112 @@ export const AdminDashboard: React.FC = () => {
                       >
                         {actionLoading === row.id ? 'Processing...' : 'Suspend'}
                       </button>
+                    </div>
+                  )
+                }
+              ]}
+              actions={[
+                { icon: Filter, label: 'Filter' },
+                { icon: Plus, label: 'Add Station' }
+              ]}
+            />
+          </div>
+        )
+
+      case 'pending-stations':
+        return (
+          <div className="space-y-6">
+            <DataTable
+              title="Pending Station Applications"
+              data={pendingStations}
+              columns={[
+                {
+                  key: 'station_name',
+                  label: 'Station',
+                  render: (_: any, row: PendingStation) => (
+                    <div>
+                      <div className="text-white font-semibold">{row.station_name}</div>
+                      <div className="text-gray-400 text-xs">{row.station_address}</div>
+                    </div>
+                  )
+                },
+                { key: 'name', label: 'Manager', render: (_: any, row: PendingStation) => row.name },
+                { key: 'email', label: 'Email', render: (_: any, row: PendingStation) => row.email },
+                { key: 'petrol_price', label: 'Petrol Price', render: (price: number) => `₵${price}/L` },
+                { key: 'diesel_price', label: 'Diesel Price', render: (price: number) => `₵${price}/L` },
+                { key: 'status', label: 'Status', render: (status: string) => <StatusBadge status={status} /> },
+                { key: 'created_at', label: 'Applied', render: (date: string) => new Date(date).toLocaleDateString() },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (_: any, row: PendingStation) => (
+                    <div className="flex gap-2">
+                      {row.status === 'pending' && (
+                        <>
+                          <button
+                            className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs transition-colors"
+                            disabled={actionLoading === row.id}
+                            onClick={async () => {
+                              try {
+                                setActionLoading(row.id)
+                                const { data: userData } = await supabase.auth.getUser()
+                                const adminId = userData.user?.id
+                                if (!adminId) throw new Error('Admin ID not found')
+
+                                const { error } = await supabase.rpc('approve_station_application', {
+                                  application_id: row.id,
+                                  admin_id: adminId,
+                                  admin_notes: 'Approved from admin dashboard'
+                                })
+
+                                if (error) throw error
+
+                                toast.success('Station approved successfully')
+                                loadDashboardData()
+                              } catch (err: any) {
+                                console.error('❌ Error approving station application:', err)
+                                toast.error(err.message || 'Failed to approve station')
+                              } finally {
+                                setActionLoading(null)
+                              }
+                            }}
+                          >
+                            {actionLoading === row.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-lg text-xs transition-colors"
+                            disabled={actionLoading === row.id}
+                            onClick={async () => {
+                              try {
+                                setActionLoading(row.id)
+                                if (!await showConfirm('Are you sure you want to reject this station application?', 'Reject')) return
+
+                                const { data: userData } = await supabase.auth.getUser()
+                                const adminId = userData.user?.id
+                                if (!adminId) throw new Error('Admin ID not found')
+
+                                const { error } = await supabase.rpc('reject_station_application', {
+                                  application_id: row.id,
+                                  admin_id: adminId,
+                                  admin_notes: 'Rejected from admin dashboard'
+                                })
+
+                                if (error) throw error
+
+                                toast.success('Station rejected successfully')
+                                loadDashboardData()
+                              } catch (err: any) {
+                                console.error('❌ Error rejecting station application:', err)
+                                toast.error(err.message || 'Failed to reject station')
+                              } finally {
+                                setActionLoading(null)
+                              }
+                            }}
+                          >
+                            {actionLoading === row.id ? 'Processing...' : 'Reject'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   )
                 }

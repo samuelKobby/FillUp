@@ -68,6 +68,8 @@ export const StationLogin: React.FC = () => {
       if (message.includes('Invalid login credentials')) {
         toast.error('Invalid station credentials.')
         setError('Invalid station credentials. Please check your email and password.')
+      } else if (message.includes('pending admin approval')) {
+        setError('Your station application is still pending admin approval.')
       } else if (message.includes('verify your email')) {
         setError('Please verify your email address before accessing the station portal.')
       } else {

@@ -32,6 +32,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminUsers } from './pages/admin/AdminUsers'
 import { AdminAgents } from './pages/admin/AdminAgents'
 import { AdminStations } from './pages/admin/AdminStations'
+import { PendingStations } from './pages/admin/PendingStations'
 import { AdminOrders } from './pages/admin/AdminOrders'
 import { AgentApplications } from './pages/admin/AgentApplications'
 import { AgentApplicationDetail } from './pages/admin/AgentApplicationDetail'
@@ -344,6 +345,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminStations />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/pending-stations" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <PendingStations />
                 </ProtectedRoute>
               } 
             />
