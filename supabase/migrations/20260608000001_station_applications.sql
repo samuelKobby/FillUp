@@ -173,20 +173,20 @@ DECLARE
   station_image_url text;
 BEGIN
   SELECT
-    auth_id,
-    email,
-    name,
-    phone,
-    station_name,
-    station_address,
-    location,
-    station_phone,
-    fuel_types,
-    petrol_price,
-    diesel_price,
-    operating_hours,
-    description,
-    image_url
+    ps.auth_id,
+    ps.email,
+    ps.name,
+    ps.phone,
+    ps.station_name,
+    ps.station_address,
+    ps.location,
+    ps.station_phone,
+    ps.fuel_types,
+    ps.petrol_price,
+    ps.diesel_price,
+    ps.operating_hours,
+    ps.description,
+    ps.image_url
   INTO
     station_auth_id,
     station_email,
@@ -202,8 +202,8 @@ BEGIN
     station_hours,
     station_description,
     station_image_url
-  FROM pending_stations
-  WHERE id = application_id AND status = 'pending';
+  FROM pending_stations ps
+  WHERE ps.id = application_id AND ps.status = 'pending';
 
   IF station_auth_id IS NULL THEN
     RAISE EXCEPTION 'Invalid application ID or application is not pending';

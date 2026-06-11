@@ -48,6 +48,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import toast from '../../lib/toast'
 import { showConfirm } from '../../lib/confirm'
+import { getStationImageUrl } from '../../lib/imageUpload'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar'
 import 'react-circular-progressbar/dist/styles.css'
@@ -331,6 +332,7 @@ export const AdminDashboard: React.FC = () => {
   const [showStationDetails, setShowStationDetails] = useState(false)
   const [selectedPendingAgent, setSelectedPendingAgent] = useState<PendingAgent | null>(null)
   const [showPendingAgentDetails, setShowPendingAgentDetails] = useState(false)
+  const [stationImageUrl, setStationImageUrl] = useState<string | null>(null)
   const [satisfactionRate, setSatisfactionRate] = useState(0)
   const [referralData, setReferralData] = useState({ invited: 0, bonus: 0, safetyScore: 0 })
 
@@ -339,6 +341,26 @@ export const AdminDashboard: React.FC = () => {
   }, [])
 
   // Real-time subscriptions for orders, agents, stations, and users
+    // Load signed image URL when station is selected
+    useEffect(() => {
+      const loadSignedUrl = async () => {
+        if (selectedStation?.image_url) {
+          try {
+            const signedUrl = await getStationImageUrl(selectedStation.image_url)
+            setStationImageUrl(signedUrl)
+          } catch (error) {
+            console.error('Failed to load signed URL:', error)
+            setStationImageUrl(null)
+          }
+        } else {
+          setStationImageUrl(null)
+        }
+      }
+
+      loadSignedUrl()
+    }, [selectedStation])
+
+    // Real-time subscriptions for orders, agents, stations, and users
   const dashboardRefreshTimer = useRef<number | null>(null)
 
   useEffect(() => {
@@ -3434,7 +3456,7 @@ export const AdminDashboard: React.FC = () => {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-6 overflow-y-auto">
+<main className="flex-1 p-6">
             {renderPage()}
           </main>
         </div>
@@ -4054,8 +4076,8 @@ export const AdminDashboard: React.FC = () => {
                 <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-bold text-xl">
-                      {selectedStation.logo || selectedStation.logo_url || selectedStation.image_url ? (
-                        <img src={selectedStation.logo || selectedStation.logo_url || selectedStation.image_url} alt={selectedStation.name} className="w-full h-full rounded-full object-cover" />
+                      {stationImageUrl ? (
+                        <img src={stationImageUrl} alt={selectedStation.name} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         selectedStation.name?.charAt(0) || 'S'
                       )}

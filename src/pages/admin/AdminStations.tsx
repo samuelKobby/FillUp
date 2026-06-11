@@ -17,6 +17,7 @@ import {
   DollarSign
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { getStationImageUrl } from '../../lib/imageUpload'
 import loaderGif from '../../assets/lodaer.gif'
 
 interface Station {
@@ -31,6 +32,7 @@ interface Station {
   is_verified: boolean
   is_active: boolean
   operating_hours: any
+  image_url: string | null
   created_at: string
   users: {
     name: string | null
@@ -42,6 +44,7 @@ interface Station {
 export const AdminStations: React.FC = () => {
   const [stations, setStations] = useState<Station[]>([])
   const [filteredStations, setFilteredStations] = useState<Station[]>([])
+  const [signedImageUrls, setSignedImageUrls] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -54,6 +57,30 @@ export const AdminStations: React.FC = () => {
   useEffect(() => {
     filterStations()
   }, [stations, searchTerm, statusFilter, fuelTypeFilter])
+
+  // Load signed URLs for images
+  useEffect(() => {
+    const loadSignedUrls = async () => {
+      const urls: Record<string, string> = {}
+      for (const station of stations) {
+        if (station.image_url) {
+          try {
+            const signedUrl = await getStationImageUrl(station.image_url)
+            if (signedUrl) {
+              urls[station.id] = signedUrl
+            }
+          } catch (error) {
+            console.error(`Failed to load signed URL for station ${station.id}:`, error)
+          }
+        }
+      }
+      setSignedImageUrls(urls)
+    }
+
+    if (stations.length > 0) {
+      loadSignedUrls()
+    }
+  }, [stations])
 
   const loadStations = async () => {
     try {
@@ -276,9 +303,17 @@ export const AdminStations: React.FC = () => {
                   >
                     <td className="py-4 px-2">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white">
-                          <Fuel className="h-5 w-5" />
-                        </div>
+                        {signedImageUrls[station.id] ? (
+                          <img
+                            src={signedImageUrls[station.id]}
+                            alt={station.name}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white">
+                            <Fuel className="h-5 w-5" />
+                          </div>
+                        )}
                         <div>
                           <p className="font-medium text-white">{station.name}</p>
                           <p className="text-sm text-gray-400">{station.users?.name || 'No manager'}</p>

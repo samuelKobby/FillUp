@@ -1,5 +1,31 @@
 import { supabase } from './supabase'
 
+export const getStationImageUrl = async (imageUrl: string | null): Promise<string | null> => {
+  if (!imageUrl) return null
+  
+  try {
+    // If it's already a public URL (from getPublicUrl), return as-is
+    if (imageUrl.includes('supabase.co/storage') && imageUrl.includes('public')) {
+      return imageUrl
+    }
+
+    // Otherwise, try to extract the file path and generate a signed URL
+    const urlParts = imageUrl.split('/station-images/')
+    if (urlParts.length >= 2) {
+      const filePath = urlParts[1]
+      const { data } = await supabase.storage
+        .from('station-images')
+        .createSignedUrl(filePath, 3600) // 1 hour expiry
+      return data?.signedUrl || imageUrl
+    }
+
+    return imageUrl
+  } catch (error) {
+    console.error('Failed to get signed URL:', error)
+    return imageUrl // Fallback to original URL
+  }
+}
+
 export const uploadStationImage = async (
   file: File,
   stationId: string
