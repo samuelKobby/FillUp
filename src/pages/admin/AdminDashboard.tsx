@@ -3218,7 +3218,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           {/* Navigation - Scrollable */}
-          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2 pb-4">
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2 pb-4" data-lenis-prevent="true">
               <ul className="space-y-1">
                 {menuItems.map((item) => (
                   <li key={item.id}>
@@ -3351,7 +3351,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Main Content - Scrollable */}
-        <div className="flex-1 flex flex-col overflow-y-auto min-h-0 scrollbar-hide">
+        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide" data-lenis-prevent="true">
           {/* Header - Vision UI Style */}
           <header className="sticky top-0 z-40 p-4">
             <div 
@@ -3456,7 +3456,7 @@ export const AdminDashboard: React.FC = () => {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-6 min-h-0">
+          <main className="flex-1 p-6">
             {renderPage()}
           </main>
         </div>
@@ -3472,7 +3472,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Order Details Modal */}
       {showOrderDetails && selectedOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-3xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl animate-slideUp scrollbar-hide">
+          <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-3xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl animate-slideUp scrollbar-hide" data-lenis-prevent="true">
             <style dangerouslySetInnerHTML={{
               __html: `
                 .scrollbar-hide::-webkit-scrollbar {
@@ -3693,7 +3693,7 @@ export const AdminDashboard: React.FC = () => {
       {/* User Details Modal */}
       {showUserDetails && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" data-lenis-prevent="true">
             <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
               <div>
                 <h3 className="text-3xl font-bold text-white mb-1">User Details</h3>
@@ -3769,7 +3769,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Agent Details Modal */}
       {showAgentDetails && selectedAgent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" data-lenis-prevent="true">
             <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
               <div>
                 <h3 className="text-3xl font-bold text-white mb-1">Agent Details</h3>
@@ -3855,7 +3855,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Mechanic Details Modal */}
       {showMechanicDetails && selectedMechanic && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" data-lenis-prevent="true">
             <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
               <div>
                 <h3 className="text-3xl font-bold text-white mb-1">Mechanic Details</h3>
@@ -3941,7 +3941,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Pending Agent Details Modal */}
       {showPendingAgentDetails && selectedPendingAgent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" data-lenis-prevent="true">
             <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
               <div>
                 <h3 className="text-3xl font-bold text-white mb-1">Agent Application</h3>
@@ -4056,7 +4056,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Station Details Modal */}
       {showStationDetails && selectedStation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" data-lenis-prevent="true">
             <div className="sticky top-0 bg-gray-900/95 backdrop-blur-2xl border-b border-white/10 p-6 flex items-center justify-between">
               <div>
                 <h3 className="text-3xl font-bold text-white mb-1">Station Details</h3>

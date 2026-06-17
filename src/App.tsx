@@ -99,8 +99,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, userRole } = useAuth()
   const location = useLocation()
 
-  // Enable smooth scroll on all pages including home page
-  useSmoothScroll({ enabled: true })
+  // Enable smooth scroll on all pages, but keep native nested scroll containers working
+  useSmoothScroll({ enabled: true, useWindowScroll: true })
+
 
   // Check if current path is an auth page (login, register, etc.)
   const isAuthPage = location.pathname.includes('/login') || 

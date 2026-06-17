@@ -2687,7 +2687,7 @@ export const StationDashboard: React.FC = () => {
           </div>
 
           {/* Navigation - Scrollable */}
-          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2 pb-4">
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2 pb-4" data-lenis-prevent="true">
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.id}>
@@ -2863,7 +2863,7 @@ export const StationDashboard: React.FC = () => {
             </div>
             <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, rgba(224,225,226,0) 0%, rgb(224,225,226) 49.52%, rgba(224,225,226,0) 100%)' }} />
           </div>
-          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2">
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2" data-lenis-prevent="true">
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.id}>
@@ -2911,7 +2911,7 @@ export const StationDashboard: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide">
+        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide" data-lenis-prevent="true">
           {/* Header - Vision UI Style */}
           <header className="sticky top-0 z-40 p-4">
             <div
@@ -3014,7 +3014,7 @@ export const StationDashboard: React.FC = () => {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6 overflow-y-auto">
+          <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6 overflow-y-auto" data-lenis-prevent="true">
             {renderPage()}
           </main>
         </div>
@@ -3050,7 +3050,7 @@ export const StationDashboard: React.FC = () => {
       {/* Order Details Modal */}
       {showOrderDetails && selectedOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-3xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl animate-slideUp scrollbar-hide">
+          <div className="bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-3xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl animate-slideUp scrollbar-hide" data-lenis-prevent="true">
             <style dangerouslySetInnerHTML={{
               __html: `.scrollbar-hide::-webkit-scrollbar { display: none; }
                        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`
@@ -3260,7 +3260,7 @@ export const StationDashboard: React.FC = () => {
       {/* Edit Profile Modal */}
       {showEditProfile && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" data-lenis-prevent="true">
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <h3 className="text-xl font-bold text-gray-900">Edit Station Profile</h3>

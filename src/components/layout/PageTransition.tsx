@@ -53,7 +53,7 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ children }) => {
         style={{
           width: '100%',
           minHeight: '100vh',
-          overflow: 'auto',
+          overflow: 'visible',
           backgroundColor: '#ffffff',
           willChange: 'transform',
         }}

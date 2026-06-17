@@ -2450,7 +2450,7 @@ export const AgentDashboard: React.FC = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto" style={{ height: 'calc(100vh - 200px)', paddingBottom: '20px' }}>
+        <div className="overflow-y-auto" style={{ height: 'calc(100vh - 200px)', paddingBottom: '20px' }} data-lenis-prevent="true">
           <div className="px-4">
             {/* Service Details Card with Customer Overlay on Vehicle */}
             <div className="bg-gray-800 rounded-xl p-4 mt-4">
@@ -2901,7 +2901,7 @@ export const AgentDashboard: React.FC = () => {
           </div>
 
           {/* Navigation - Scrollable */}
-          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2">
+          <nav className="flex-1 overflow-y-auto scrollbar-hide px-4 py-2" data-lenis-prevent="true">
             <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.id}>
@@ -2989,7 +2989,7 @@ export const AgentDashboard: React.FC = () => {
         </div>
 
         {/* Desktop Main Content */}
-        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide">
+        <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide" data-lenis-prevent="true">
           {/* Header - Vision UI Style */}
           <header className="sticky top-0 z-40 p-4">
             <div 
@@ -3046,7 +3046,7 @@ export const AgentDashboard: React.FC = () => {
           </header>
 
           {/* Desktop Page Content */}
-          <main className="flex-1 p-6 overflow-y-auto" style={{ position: 'relative' }}>
+          <main className="flex-1 p-6 overflow-y-auto" style={{ position: 'relative' }} data-lenis-prevent="true">
             <AnimatePresence mode="sync" initial={false}>
               <motion.div
                 key={currentPage}
@@ -3216,6 +3216,7 @@ export const AgentDashboard: React.FC = () => {
           <div 
             className="fixed top-0 left-0 right-0 bottom-0 z-[10000] overflow-y-auto"
             style={{ position: 'fixed' }}
+            data-lenis-prevent="true"
           >
             <div className="min-h-screen bg-gray-900 px-4 py-6">
               {/* Header */}

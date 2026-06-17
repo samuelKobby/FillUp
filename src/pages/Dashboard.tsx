@@ -175,10 +175,9 @@ export const Dashboard: React.FC = () => {
   return (
    <>
       <div style={{ 
-        minHeight: '100vh',
-        paddingBottom: '80px',
+        height: '100vh',
         backgroundColor: 'white',
-        overflow: 'auto',
+        overflow: 'hidden',
         position: 'relative'
       }}>
         <AnimatePresence mode="sync" initial={false}>
@@ -450,7 +449,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Content with rounded top corners */}
       <div className="bg-white rounded-t-3xl -mt-6 relative z-10 min-h-screen">
-        <div className="px-3 sm:px-4 pt-6 sm:pt-8 pb-4 sm:pb-6">
+        <div className="px-3 sm:px-4 pt-6 sm:pt-8 pb-24">
           {/* Service Categories */}
           <div className="mb-6 sm:mb-8">
             <h3 className="text-title font-semibold text-gray-900 mb-3 sm:mb-4">Services</h3>
