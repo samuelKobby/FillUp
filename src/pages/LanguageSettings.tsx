@@ -30,7 +30,8 @@ export const LanguageSettings: React.FC = () => {
     try {
       localStorage.setItem(storageKey, language)
       toast.success('Language saved')
-      navigate('/profile')
+      navigate('/dashboard', { state: { activeTab: 'profile' } })
+
     } catch {
       toast.error('Failed to save language')
     } finally {
@@ -43,8 +44,9 @@ export const LanguageSettings: React.FC = () => {
       <div className="bg-transparent px-6 pt-12 pb-6">
         <div className="flex items-center justify-center mb-6 relative">
           <button
-            onClick={() => navigate('/profile', { state: { activeTab: 'profile' } })}
+            onClick={() => navigate('/dashboard', { state: { activeTab: 'profile' } })}
             className="p-2 hover:bg-gray-100 rounded-full"
+
 
             aria-label="Back"
           >

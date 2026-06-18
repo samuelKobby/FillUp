@@ -153,7 +153,7 @@ export const Preferences: React.FC = () => {
       <div className="bg-transparent px-6 pt-12 pb-6">
         <div className="flex items-center justify-center mb-6 relative">
           <button
-            onClick={() => navigate('/profile', { state: { activeTab: 'profile' } })}
+            onClick={() => navigate('/dashboard', { state: { activeTab: 'profile' } })}
             className="p-2 hover:bg-gray-100 rounded-full"
             aria-label="Back"
           >
@@ -194,7 +194,8 @@ export const Preferences: React.FC = () => {
 
           <div className="pt-4 flex gap-3">
             <button
-            onClick={() => navigate('/profile', { state: { activeTab: 'profile' } })}
+            onClick={() => navigate('/dashboard', { state: { activeTab: 'profile' } })}
+
 
               disabled={loading}
               className="flex-1 px-4 py-3 bg-white text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors border border-gray-300 shadow-sm disabled:opacity-50"
