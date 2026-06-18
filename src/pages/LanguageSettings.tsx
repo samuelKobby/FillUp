@@ -43,11 +43,12 @@ export const LanguageSettings: React.FC = () => {
       <div className="bg-transparent px-6 pt-12 pb-6">
         <div className="flex items-center justify-center mb-6 relative">
           <button
-            onClick={() => navigate('/profile')}
-            className="absolute left-0 top-1 p-2 hover:bg-gray-100 rounded-full"
+            onClick={() => navigate('/profile', { state: { activeTab: 'profile' } })}
+            className="p-2 hover:bg-gray-100 rounded-full"
+
             aria-label="Back"
           >
-            <ArrowLeft01Icon size={20} color="#6B7280" className="rotate-180" />
+            <ArrowLeft01Icon size={24} />
           </button>
           <h1 className="text-xl font-semibold">Language</h1>
         </div>
@@ -82,8 +83,9 @@ export const LanguageSettings: React.FC = () => {
 
           <div className="pt-4 flex gap-3">
             <button
-              onClick={() => navigate('/profile')}
+              onClick={() => navigate('/profile', { state: { activeTab: 'profile' } })}
               disabled={loading}
+
               className="flex-1 px-4 py-3 bg-white text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors border border-gray-300 shadow-sm disabled:opacity-50"
             >
               Cancel
