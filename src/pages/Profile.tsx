@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { 
+import {
   UserIcon,
   Mail01Icon,
   SmartPhone01Icon,
   Location01Icon,
   CreditCardIcon,
   Notification02Icon,
-  HelpCircleIcon,
   Logout01Icon,
   Edit02Icon,
   ArrowRight01Icon,
@@ -23,7 +22,7 @@ import {
 } from 'hugeicons-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { uploadCustomerImage, updateCustomerImage, deleteCustomerImage } from '../lib/imageUpload'
+import { deleteCustomerImage, uploadCustomerImage } from '../lib/imageUpload'
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription'
 import { getCache, setCache } from '../lib/cache'
 
@@ -45,26 +44,28 @@ interface NotificationSettings {
 export const Profile: React.FC = () => {
   const { user, signOut, linkGoogleIdentity } = useAuth()
   const navigate = useNavigate()
+
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     return user ? getCache<UserProfile>('profile_data', user.id) : null
   })
-  const [dataLoaded, setDataLoaded] = useState(false)
+
   const [editMode, setEditMode] = useState(false)
-  const [editedProfile, setEditedProfile] = useState({
-    name: '',
-    phone: ''
-  })
+  const [editedProfile, setEditedProfile] = useState({ name: '', phone: '' })
+
   const [showNotificationSettings, setShowNotificationSettings] = useState(false)
   const [showHelpModal, setShowHelpModal] = useState(false)
+
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     orderUpdates: true,
     promotions: true,
     news: false,
     sms: true
   })
+
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   const loadProfileData = async () => {
@@ -78,13 +79,8 @@ export const Profile: React.FC = () => {
         .eq('id', user.id)
         .single()
 
-      if (error) {
-        throw new Error(`Failed to load profile: ${error.message}`)
-      }
-
-      if (!profileData) {
-        throw new Error('Profile not found. Please contact support.')
-      }
+      if (error) throw new Error(`Failed to load profile: ${error.message}`)
+      if (!profileData) throw new Error('Profile not found. Please contact support.')
 
       setProfile({
         name: profileData.name || '',
@@ -93,25 +89,26 @@ export const Profile: React.FC = () => {
         avatar_url: profileData.avatar_url || '',
         created_at: profileData.created_at
       })
+
       setEditedProfile({
         name: profileData.name || '',
         phone: profileData.phone || ''
       })
-      
+
       if (user?.id) {
-        setCache('profile_data', {
-          name: profileData.name || '',
-          email: user.email || '',
-          phone: profileData.phone || '',
-          avatar_url: profileData.avatar_url || '',
-          created_at: profileData.created_at
-        }, user.id)
+        setCache(
+          'profile_data',
+          {
+            name: profileData.name || '',
+            email: user.email || '',
+            phone: profileData.phone || '',
+            avatar_url: profileData.avatar_url || '',
+            created_at: profileData.created_at
+          },
+          user.id
+        )
       }
-      
-      setDataLoaded(true)
     } catch (error: any) {
-      // Show error to user but don't prevent them from seeing the page
-      // Use email as fallback for display
       setProfile({
         name: '',
         email: user.email || '',
@@ -119,16 +116,12 @@ export const Profile: React.FC = () => {
         avatar_url: '',
         created_at: new Date().toISOString()
       })
-      setEditedProfile({
-        name: '',
-        phone: ''
-      })
+      setEditedProfile({ name: '', phone: '' })
     } finally {
       setLoading(false)
     }
   }
 
-  // Set up Realtime subscription with auto-reconnection
   useRealtimeSubscription({
     channelName: `profile-updates-${user?.id}`,
     table: 'users',
@@ -138,9 +131,8 @@ export const Profile: React.FC = () => {
   })
 
   useEffect(() => {
-    if (user?.id) {
-      loadProfileData()
-    }
+    if (user?.id) void loadProfileData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   const handleUpdateProfile = async () => {
@@ -148,36 +140,28 @@ export const Profile: React.FC = () => {
 
     setLoading(true)
     try {
-      // Upload image first if there's a new one
       if (imageFile) {
-        try {
-          // Delete old image if exists
-          if (profile?.avatar_url) {
-            try {
-              await deleteCustomerImage(profile.avatar_url)
-            } catch (deleteError) {
-            }
+        if (profile?.avatar_url) {
+          try {
+            await deleteCustomerImage(profile.avatar_url)
+          } catch {
+            // ignore
           }
-
-          // Upload new image
-          const imageUrl = await uploadCustomerImage(imageFile, user.id)
-          
-          // Update profile with new image URL
-          const { error } = await supabase
-            .from('users')
-            .update({
-              name: editedProfile.name,
-              phone: editedProfile.phone,
-              avatar_url: imageUrl
-            })
-            .eq('id', user.id)
-
-          if (error) throw error
-        } catch (imageError) {
-          throw new Error('Failed to upload profile picture')
         }
+
+        const imageUrl = await uploadCustomerImage(imageFile, user.id)
+
+        const { error } = await supabase
+          .from('users')
+          .update({
+            name: editedProfile.name,
+            phone: editedProfile.phone,
+            avatar_url: imageUrl
+          })
+          .eq('id', user.id)
+
+        if (error) throw error
       } else {
-        // Just update profile without image
         const { error } = await supabase
           .from('users')
           .update({
@@ -189,14 +173,10 @@ export const Profile: React.FC = () => {
         if (error) throw error
       }
 
-      // Reload profile data
       await loadProfileData()
-
-      // Reset state
       setImageFile(null)
       setImagePreview(null)
       setEditMode(false)
-      
       toast.success('Profile updated successfully!')
     } catch (error: any) {
       toast.error(`Failed to update profile: ${error.message || 'Please try again.'}`)
@@ -208,21 +188,17 @@ export const Profile: React.FC = () => {
   const handleSignOut = async () => {
     try {
       toast.loading('Signing out...')
-      // Sign out first
       await signOut()
-      // Clear any stored data
       sessionStorage.clear()
       localStorage.clear()
       toast.dismiss()
       toast.success('Successfully logged out!')
-      // Force redirect to landing page
       setTimeout(() => {
         window.location.href = '/'
       }, 500)
-    } catch (error) {
+    } catch {
       toast.dismiss()
       toast.error('Error signing out, but redirecting...')
-      // Force redirect even if signOut fails
       sessionStorage.clear()
       localStorage.clear()
       setTimeout(() => {
@@ -233,28 +209,23 @@ export const Profile: React.FC = () => {
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please select an image file')
-        return
-      }
+    if (!file) return
 
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image size should be less than 5MB')
-        return
-      }
-
-      setImageFile(file)
-      
-      // Create preview
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB')
+      return
+    }
+
+    setImageFile(file)
+
+    const reader = new FileReader()
+    reader.onloadend = () => setImagePreview(reader.result as string)
+    reader.readAsDataURL(file)
   }
 
   const cancelImageUpload = () => {
@@ -264,13 +235,11 @@ export const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white pb-24">
-      {/* Header */}
       <div className="bg-transparent px-6 pt-12 pb-6">
         <div className="flex items-center justify-center mb-6">
           <h1 className="text-xl font-semibold">Profile</h1>
         </div>
 
-        {/* Profile Card */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center space-x-4">
           <div className="relative">
             {profile?.avatar_url ? (
@@ -281,31 +250,25 @@ export const Profile: React.FC = () => {
               />
             ) : (
               <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">
-                  {profile?.name?.charAt(0) || 'U'}
-                </span>
+                <span className="text-2xl font-bold text-white">{profile?.name?.charAt(0) || 'U'}</span>
               </div>
             )}
           </div>
+
           <div className="flex-1">
             <h2 className="font-semibold text-lg">
-              {profile?.name || (
-                <span className="text-gray-400 italic">No name set</span>
-              )}
+              {profile?.name || <span className="text-gray-400 italic">No name set</span>}
             </h2>
             <p className="text-sm text-gray-500">{user?.email}</p>
           </div>
-          <button
-            onClick={() => setEditMode(true)}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
+
+          <button onClick={() => setEditMode(true)} className="p-2 hover:bg-gray-100 rounded-full">
             <Edit02Icon size={20} color="#6B7280" />
           </button>
         </div>
       </div>
 
       <div className="px-6 py-6 space-y-6">
-        {/* Connected Accounts */}
         <div>
           <h3 className="text-sm font-medium text-gray-500 mb-3">Connected Accounts</h3>
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -317,7 +280,6 @@ export const Profile: React.FC = () => {
                     toast.success('Google is already linked to this account.')
                     return
                   }
-
                   await linkGoogleIdentity()
                 } catch (err: any) {
                   toast.error(err?.message || 'Failed to link Google account')
@@ -339,11 +301,13 @@ export const Profile: React.FC = () => {
           </div>
         </div>
 
-        {/* General Section */}
         <div>
           <h3 className="text-sm font-medium text-gray-500 mb-3">General</h3>
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+            <button
+              onClick={() => navigate('/wallet')}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                   <CreditCardIcon size={20} color="#6B7280" />
@@ -353,7 +317,10 @@ export const Profile: React.FC = () => {
               <ArrowRight01Icon size={20} color="#9CA3AF" />
             </button>
 
-            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+            <button
+              onClick={() => navigate('/profile/location')}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                   <Location01Icon size={20} color="#6B7280" />
@@ -363,7 +330,10 @@ export const Profile: React.FC = () => {
               <ArrowRight01Icon size={20} color="#9CA3AF" />
             </button>
 
-            <Link to="/vehicles" className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+            <Link
+              to="/vehicles"
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                   <CarParking01Icon size={20} color="#6B7280" />
@@ -373,7 +343,10 @@ export const Profile: React.FC = () => {
               <ArrowRight01Icon size={20} color="#9CA3AF" />
             </Link>
 
-            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+            <button
+              onClick={() => navigate('/profile/language')}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                   <LanguageSkillIcon size={20} color="#6B7280" />
@@ -383,8 +356,8 @@ export const Profile: React.FC = () => {
               <ArrowRight01Icon size={20} color="#9CA3AF" />
             </button>
 
-            <button 
-              onClick={() => setShowNotificationSettings(true)}
+            <button
+              onClick={() => navigate('/profile/preferences')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center space-x-3">
@@ -393,29 +366,15 @@ export const Profile: React.FC = () => {
                 </div>
                 <span className="font-medium">Notification</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notificationSettings.orderUpdates}
-                    onChange={(e) => setNotificationSettings({ 
-                      ...notificationSettings, 
-                      orderUpdates: e.target.checked 
-                    })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
-                </label>
-              </div>
+              <ArrowRight01Icon size={20} color="#9CA3AF" />
             </button>
           </div>
         </div>
 
-        {/* Support Section */}
         <div>
           <h3 className="text-sm font-medium text-gray-500 mb-3">Support</h3>
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-            <button 
+            <button
               onClick={() => setShowHelpModal(true)}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
             >
@@ -428,7 +387,25 @@ export const Profile: React.FC = () => {
               <ArrowRight01Icon size={20} color="#9CA3AF" />
             </button>
 
-            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100">
+            <button
+              onClick={async () => {
+                const shareText = 'FillUp - Order fuel easily'
+                const shareUrl = window.location.origin
+
+                try {
+                  if (navigator.share) {
+                    await navigator.share({ title: 'FillUp', text: shareText, url: shareUrl })
+                    return
+                  }
+
+                  await navigator.clipboard.writeText(shareUrl)
+                  toast.success('Link copied to clipboard')
+                } catch {
+                  toast.error('Unable to share')
+                }
+              }}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-100"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                   <Share08Icon size={20} color="#6B7280" />
@@ -438,7 +415,10 @@ export const Profile: React.FC = () => {
               <ArrowRight01Icon size={20} color="#9CA3AF" />
             </button>
 
-            <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                   <CustomerService02Icon size={20} color="#6B7280" />
@@ -450,7 +430,6 @@ export const Profile: React.FC = () => {
           </div>
         </div>
 
-        {/* Logout Button */}
         <button
           onClick={() => setShowLogoutConfirm(true)}
           className="w-full bg-white rounded-2xl p-4 shadow-sm hover:bg-gray-50 transition-colors flex items-center space-x-3"
@@ -462,7 +441,6 @@ export const Profile: React.FC = () => {
         </button>
       </div>
 
-      {/* Logout Confirmation Dialog */}
       <ConfirmDialog
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
@@ -474,220 +452,141 @@ export const Profile: React.FC = () => {
         confirmColor="red"
       />
 
-      {/* Edit Profile Screen */}
-      {editMode && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-gray-50 z-[9999] flex flex-col">
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-4 py-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <button 
-                  onClick={() => setEditMode(false)}
-                  className="w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-gray-50 transition-colors"
-                >
-                  <ArrowRight01Icon size={20} className="text-gray-700 rotate-180" />
-                </button>
-                <h2 className="text-lg font-semibold text-gray-900">Edit Profile</h2>
-                <div className="w-10"></div>
-              </div>
-
-              {/* Profile Picture */}
-              <div className="flex justify-center mb-8">
-                <div className="relative">
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-32 h-32 rounded-full object-cover border-4 border-green-500"
-                    />
-                  ) : profile?.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt={profile.name}
-                      className="w-32 h-32 rounded-full object-cover border-4 border-green-500"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-4xl font-bold text-white border-4 border-green-500">
-                      {editedProfile.name?.charAt(0) || 'U'}
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                    id="profile-image-input"
-                  />
-                  <label
-                    htmlFor="profile-image-input"
-                    className="absolute bottom-0 right-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 cursor-pointer transition-colors"
+      {editMode &&
+        ReactDOM.createPortal(
+          <div className="fixed inset-0 bg-gray-50 z-[9999] flex flex-col">
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-4 py-6">
+                <div className="flex items-center justify-between mb-6">
+                  <button
+                    onClick={() => setEditMode(false)}
+                    className="w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center hover:bg-gray-50 transition-colors"
                   >
-                    <Edit02Icon size={20} color="white" />
-                  </label>
+                    <ArrowRight01Icon size={20} className="text-gray-700 rotate-180" />
+                  </button>
+                  <h2 className="text-lg font-semibold text-gray-900">Edit Profile</h2>
+                  <div className="w-10" />
                 </div>
-              </div>
 
-              {imageFile && (
-                <div className="flex justify-center mb-6">
-                  <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-lg shadow-sm">
-                    <p className="text-sm text-green-600 font-medium">New photo selected</p>
-                    <span className="text-gray-400">•</span>
-                    <button
-                      onClick={cancelImageUpload}
-                      className="text-sm text-red-600 hover:text-red-700 font-medium"
+                <div className="flex justify-center mb-8">
+                  <div className="relative">
+                    {imagePreview ? (
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-32 h-32 rounded-full object-cover border-4 border-green-500"
+                      />
+                    ) : profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.name}
+                        className="w-32 h-32 rounded-full object-cover border-4 border-green-500"
+                      />
+                    ) : (
+                      <div className="w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-4xl font-bold text-white border-4 border-green-500">
+                        {editedProfile.name?.charAt(0) || 'U'}
+                      </div>
+                    )}
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      id="profile-image-input"
+                    />
+                    <label
+                      htmlFor="profile-image-input"
+                      className="absolute bottom-0 right-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 cursor-pointer transition-colors"
                     >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Form Fields */}
-              <div className="space-y-4 mb-6">
-                {/* Name */}
-                <div>
-                  <label className="block text-sm text-gray-600 mb-2 font-medium">Full Name</label>
-                  <div className="bg-white rounded-xl px-4 py-3 flex items-center shadow-sm border border-gray-200">
-                    <UserIcon size={20} color="#6B7280" className="mr-3 flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={editedProfile.name}
-                      onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
-                      placeholder="Enter your full name"
-                      className="bg-transparent text-gray-900 flex-1 outline-none placeholder-gray-400"
-                    />
+                      <Edit02Icon size={20} color="white" />
+                    </label>
                   </div>
                 </div>
 
-                {/* Email */}
-                <div>
-                  <label className="block text-sm text-gray-600 mb-2 font-medium">Email</label>
-                  <div className="bg-gray-100 rounded-xl px-4 py-3 flex items-center border border-gray-200">
-                    <Mail01Icon size={20} color="#6B7280" className="mr-3 flex-shrink-0" />
-                    <input
-                      type="email"
-                      value={profile?.email || ''}
-                      disabled
-                      className="bg-transparent text-gray-500 flex-1 outline-none cursor-not-allowed"
-                    />
+                {imageFile && (
+                  <div className="flex justify-center mb-6">
+                    <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                      <p className="text-sm text-green-600 font-medium">New photo selected</p>
+                      <span className="text-gray-400">•</span>
+                      <button onClick={cancelImageUpload} className="text-sm text-red-600 hover:text-red-700 font-medium">
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2 ml-1">Email cannot be changed</p>
+                )}
+
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-2 font-medium">Full Name</label>
+                    <div className="bg-white rounded-xl px-4 py-3 flex items-center shadow-sm border border-gray-200">
+                      <UserIcon size={20} color="#6B7280" className="mr-3 flex-shrink-0" />
+                      <input
+                        type="text"
+                        value={editedProfile.name}
+                        onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                        placeholder="Enter your full name"
+                        className="bg-transparent text-gray-900 flex-1 outline-none placeholder-gray-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-2 font-medium">Email</label>
+                    <div className="bg-gray-100 rounded-xl px-4 py-3 flex items-center border border-gray-200">
+                      <Mail01Icon size={20} color="#6B7280" className="mr-3 flex-shrink-0" />
+                      <input
+                        type="email"
+                        value={profile?.email || ''}
+                        disabled
+                        className="bg-transparent text-gray-500 flex-1 outline-none cursor-not-allowed"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 ml-1">Email cannot be changed</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-2 font-medium">Phone Number</label>
+                    <div className="bg-white rounded-xl px-4 py-3 flex items-center shadow-sm border border-gray-200">
+                      <SmartPhone01Icon size={20} color="#6B7280" className="mr-3 flex-shrink-0" />
+                      <input
+                        type="tel"
+                        value={editedProfile.phone}
+                        onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
+                        placeholder="Enter your phone number"
+                        className="bg-transparent text-gray-900 flex-1 outline-none placeholder-gray-400"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Phone Number */}
-                <div>
-                  <label className="block text-sm text-gray-600 mb-2 font-medium">Phone Number</label>
-                  <div className="bg-white rounded-xl px-4 py-3 flex items-center shadow-sm border border-gray-200">
-                    <SmartPhone01Icon size={20} color="#6B7280" className="mr-3 flex-shrink-0" />
-                    <input
-                      type="tel"
-                      value={editedProfile.phone}
-                      onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
-                      placeholder="Enter your phone number"
-                      className="bg-transparent text-gray-900 flex-1 outline-none placeholder-gray-400"
-                    />
-                  </div>
+                <div className="space-y-3 pt-4 pb-6">
+                  <button
+                    onClick={handleUpdateProfile}
+                    disabled={loading}
+                    className="w-full px-4 py-4 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                  <button
+                    onClick={() => setEditMode(false)}
+                    className="w-full px-4 py-4 bg-white text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors border border-gray-300 shadow-sm"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-3 pt-4 pb-6">
-                <button
-                  onClick={handleUpdateProfile}
-                  disabled={loading}
-                  className="w-full px-4 py-4 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
-                >
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={() => setEditMode(false)}
-                  className="w-full px-4 py-4 bg-white text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors border border-gray-300 shadow-sm"
-                >
-                  Cancel
-                </button>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        )}
 
-      {/* Notification Settings Modal */}
-      {showNotificationSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold">Notifications</h3>
-              <button
-                onClick={() => setShowNotificationSettings(false)}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <Cancel01Icon size={24} color="#6B7280" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                <div>
-                  <p className="font-medium">Order Updates</p>
-                  <p className="text-sm text-gray-600">Get notified about order status</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notificationSettings.orderUpdates}
-                    onChange={(e) => setNotificationSettings({ ...notificationSettings, orderUpdates: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                <div>
-                  <p className="font-medium">Promotions</p>
-                  <p className="text-sm text-gray-600">Receive special offers</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notificationSettings.promotions}
-                    onChange={(e) => setNotificationSettings({ ...notificationSettings, promotions: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                <div>
-                  <p className="font-medium">SMS Notifications</p>
-                  <p className="text-sm text-gray-600">Text message updates</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notificationSettings.sms}
-                    onChange={(e) => setNotificationSettings({ ...notificationSettings, sms: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Help Modal */}
       {showHelpModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold">Help & Support</h3>
-              <button
-                onClick={() => setShowHelpModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
+              <button onClick={() => setShowHelpModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
                 <Cancel01Icon size={24} color="#6B7280" />
               </button>
             </div>
@@ -727,6 +626,70 @@ export const Profile: React.FC = () => {
           </div>
         </div>
       )}
+
+      {showNotificationSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold">Notifications</h3>
+              <button onClick={() => setShowNotificationSettings(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                <Cancel01Icon size={24} color="#6B7280" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium">Order Updates</p>
+                  <p className="text-sm text-gray-600">Get notified about order status</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.orderUpdates}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, orderUpdates: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500" />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium">Promotions</p>
+                  <p className="text-sm text-gray-600">Receive special offers</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.promotions}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, promotions: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500" />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-medium">SMS Notifications</p>
+                  <p className="text-sm text-gray-600">Text message updates</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.sms}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, sms: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

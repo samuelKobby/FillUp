@@ -28,6 +28,10 @@ import { OrderTracking } from './pages/OrderTracking'
 import { Wallet } from './pages/Wallet'
 import { Vehicles } from './pages/Vehicles'
 import { Profile } from './pages/Profile'
+import { Preferences } from './pages/Preferences'
+
+import { LanguageSettings } from './pages/LanguageSettings'
+import { LocationSettings } from './pages/LocationSettings'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminUsers } from './pages/admin/AdminUsers'
 import { AdminAgents } from './pages/admin/AdminAgents'
@@ -472,9 +476,35 @@ function App() {
                 <ProtectedRoute requiredRole="customer">
                   <Profile />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
+            {/* Customer settings screens */}
+            <Route 
+              path="/profile/preferences" 
+              element={
+                <ProtectedRoute requiredRole="customer">
+                  <Preferences />
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/profile/language" 
+              element={
+                <ProtectedRoute requiredRole="customer">
+                  <LanguageSettings />
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/profile/location" 
+              element={
+                <ProtectedRoute requiredRole="customer">
+                  <LocationSettings />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Placeholders for other pages */}
             <Route path="/support" element={<div className="min-h-screen flex items-center justify-center"><h1 className="text-2xl">Support - Coming Soon</h1></div>} />
             <Route path="/rate-service" element={<div className="min-h-screen flex items-center justify-center"><h1 className="text-2xl">Rate Service - Coming Soon</h1></div>} />
